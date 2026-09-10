@@ -1,0 +1,20 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: #3255c8;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.box {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+h1 { font-size: 26px; margin: 0 0 6px; }
+p.small { color: var(--gray); font-size: 14px; margin: 0 0 22px; }

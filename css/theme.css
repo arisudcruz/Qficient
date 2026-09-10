@@ -1,0 +1,18 @@
+body.dark {
+  --bg: #10131C;
+  --white: #1A1F2E;
+  --line: #2B3145;
+  --gray: #9099AC;
+  --navy: #6C86D6;
+  --navyDark: #536BC0;
+  color: #B9C4F0;
+}
+
+body.dark .roleIcon { background: #232A3D; }
+body.dark .tag { background: #232A3D; }
+body.dark .tag.done { background: #16321F; color: #4FCE85; }
+body.dark .ticketBox.done .ticketTop { background: #16321F; color: #4FCE85; }
+body.dark .servingBox { background: #3A2E12; }
+body.dark .smallBtn, body.dark select { background: var(--white); color: #B9C4F0; }
+body.dark .cancelBtn { background: var(--white); }
+body.dark input { background: var(--white); color: #B9C4F0; }

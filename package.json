@@ -1,0 +1,27 @@
+{
+  "name": "qficient",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "vite",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arisudcruz/Qficient.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/arisudcruz/Qficient/issues"
+  },
+  "homepage": "https://github.com/arisudcruz/Qficient#readme",
+  "devDependencies": {
+    "vite": "^8.3.0"
+  }
+}
