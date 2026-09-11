@@ -13,7 +13,6 @@ var appScripts = [
   "js/queue.js",
   "js/student-dashboard.js",
   "js/admin-console.js",
-  "js/contact.js",
   "js/firebase.js"
 ];
 
