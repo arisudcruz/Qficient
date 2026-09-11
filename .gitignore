@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Vite/build output
+dist/
+.vite/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Logs and test coverage
+*.log
+logs/
+coverage/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
