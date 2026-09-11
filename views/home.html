@@ -1,0 +1,45 @@
+<div class="page show" id="pageHome">
+  <div class="logoRow">
+    <div class="logoBadge">Q</div>
+    <div class="logoText">STI College Malolos</div>
+  </div>
+  <h1>QFicient</h1>
+  <p class="small">One ticket, real-time status, no more re-lining for every window.</p>
+
+  <div class="box roleBox" onclick="goTo('pageLogin')">
+    <div class="roleIcon">S</div>
+    <p class="roleTitle">Student</p>
+    <p class="roleDesc">Log in and join a queue.</p>
+    <span class="roleLink">Continue as Student →</span>
+  </div>
+
+  <div class="box roleBox" onclick="goTo('pageGuest')">
+    <div class="roleIcon">G</div>
+    <p class="roleTitle">Guest / New Applicant</p>
+    <p class="roleDesc">No account needed — queue for Admission.</p>
+    <span class="roleLink">Continue as Guest →</span>
+  </div>
+
+  <div class="box roleBox" onclick="goTo('pageAdmin')">
+    <div class="roleIcon">A</div>
+    <p class="roleTitle">Staff / Admin</p>
+    <p class="roleDesc">Manage the live queues.</p>
+    <span class="roleLink">Staff View →</span>
+  </div>
+
+  <div class="box">
+    <h2>Contact Us</h2>
+    <form>
+      <label for="contactName">Name</label>
+      <input type="text" id="contactName" name="name">
+
+      <label for="contactEmail">Email</label>
+      <input type="text" id="contactEmail" name="email">
+
+      <label for="contactComments">Comments</label>
+      <textarea id="contactComments" name="comments"></textarea>
+
+      <button class="bigBtn" type="submit">Send Comments</button>
+    </form>
+  </div>
+</div>

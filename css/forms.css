@@ -1,0 +1,57 @@
+.backLink {
+  display: inline-block;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--gray);
+  cursor: pointer;
+}
+.backLink:hover { color: var(--navy); }
+
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray);
+  margin-bottom: 5px;
+}
+input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  margin-bottom: 14px;
+  resize: vertical;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px;
+}
+.bigBtn {
+  width: 100%;
+  background: var(--navy);
+  color: white;
+}
+.bigBtn:hover { background: var(--navyDark); }
+.cancelBtn {
+  width: 100%;
+  background: white;
+  border: 1px solid var(--red);
+  color: var(--red);
+}
