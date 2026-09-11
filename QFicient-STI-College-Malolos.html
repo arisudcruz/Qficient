@@ -1,23 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QFicient — STI College Malolos</title>
-<link rel="stylesheet" href="css/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QFicient - STI College Malolos</title>
+  <link rel="stylesheet" href="css/styles.css">
 
-<!-- Firebase compat SDK works with plain script tags and no build step. -->
-<script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+  <div id="message"></div>
+  <div class="themeToggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">&#127769;</div>
+  <main id="appViews"></main>
 
-<div id="message"></div>
-
-<div class="themeToggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</div>
-
-<div id="appViews"></div>
-
-<script src="js/view-loader.js"></script>
+  <script src="js/view-loader.js"></script>
 </body>
 </html>
