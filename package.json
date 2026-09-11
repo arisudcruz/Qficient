@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "npx --yes vite build",
     "preview": "vite preview"
+    "vercel-build": "npm ci && npm run build"
   },
   "repository": {
     "type": "git",
