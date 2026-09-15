@@ -4,12 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "vite",
-    "build": "vite build && node scripts/copy-static.mjs",
-    "preview": "vite preview",
-    "vercel-build": "npm ci && npm run build"
-  },
+  "dev": "node node_modules/vite/bin/vite.js",
+  "build": "node node_modules/vite/bin/vite.js build && node scripts/copy-static.mjs",
+  "preview": "node node_modules/vite/bin/vite.js preview"
+ },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/arisudcruz/Qficient.git"
