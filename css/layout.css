@@ -32,12 +32,11 @@
   margin-bottom: 18px;
 }
 .logoBadge {
-  width: 34px; height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 9px;
-  background: var(--amber);
-  color: var(--navy);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: bold;
+  object-fit: contain;
+  display: block;
 }
 .logoText {
   font-size: 12px;
