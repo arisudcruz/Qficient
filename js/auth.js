@@ -1,20 +1,26 @@
 function login() {
-  var email = document.getElementById("loginEmail").value;
+  var provider = new firebase.auth.OAuthProvider("microsoft.com");
+  provider.setCustomParameters({ prompt: "select_account" });
 
-  if (email.indexOf("@") === -1) {
-    say("Please enter a valid email.");
-    return;
-  }
+  firebase.auth().signInWithPopup(provider)
+    .then(function (result) {
+      var signedInUser = result.user;
+      var name = signedInUser.displayName || signedInUser.email;
 
-  var namePart = email.split("@")[0];
-  var niceName = namePart.replace(".", " ");
-  niceName = niceName.charAt(0).toUpperCase() + niceName.slice(1);
+      user = {
+        type: "student",
+        id: signedInUser.uid,
+        name: name,
+        email: signedInUser.email
+      };
 
-  user = { type: "student", id: email, name: niceName };
-
-  document.getElementById("welcomeText").textContent = "Welcome, " + niceName;
-  updateDashboard();
-  goTo("pageDashboard");
+      document.getElementById("welcomeText").textContent = "Welcome, " + name;
+      updateDashboard();
+      goTo("pageDashboard");
+    })
+    .catch(function (error) {
+      say("Microsoft sign-in failed: " + error.message);
+    });
 }
 
 function guestLogin() {
