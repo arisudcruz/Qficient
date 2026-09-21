@@ -12,5 +12,13 @@
   <label>Purpose</label>
   <input type="text" id="guestPurpose" placeholder="e.g. New student admission">
 
-  <button class="bigBtn" onclick="guestLogin()">Join Admission Queue</button>
+  <div id="guestRecaptcha"></div>
+
+  <div id="guestOtpSection" style="display:none;">
+    <label>Verification Code</label>
+    <input type="text" id="guestOtp" placeholder="Enter 6-digit code">
+    <button class="bigBtn" onclick="verifyGuestOtp()">Verify SMS Code</button>
+  </div>
+
+  <button class="bigBtn" onclick="requestGuestOtp()">Send SMS Code</button>
 </div>
