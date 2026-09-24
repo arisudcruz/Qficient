@@ -1,9 +1,42 @@
-<div class="page" id="pageAdmin">
-  <span class="backLink" onclick="goTo('pageHome')">← Back</span>
-  <div class="logoRow">
-    <img class="logoBadge" src="/assets/qfficient-badge.png" alt="QFicient logo">
-    <div class="logoText">Staff Console</div>
-  </div>
+<div class="page dashboard-page" id="pageAdmin">
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <div class="brand-row">
+        <div class="brand-badge">PL</div>
+        <div class="brand-name">QFicient</div>
+      </div>
 
-  <div id="adminArea"></div>
+      <nav class="sidebar-nav" aria-label="Main menu">
+        <button type="button" class="nav-item active">
+          <span class="nav-icon">◫</span>
+          <span>Dashboard</span>
+        </button>
+        <button type="button" class="nav-item">
+          <span class="nav-icon">◌</span>
+          <span>Queue Management</span>
+        </button>
+        <button type="button" class="nav-item">
+          <span class="nav-icon">◍</span>
+          <span>Notifications</span>
+        </button>
+      </nav>
+
+      <div class="admin-tools">
+        <div class="tool-label">ADMIN TOOLS</div>
+        <button type="button" class="tool-item">
+          <span class="nav-icon">⚙</span>
+          <span>Settings</span>
+        </button>
+        <div class="admin-user-row">
+          <div class="user-badge">AU</div>
+          <div class="user-meta">Admin User</div>
+          <span class="caret">⌄</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div id="adminArea"></div>
+    </main>
+  </div>
 </div>

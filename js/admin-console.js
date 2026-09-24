@@ -1,128 +1,98 @@
 function updateAdmin() {
   var area = document.getElementById("adminArea");
-  var html = "";
+  if (!area) return;
 
-  for (var i = 0; i < stations.length; i++) {
-    var station = stations[i];
-    html += '<div class="box" style="margin-bottom:14px;">';
-    html += '<p style="font-weight:700;margin:0 0 10px;">' + station.name + '</p>';
+  var stats = [
+    { label: "Total Queued", value: "124", change: "vs yesterday", tone: "amber", icon: "↗" },
+    { label: "Completed", value: "124", change: "vs yesterday", tone: "blue", icon: "↗" },
+    { label: "Skipped", value: "124", change: "vs yesterday", tone: "green", icon: "↗" },
+    { label: "Voided", value: "124", change: "vs yesterday", tone: "navy", icon: "↗" }
+  ];
 
-    var servingTicket = station.nowServingId ? tickets.find(function (ticket) {
-      return ticket.id === station.nowServingId;
-    }) : null;
+  var traffic = [
+    { name: "Cashier", value: 400 },
+    { name: "Registrar", value: 300 },
+    { name: "Admission", value: 200 }
+  ];
 
-    if (servingTicket) {
-      var pickerHtml = '<select id="pick-' + station.id + '">';
-      for (var j = 0; j < stations.length; j++) {
-        if (stations[j].id !== station.id) {
-          pickerHtml += '<option value="' + stations[j].id + '">' + stations[j].name + '</option>';
-        }
-      }
-      pickerHtml += '</select>';
+  var rows = [
+    { ticket: "C024", student: "JeAr Deia Cruz", purpose: "Tuition Fee", station: "Cashier", status: "Active", time: "10:45 AM" },
+    { ticket: "R018", student: "Mik Frane", purpose: "Transcript", station: "Registrar", status: "Waiting", time: "10:42 AM" },
+    { ticket: "A005", student: "John Who?", purpose: "Enrollment", station: "Admission", status: "Completed", time: "10:30 AM" },
+    { ticket: "C020", student: "Jane Who?", purpose: "Misc Fee", station: "Cashier", status: "Skip", time: "10:25 AM" },
+    { ticket: "A021", student: "Who’s Who?", purpose: "Misc Fee", station: "Cashier", status: "Void", time: "10:20 AM" }
+  ];
 
-      html +=
-        '<div class="servingBox">' +
-          '<span class="servingNumber">' + servingTicket.ticketNo + '</span>' +
-          '<div class="btnRow">' +
-            '<button class="smallBtn" onclick="finishTicket(\'' + station.id + '\')">Complete</button>' +
-            '<button class="smallBtn" onclick="verifyTicket(\'' + station.id + '\')">Verify</button>' +
-            '<button class="smallBtn" onclick="cancelServing(\'' + station.id + '\')">Void</button>' +
-          '</div>' +
-          '<div class="btnRow">' +
-            pickerHtml +
-            '<button class="smallBtn" onclick="transferTicket(\'' + station.id + '\')">Transfer</button>' +
-          '</div>' +
-        '</div>';
-    } else {
-      var waiting = tickets.filter(function (ticket) {
-        return ticket.stationId === station.id && ticket.status === "waiting";
-      }).sort(function (a, b) {
-        var aTime = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 0;
-        var bTime = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 0;
-        return aTime - bTime;
-      });
-      var next = waiting[0];
-      if (next) {
-        html += '<button class="bigBtn" onclick="callNext(\'' + station.id + '\')">Call Next (' + next.ticketNo + ')</button>';
-      } else {
-        html += '<p class="small" style="margin:0;">Queue is empty.</p>';
-      }
-    }
-    html += '</div>';
-  }
-  area.innerHTML = html;
+  var cardsHtml = stats.map(function (item) {
+    return '<article class="stat-card ' + item.tone + '">' +
+      '<div class="stat-top">' +
+        '<span class="stat-label">' + item.label + '</span>' +
+        '<span class="stat-icon">' + item.icon + '</span>' +
+      '</div>' +
+      '<div class="stat-value">' + item.value + '</div>' +
+      '<div class="stat-meta"><span class="stat-dot"></span> ' + item.change + '</div>' +
+    '</article>';
+  }).join("");
+
+  var trafficHtml = '<div class="chart-grid">' +
+    '<div class="chart-axis">' +
+      '<span>400</span><span>300</span><span>200</span><span>100</span><span>0</span>' +
+    '</div>' +
+    '<div class="chart-bars">' +
+      traffic.map(function (item) {
+        var height = Math.max(42, Math.min(100, (item.value / 400) * 100));
+        return '<div class="chart-group"><div class="bar-fill" style="height:' + height + '%"></div><div class="bar-label">' + item.name + '</div></div>';
+      }).join("") +
+    '</div>' +
+  '</div>';
+
+  var rowsHtml = rows.map(function (row) {
+    var statusClass = row.status.toLowerCase().replace(/\s+/g, '-');
+    return '<tr>' +
+      '<td>' + row.ticket + '</td>' +
+      '<td>' + row.student + '</td>' +
+      '<td>' + row.purpose + '</td>' +
+      '<td>' + row.station + '</td>' +
+      '<td><span class="status-badge ' + statusClass + '">' + row.status + '</span></td>' +
+      '<td>' + row.time + '</td>' +
+    '</tr>';
+  }).join("");
+
+  area.innerHTML = '<div class="dashboard-header">' +
+    '<div class="header-greeting">Hello Admin</div>' +
+    '<div class="header-filters">' +
+      '<div class="mini-filter"><span>📅</span><span>22/09/2026</span></div>' +
+      '<div class="mini-filter"><span>📅</span><span>22/09/2026</span></div>' +
+    '</div>' +
+  '</div>' +
+  '<section class="stats-grid">' + cardsHtml + '</section>' +
+  '<section class="panel chart-panel">' +
+    '<div class="panel-header">' +
+      '<h2>Station Traffic Analysis</h2>' +
+      '<div class="panel-tools">' +
+        '<div class="mini-filter"><span>📅</span><span>22/09/2026</span></div>' +
+        '<div class="mini-filter"><span>📅</span><span>Today</span></div>' +
+      '</div>' +
+    '</div>' +
+    trafficHtml +
+  '</section>' +
+  '<section class="panel table-panel">' +
+    '<div class="panel-header table-header">' +
+      '<div class="search-box">Search Student</div>' +
+      '<div class="panel-tools">' +
+        '<div class="mini-filter"><span>⌕</span><span>22/09/2026</span></div>' +
+        '<div class="mini-filter"><span>📅</span><span>Today</span></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="table-wrap">' +
+      '<table class="queue-table">' +
+        '<thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+      '</table>' +
+    '</div>' +
+  '</section>';
 }
 
-function callNext(stationId) {
-  var waiting = tickets.filter(function (ticket) {
-    return ticket.stationId === stationId && ticket.status === "waiting";
-  }).sort(function (a, b) {
-    var aTime = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 0;
-    var bTime = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 0;
-    return aTime - bTime;
-  });
-  var next = waiting[0];
-  if (!next) return;
-
-  db.collection("tickets").doc(next.id).update({ status: "called" });
-  db.collection("stations").doc(stationId).update({ nowServingId: next.id });
-}
-
-function finishTicket(stationId) {
-  var station = stations.find(function (item) { return item.id === stationId; });
-  if (station.nowServingId) {
-    db.collection("tickets").doc(station.nowServingId).update({ status: "completed" });
-  }
-  db.collection("stations").doc(stationId).update({ nowServingId: null });
-}
-
-function verifyTicket(stationId) {
-  var station = stations.find(function (item) { return item.id === stationId; });
-  if (station.nowServingId) {
-    db.collection("tickets").doc(station.nowServingId).update({ verified: true });
-    say("Ticket verified.");
-  }
-}
-
-function cancelServing(stationId) {
-  var station = stations.find(function (item) { return item.id === stationId; });
-  if (station.nowServingId) {
-    db.collection("tickets").doc(station.nowServingId).update({ status: "voided" });
-  }
-  db.collection("stations").doc(stationId).update({ nowServingId: null });
-}
-
-function transferTicket(stationId) {
-  var station = stations.find(function (item) { return item.id === stationId; });
-  var picker = document.getElementById("pick-" + stationId);
-  var targetId = picker.value;
-  var target = stations.find(function (item) { return item.id === targetId; });
-
-  if (!station.nowServingId) return;
-  var ticketId = station.nowServingId;
-  var targetRef = db.collection("stations").doc(targetId);
-
-  db.runTransaction(function (transaction) {
-    return transaction.get(targetRef).then(function (doc) {
-      var data = doc.data();
-      var newCount = (data.count || 0) + 1;
-      var letter = data.name.charAt(0);
-      var number = String(newCount).padStart(3, "0");
-      var newTicketNo = letter + "-" + number;
-
-      transaction.update(targetRef, { count: newCount });
-      transaction.update(db.collection("tickets").doc(ticketId), {
-        ticketNo: newTicketNo,
-        stationId: targetId,
-        status: "waiting"
-      });
-
-      return newTicketNo;
-    });
-  }).then(function (newTicketNo) {
-    db.collection("stations").doc(stationId).update({ nowServingId: null });
-    say("Ticket transferred to " + target.name + " as " + newTicketNo + ".");
-  }).catch(function (err) {
-    say("Transfer failed: " + err.message);
-  });
-}
+window.addEventListener('DOMContentLoaded', function () {
+  updateAdmin();
+});
