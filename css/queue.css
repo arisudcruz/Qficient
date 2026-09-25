@@ -14,14 +14,17 @@
 }
 
 .ticketBox {
-  border: 2px solid var(--line);
-  border-radius: 16px;
+  border: 1px solid #C8D5E5;
+  border-top: 4px solid var(--navy);
+  border-radius: 12px;
   overflow: hidden;
   margin-bottom: 16px;
+  background: var(--white);
+  box-shadow: 0 4px 14px rgba(0, 75, 147, 0.06);
 }
 .ticketBox.done { border-color: var(--green); }
 .ticketTop {
-  background: var(--navy);
+  background: var(--navyDark);
   color: white;
   padding: 16px;
 }
@@ -52,7 +55,8 @@
 .tag.done { background: #E4F5EC; color: var(--green); }
 
 .servingBox {
-  background: #FCEFD4;
+  background: #FFF8E5;
+  border: 1px solid #F0D37A;
   border-radius: 12px;
   padding: 14px;
   margin-bottom: 12px;

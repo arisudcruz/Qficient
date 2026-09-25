@@ -18,18 +18,24 @@
 
 .page {
   display: none;
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
-  padding: 32px 20px 60px;
+  padding: 28px 20px 60px;
   min-height: 100vh;
 }
 .page.show { display: block; }
+
+.page:not(.dashboard-page) {
+  background: var(--bg);
+}
 
 .logoRow {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--navy);
 }
 .logoBadge {
   width: 44px;
@@ -42,7 +48,8 @@
   font-size: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--amber);
+  color: var(--navyDark);
+  font-weight: 700;
 }
 
 .page.dashboard-page {
@@ -316,6 +323,42 @@
   color: var(--text);
 }
 
+.traffic-selection {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.traffic-filters {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin: -4px 0 14px;
+}
+
+.traffic-filters label {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.traffic-filters input {
+  display: block;
+  width: auto;
+  min-width: 142px;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.traffic-reset {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--navyDark);
+  font-size: 0.82rem;
+}
+
 .chart-grid {
   display: flex;
   align-items: flex-end;
@@ -351,6 +394,20 @@
   align-items: center;
   justify-content: flex-end;
   height: 100%;
+  position: relative;
+  min-width: 100px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.chart-group:hover .bar-fill,
+.chart-group.selected .bar-fill {
+  background: var(--amberDark);
 }
 
 .bar-fill {
@@ -365,6 +422,13 @@
   margin-top: 16px;
   color: #596680;
   font-size: 1.1rem;
+}
+
+.bar-value {
+  margin-top: 4px;
+  color: var(--navyDark);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .table-header {
@@ -412,6 +476,12 @@
 
 .queue-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.empty-row {
+  padding: 28px !important;
+  color: var(--text-secondary) !important;
+  text-align: center !important;
 }
 
 .status-badge {
@@ -492,9 +562,21 @@
 
   .chart-bars {
     gap: 24px;
+    overflow-x: auto;
+    justify-content: flex-start;
   }
 
   .bar-fill {
     width: 110px;
+  }
+
+  .traffic-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .traffic-filters input,
+  .traffic-reset {
+    width: 100%;
   }
 }

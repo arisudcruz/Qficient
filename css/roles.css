@@ -1,13 +1,14 @@
 .roleBox {
   cursor: pointer;
   margin-bottom: 12px;
+  border-left: 4px solid var(--amber);
   transition: transform 0.15s ease;
 }
 .roleBox:hover { transform: translateY(-2px); }
 .roleIcon {
   width: 34px; height: 34px;
   border-radius: 9px;
-  background: #EEF1FB;
+  background: rgba(0, 84, 166, 0.1);
   color: var(--navy);
   display: flex; align-items: center; justify-content: center;
   font-weight: bold;

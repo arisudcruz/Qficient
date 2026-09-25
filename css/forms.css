@@ -2,7 +2,8 @@
   display: inline-block;
   margin-bottom: 16px;
   font-size: 13px;
-  color: var(--gray);
+  color: var(--navyDark);
+  font-weight: 600;
   cursor: pointer;
 }
 .backLink:hover { color: var(--navy); }
@@ -17,10 +18,18 @@ label {
 input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid #C8D5E5;
+  border-radius: 8px;
   font-size: 14px;
   margin-bottom: 14px;
+  background: var(--white);
+  color: var(--text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+input:focus {
+  outline: none;
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(0, 84, 166, 0.12);
 }
 
 textarea {
@@ -46,10 +55,12 @@ button {
 }
 .bigBtn {
   width: 100%;
-  background: var(--navy);
+  background: var(--navyDark);
   color: white;
+  border: 1px solid var(--navyDark);
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
-.bigBtn:hover { background: var(--navyDark); }
+.bigBtn:hover { background: var(--navy); border-color: var(--navy); }
 .cancelBtn {
   width: 100%;
   background: white;
