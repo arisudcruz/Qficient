@@ -41,6 +41,7 @@ button {
   border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
+  font-family: var(--font-display);
   padding: 12px;
 }
 .bigBtn {
