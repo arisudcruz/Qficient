@@ -7,15 +7,15 @@
       </div>
 
       <nav class="sidebar-nav" aria-label="Main menu">
-        <button type="button" class="nav-item active">
+        <button type="button" class="nav-item active" data-section="dashboard" onclick="setAdminSection('dashboard')">
           <span class="nav-icon">◫</span>
           <span>Dashboard</span>
         </button>
-        <button type="button" class="nav-item">
+        <button type="button" class="nav-item" data-section="queue" onclick="setAdminSection('queue')">
           <span class="nav-icon">◌</span>
           <span>Queue Management</span>
         </button>
-        <button type="button" class="nav-item">
+        <button type="button" class="nav-item" data-section="notifications">
           <span class="nav-icon">◍</span>
           <span>Notifications</span>
         </button>
@@ -37,6 +37,7 @@
 
     <main class="dashboard-main">
       <div id="adminArea"></div>
+      <div id="adminQueueArea" style="display: none"></div>
     </main>
   </div>
 </div>

@@ -156,6 +156,25 @@ function updateAdmin() {
     '<section class="panel table-panel"><div class="panel-header table-header"><h2>Queue Transactions</h2><span class="traffic-selection">' + escapeAdminText(dateLabel) + '</span></div><div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>';
 }
 
+function setAdminSection(section) {
+  var dashboardArea = document.getElementById("adminArea");
+  var queueArea = document.getElementById("adminQueueArea");
+  var navItems = document.querySelectorAll("#pageAdmin .nav-item[data-section]");
+
+  navItems.forEach(function (item) {
+    item.classList.toggle("active", item.getAttribute("data-section") === section);
+  });
+
+  if (dashboardArea) dashboardArea.style.display = section === "queue" ? "none" : "";
+  if (queueArea) queueArea.style.display = section === "queue" ? "" : "none";
+
+  if (section === "queue") {
+    renderQueueManagement();
+  } else {
+    updateAdmin();
+  }
+}
+
 window.addEventListener('DOMContentLoaded', function () {
   updateAdmin();
 });
