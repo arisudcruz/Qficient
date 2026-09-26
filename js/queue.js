@@ -8,7 +8,7 @@ function myTicket() {
   return null;
 }
 
-function joinQueue(stationId) {
+function joinQueue(stationId, purpose) {
   if (myTicket()) {
     say("You already have an active ticket.");
     return;
@@ -31,6 +31,7 @@ function joinQueue(stationId) {
         stationId: stationId,
         ownerId: user.id,
         ownerName: user.name,
+        purpose: purpose || "",
         status: "waiting",
         verified: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()

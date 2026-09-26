@@ -1,11 +1,27 @@
-<div class="page" id="pageDashboard">
-  <div class="logoRow">
-    <img class="logoBadge" src="/assets/qfficient-badge.png" alt="QFicient logo">
-    <div class="logoText" id="welcomeText">Welcome</div>
+<div class="page app-page has-tabbar" id="pageDashboard">
+  <div class="app-header">
+    <div class="app-header-user">
+      <span class="app-avatar" id="dashAvatar">S</span>
+      <span class="app-greeting" id="welcomeText">Welcome</span>
+    </div>
+    <button type="button" class="app-icon-btn" onclick="goTo('pageHome')" aria-label="Log out">⎋</button>
   </div>
 
-  <div id="ticketArea"></div>
-  <div id="stationArea"></div>
+  <div class="app-body" id="dashboardTabQueue">
+    <div id="ticketArea"></div>
+    <div id="stationArea"></div>
+  </div>
 
-  <span class="backLink" onclick="goTo('pageHome')">← Log out</span>
+  <div class="app-body" id="dashboardTabBoard" style="display: none">
+    <div id="boardArea"></div>
+  </div>
+
+  <nav class="app-tabbar">
+    <button type="button" class="app-tab active" id="tabBtnQueue" onclick="setDashboardTab('queue')">
+      <span class="tab-icon">🎫</span><span>My Queue</span>
+    </button>
+    <button type="button" class="app-tab" id="tabBtnBoard" onclick="setDashboardTab('board')">
+      <span class="tab-icon">📊</span><span>Live Board</span>
+    </button>
+  </nav>
 </div>

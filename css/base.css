@@ -11,19 +11,10 @@ body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
-.box {
-  background: var(--white);
-  border: 1px solid #D7E1EE;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 14px rgba(0, 75, 147, 0.06);
-  transition: background 0.2s ease, border-color 0.2s ease;
-}
-
 h1,
 h2,
 h3,
-.roleTitle,
+.role-title,
 .brand-name,
 .header-greeting,
 .panel-header h2,
@@ -32,4 +23,3 @@ h3,
 }
 
 h1 { font-size: 26px; color: var(--navyDark); margin: 0 0 6px; }
-p.small { color: var(--gray); font-size: 14px; margin: 0 0 22px; }

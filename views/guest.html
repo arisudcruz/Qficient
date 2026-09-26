@@ -1,24 +1,36 @@
-<div class="page" id="pageGuest">
-  <span class="backLink" onclick="goTo('pageHome')">← Back</span>
-  <h1>Guest Queue Access</h1>
-  <p class="small">You'll be routed automatically to Admission.</p>
-
-  <label>Full Name</label>
-  <input type="text" id="guestName" placeholder="Juan Dela Cruz">
-
-  <label>Mobile Number</label>
-  <input type="text" id="guestMobile" placeholder="09XX XXX XXXX">
-
-  <label>Purpose</label>
-  <input type="text" id="guestPurpose" placeholder="e.g. New student admission">
-
-  <div id="guestRecaptcha"></div>
-
-  <div id="guestOtpSection" style="display:none;">
-    <label>Verification Code</label>
-    <input type="text" id="guestOtp" placeholder="Enter 6-digit code">
-    <button class="bigBtn" onclick="verifyGuestOtp()">Verify SMS Code</button>
+<div class="page app-page" id="pageGuest">
+  <div class="app-header">
+    <button type="button" class="app-icon-btn" onclick="goTo('pageHome')" aria-label="Back">←</button>
+    <span class="app-header-title">Guest Access</span>
+    <span class="app-icon-btn app-icon-btn-ghost"></span>
   </div>
 
-  <button class="bigBtn" onclick="requestGuestOtp()">Send SMS Code</button>
+  <div class="app-body">
+    <p class="app-subtitle">You'll be routed automatically to Admission.</p>
+
+    <div class="app-field">
+      <label>Full Name</label>
+      <input type="text" id="guestName" placeholder="Juan Dela Cruz">
+    </div>
+
+    <div class="app-field">
+      <label>Mobile Number</label>
+      <input type="text" id="guestMobile" placeholder="09XX XXX XXXX">
+    </div>
+
+    <div class="app-field">
+      <label>Purpose</label>
+      <input type="text" id="guestPurpose" placeholder="e.g. New student admission">
+    </div>
+
+    <div id="guestRecaptcha"></div>
+
+    <div id="guestOtpSection" class="app-field" style="display:none;">
+      <label>Verification Code</label>
+      <input type="text" id="guestOtp" placeholder="Enter 6-digit code">
+      <button type="button" class="app-btn app-btn-primary" onclick="verifyGuestOtp()">Verify SMS Code</button>
+    </div>
+
+    <button type="button" class="app-btn app-btn-primary" onclick="requestGuestOtp()">Send SMS Code</button>
+  </div>
 </div>

@@ -1,22 +1,32 @@
-<div class="page show" id="pageHome">
-  <div class="logoRow">
-    <img class="logoBadge" src="/assets/qfficient-badge.png" alt="QFicient logo">
-    <div class="logoText">STI College Malolos</div>
-  </div>
-  <h1>QFicient</h1>
-  <p class="small">One ticket, real-time status, no more re-lining for every window.</p>
-
-  <div class="box roleBox" onclick="goTo('pageLogin')">
-    <div class="roleIcon">S</div>
-    <p class="roleTitle">Student</p>
-    <p class="roleDesc">Log in and join a queue.</p>
-    <span class="roleLink">Continue as Student →</span>
+<div class="page app-page show" id="pageHome">
+  <div class="app-hero">
+    <div class="hero-top">
+      <img class="hero-logo" src="/assets/qfficient-badge.png" alt="QFicient logo">
+      <span class="hero-brand">QFicient</span>
+    </div>
+    <h1 class="hero-title">Skip the line.<br>Not the service.</h1>
+    <p class="hero-sub">One ticket, real-time status, no more re-lining for every window.</p>
   </div>
 
-  <div class="box roleBox" onclick="goTo('pageGuest')">
-    <div class="roleIcon">G</div>
-    <p class="roleTitle">Guest / New Applicant</p>
-    <p class="roleDesc">No account needed — queue for Admission.</p>
-    <span class="roleLink">Continue as Guest →</span>
+  <div class="app-body">
+    <p class="section-label">Get started as</p>
+
+    <button type="button" class="role-card" onclick="goTo('pageLogin')">
+      <span class="role-icon role-icon-student">🎓</span>
+      <span class="role-copy">
+        <span class="role-title">Student</span>
+        <span class="role-desc">Log in and join a queue.</span>
+      </span>
+      <span class="role-chevron">›</span>
+    </button>
+
+    <button type="button" class="role-card" onclick="goTo('pageGuest')">
+      <span class="role-icon role-icon-guest">🧾</span>
+      <span class="role-copy">
+        <span class="role-title">Guest / New Applicant</span>
+        <span class="role-desc">No account needed — queue for Admission.</span>
+      </span>
+      <span class="role-chevron">›</span>
+    </button>
   </div>
 </div>

@@ -1,19 +1,42 @@
-.roleBox {
-  cursor: pointer;
-  margin-bottom: 12px;
-  border-left: 4px solid var(--amber);
-  transition: transform 0.15s ease;
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: var(--app-radius-lg);
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--app-shadow);
+  text-align: left;
+  transition: transform 0.12s ease;
 }
-.roleBox:hover { transform: translateY(-2px); }
-.roleIcon {
-  width: 34px; height: 34px;
-  border-radius: 9px;
-  background: rgba(0, 84, 166, 0.1);
-  color: var(--navy);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: bold;
-  margin-bottom: 10px;
+.role-card:active { transform: scale(0.98); }
+
+.role-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
 }
-.roleTitle { font-weight: 700; margin: 0 0 3px; }
-.roleDesc { font-size: 12px; color: var(--gray); margin: 0 0 8px; }
-.roleLink { font-size: 12px; font-weight: 700; color: var(--navy); }
+.role-icon-student { background: rgba(79, 70, 229, 0.12); }
+.role-icon-guest { background: rgba(255, 122, 69, 0.14); }
+
+.role-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.role-title { font-weight: 700; color: var(--app-text); font-size: 15px; }
+.role-desc { font-size: 12.5px; color: var(--app-text-muted); }
+
+.role-chevron {
+  font-size: 22px;
+  color: var(--app-text-muted);
+}

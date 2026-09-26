@@ -111,7 +111,7 @@ function verifyGuestOtp() {
       };
 
       document.getElementById("welcomeText").textContent = "Welcome, " + name;
-      joinQueue("admission");
+      joinQueue("admission", purpose);
       updateDashboard();
       goTo("pageDashboard");
     })

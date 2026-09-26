@@ -1,7 +1,14 @@
-<div class="page" id="pageLogin">
-  <span class="backLink" onclick="goTo('pageHome')">← Back</span>
-  <h1>Student Sign In</h1>
-  <p class="small">Sign in with your STI Microsoft 365 account.</p>
+<div class="page app-page" id="pageLogin">
+  <div class="app-header">
+    <button type="button" class="app-icon-btn" onclick="goTo('pageHome')" aria-label="Back">←</button>
+    <span class="app-header-title">Student Sign In</span>
+    <span class="app-icon-btn app-icon-btn-ghost"></span>
+  </div>
 
-  <button class="bigBtn" onclick="login()">Sign in with Microsoft</button>
+  <div class="app-body app-body-center">
+    <div class="auth-illustration">🎓</div>
+    <h1 class="app-title">Sign in to continue</h1>
+    <p class="app-subtitle">Use your STI Microsoft 365 account to join a queue.</p>
+    <button type="button" class="app-btn app-btn-primary" onclick="login()">Sign in with Microsoft</button>
+  </div>
 </div>
