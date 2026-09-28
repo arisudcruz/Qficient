@@ -170,7 +170,9 @@ function setAdminSection(section) {
 
   if (section === "queue") {
     renderQueueManagement();
+    startAutoVoidWatcher();
   } else {
+    stopAutoVoidWatcher();
     updateAdmin();
   }
 }

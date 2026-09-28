@@ -491,7 +491,8 @@
   color: #1f8f5b;
 }
 
-.status-badge.skip {
+.status-badge.skip,
+.status-badge.skipped {
   background: #fdecea;
   border-color: #ef9c97;
   color: #bf3d35;
@@ -501,6 +502,12 @@
   background: #f5f5f6;
   border-color: #d0d3da;
   color: #616d85;
+}
+
+.status-badge.serving {
+  background: #eaf1ff;
+  border-color: #9db8ef;
+  color: #1d4fbf;
 }
 
 .station-tabs {
@@ -618,6 +625,40 @@
 
 .queue-action-btn:hover {
   background: var(--navy);
+}
+
+.queue-action-btn:disabled {
+  background: #c7d2e4;
+  color: #7d8598;
+  cursor: not-allowed;
+}
+
+.skip-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.void-countdown {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #bf3d35;
+}
+
+.recall-inline-btn {
+  border: 1px solid var(--navyDark);
+  background: var(--white);
+  color: var(--navyDark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+
+.recall-inline-btn:hover {
+  background: var(--navyDark);
+  color: #fff;
 }
 
 .transfer-toggle-row {
