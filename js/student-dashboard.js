@@ -1,3 +1,54 @@
+var STUDENT_TYPE_LABELS = {
+  regular: "Regular",
+  transferee: "Transferee / Irregular"
+};
+
+function closeStudentTypeModal() {
+  var overlay = document.getElementById("studentTypeModal");
+  if (overlay) overlay.remove();
+}
+
+function selectStudentType(type) {
+  db.collection("students").doc(user.id).set({
+    studentType: type,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true })
+    .then(function () {
+      user.studentType = type;
+      closeStudentTypeModal();
+      updateDashboard();
+      say("Student type set to " + STUDENT_TYPE_LABELS[type] + ".");
+    })
+    .catch(function (err) {
+      say("Could not save student type: " + err.message);
+    });
+}
+
+function promptStudentType(isFirstTime) {
+  closeStudentTypeModal();
+
+  var overlay = document.createElement("div");
+  overlay.className = "app-modal-backdrop";
+  overlay.id = "studentTypeModal";
+  overlay.innerHTML =
+    '<div class="app-modal-sheet">' +
+      '<p class="app-modal-title">' + (isFirstTime ? "Welcome! What's your student type?" : "Update Student Type") + '</p>' +
+      '<p class="app-modal-sub">' + (isFirstTime ? "This helps front-desk staff serve you correctly. You can change this anytime." : "You can change this anytime from your dashboard.") + '</p>' +
+      '<button type="button" class="role-card" onclick="selectStudentType(\'regular\')">' +
+        '<span class="role-icon role-icon-student">🎓</span>' +
+        '<span class="role-copy"><span class="role-title">Regular</span><span class="role-desc">Standard enrollment, on-track curriculum.</span></span>' +
+      '</button>' +
+      '<button type="button" class="role-card" onclick="selectStudentType(\'transferee\')">' +
+        '<span class="role-icon role-icon-guest">🔀</span>' +
+        '<span class="role-copy"><span class="role-title">Transferee / Irregular</span><span class="role-desc">Transferred or non-standard course load.</span></span>' +
+      '</button>' +
+      (isFirstTime ? '' : '<button type="button" class="app-btn app-btn-outline" onclick="closeStudentTypeModal()">Cancel</button>') +
+    '</div>';
+
+  var host = document.getElementById("pageDashboard") || document.body;
+  host.appendChild(overlay);
+}
+
 var pendingJoinPurpose = "";
 
 function setPendingJoinPurpose(value) {
@@ -81,12 +132,21 @@ function updateDashboard() {
   var ticketArea = document.getElementById("ticketArea");
   var stationArea = document.getElementById("stationArea");
   var avatar = document.getElementById("dashAvatar");
+  var typeChipArea = document.getElementById("studentTypeChip");
 
   renderLiveBoard();
 
-  if (!ticketArea || !stationArea) return;
-
   if (avatar && user) avatar.textContent = getInitials(user.name);
+
+  if (typeChipArea) {
+    typeChipArea.innerHTML = (user && user.type === "student") ?
+      '<button type="button" class="student-type-chip" onclick="promptStudentType(false)">' +
+        escapeHtml(STUDENT_TYPE_LABELS[user.studentType] || "Set student type") +
+        ' <span class="edit-icon">✎</span>' +
+      '</button>' : '';
+  }
+
+  if (!ticketArea || !stationArea) return;
 
   if (!ticket) {
     ticketArea.innerHTML = "";
@@ -128,6 +188,11 @@ function updateDashboard() {
   var statusClass = ticket.verified ? "status-pill done" : "status-pill waiting";
   var statusText = ticket.verified ? "Verified ✓" : "Waiting";
 
+  var detailCellsHtml = '<div><span class="ticket-purpose-label">Purpose</span><span class="ticket-purpose-value">' + escapeHtml(ticket.purpose || "—") + '</span></div>';
+  if (ticket.studentType) {
+    detailCellsHtml += '<div><span class="ticket-purpose-label">Student Type</span><span class="ticket-purpose-value">' + escapeHtml(STUDENT_TYPE_LABELS[ticket.studentType] || ticket.studentType) + '</span></div>';
+  }
+
   ticketArea.innerHTML =
     '<div class="ticket-card">' +
       '<div class="ticket-head">' +
@@ -141,10 +206,7 @@ function updateDashboard() {
         '</div>' +
         '<span class="' + statusClass + '">' + statusText + '</span>' +
       '</div>' +
-      '<div class="ticket-purpose-row">' +
-        '<span class="ticket-purpose-label">Purpose</span>' +
-        '<span class="ticket-purpose-value">' + escapeHtml(ticket.purpose || "—") + '</span>' +
-      '</div>' +
+      '<div class="ticket-detail-grid">' + detailCellsHtml + '</div>' +
     '</div>' +
     '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>';
 

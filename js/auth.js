@@ -21,12 +21,29 @@ function login() {
         id: signedInUser.uid,
         name: name,
         email: signedInUser.email,
-        studentNumber: getStudentNumberFromEmail(signedInUser.email)
+        studentNumber: getStudentNumberFromEmail(signedInUser.email),
+        studentType: null
       };
 
       document.getElementById("welcomeText").textContent = "Welcome, " + name;
-      updateDashboard();
-      goTo("pageDashboard");
+
+      db.collection("students").doc(user.id).get()
+        .then(function (doc) {
+          if (doc.exists && doc.data().studentType) {
+            user.studentType = doc.data().studentType;
+          }
+        })
+        .catch(function (error) {
+          console.error("Could not load student profile: " + error.message);
+        })
+        .then(function () {
+          updateDashboard();
+          goTo("pageDashboard");
+
+          if (!user.studentType) {
+            promptStudentType(true);
+          }
+        });
     })
     .catch(function (error) {
       say("Microsoft sign-in failed: " + error.message);

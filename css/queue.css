@@ -312,15 +312,19 @@ body.dark .app-page input {
   font-size: 11.5px;
   color: var(--app-text-muted);
 }
-.ticket-purpose-row {
+.ticket-detail-grid {
   background: var(--app-surface);
-  padding: 0 20px 16px;
+  padding: 12px 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  border-top: 1px solid var(--app-line);
+  margin-top: -1px;
+}
+.ticket-detail-grid > div {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  border-top: 1px solid var(--app-line);
-  margin-top: -1px;
-  padding-top: 12px;
 }
 .ticket-purpose-label { font-size: 11.5px; color: var(--app-text-muted); }
 .ticket-purpose-value { font-size: 13.5px; font-weight: 600; color: var(--app-text); }
@@ -438,4 +442,54 @@ body.dark .app-page input {
   color: var(--app-text-muted);
   font-size: 13px;
   padding: 32px 12px;
+}
+
+/* Student type chip */
+#studentTypeChip:empty { display: none; }
+#studentTypeChip { padding: 0 20px 14px; }
+.student-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--app-line);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+.student-type-chip .edit-icon { color: var(--app-text-muted); font-size: 11px; }
+
+/* Student type modal */
+.app-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 16, 32, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+  padding: 0;
+}
+.app-modal-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--app-surface);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.22);
+}
+.app-modal-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--app-text);
+  margin: 0 0 6px;
+}
+.app-modal-sub {
+  font-size: 13px;
+  color: var(--app-text-muted);
+  margin: 0 0 18px;
 }

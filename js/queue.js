@@ -32,6 +32,7 @@ function joinQueue(stationId, purpose) {
         ownerId: user.id,
         ownerName: user.name,
         studentNumber: user.studentNumber || "",
+        studentType: user.studentType || "",
         purpose: purpose || "",
         status: "waiting",
         verified: false,
