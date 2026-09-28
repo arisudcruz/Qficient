@@ -1,11 +1,21 @@
+var AUTO_VOID_WINDOW_MS = 60 * 1000;
+var ACTIVE_TICKET_STATUSES = ["waiting", "serving", "skipped"];
+
 function myTicket() {
   for (var i = 0; i < tickets.length; i++) {
     var ticket = tickets[i];
-    if (ticket.ownerId === user.id && (ticket.status === "waiting" || ticket.status === "called")) {
+    if (ticket.ownerId === user.id && ACTIVE_TICKET_STATUSES.indexOf(ticket.status) !== -1) {
       return ticket;
     }
   }
   return null;
+}
+
+function formatCountdown(ms) {
+  var totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  var minutes = Math.floor(totalSeconds / 60);
+  var seconds = totalSeconds % 60;
+  return minutes + ":" + String(seconds).padStart(2, "0");
 }
 
 function joinQueue(stationId, purpose) {
@@ -53,4 +63,114 @@ function cancelTicket() {
   if (ticket) {
     db.collection("tickets").doc(ticket.id).update({ status: "cancelled" });
   }
+}
+
+function getNextWaitingTicket(stationId) {
+  return tickets
+    .filter(function (t) { return t.stationId === stationId && t.status === "waiting"; })
+    .sort(function (a, b) {
+      var aMs = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+      var bMs = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+      return aMs - bMs;
+    })[0] || null;
+}
+
+function advanceStation(stationId) {
+  var next = getNextWaitingTicket(stationId);
+  var stationRef = db.collection("stations").doc(stationId);
+
+  if (next) {
+    stationRef.update({ nowServingId: next.id });
+    db.collection("tickets").doc(next.id).update({
+      status: "serving",
+      servingAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } else {
+    stationRef.update({ nowServingId: null });
+  }
+}
+
+function callNextTicket(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station) return;
+
+  var current = station.nowServingId ? tickets.find(function (t) { return t.id === station.nowServingId; }) : null;
+
+  var finish = current ?
+    db.collection("tickets").doc(current.id).update({
+      status: "completed",
+      completedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }) :
+    Promise.resolve();
+
+  finish.then(function () {
+    advanceStation(stationId);
+  }).catch(function (err) {
+    say("Could not call next ticket: " + err.message);
+  });
+}
+
+function skipCurrentTicket(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station || !station.nowServingId) {
+    say("No ticket is currently being served.");
+    return;
+  }
+
+  db.collection("tickets").doc(station.nowServingId).update({
+    status: "skipped",
+    skippedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function () {
+    advanceStation(stationId);
+  }).catch(function (err) {
+    say("Could not skip ticket: " + err.message);
+  });
+}
+
+function removeCurrentTicket(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station || !station.nowServingId) {
+    say("No ticket is currently being served.");
+    return;
+  }
+
+  db.collection("tickets").doc(station.nowServingId).update({
+    status: "void",
+    voidedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function () {
+    advanceStation(stationId);
+  }).catch(function (err) {
+    say("Could not remove ticket: " + err.message);
+  });
+}
+
+function recallTicket(ticketId) {
+  if (!ticketId) return;
+
+  db.collection("tickets").doc(ticketId).update({
+    recalledAt: firebase.firestore.FieldValue.serverTimestamp(),
+    skippedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    recallCount: firebase.firestore.FieldValue.increment(1)
+  }).then(function () {
+    say("Recall notification sent.");
+  }).catch(function (err) {
+    say("Could not recall ticket: " + err.message);
+  });
+}
+
+function checkAutoVoid() {
+  var now = Date.now();
+
+  tickets.forEach(function (ticket) {
+    if (ticket.status !== "skipped") return;
+    if (!ticket.skippedAt || typeof ticket.skippedAt.toMillis !== "function") return;
+
+    if (now - ticket.skippedAt.toMillis() >= AUTO_VOID_WINDOW_MS) {
+      db.collection("tickets").doc(ticket.id).update({
+        status: "void",
+        voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        autoVoided: true
+      });
+    }
+  });
 }

@@ -49,6 +49,29 @@ function promptStudentType(isFirstTime) {
   host.appendChild(overlay);
 }
 
+var lastNotifiedRecallMs = null;
+var skipCountdownIntervalId = null;
+
+function notifyRecall() {
+  if (typeof Toastify === "undefined") return;
+  Toastify({
+    text: "⏰ You've been recalled! Please return to the counter within 1 minute.",
+    duration: 8000,
+    gravity: "top",
+    position: "center",
+    style: { background: "#E5484D" }
+  }).showToast();
+}
+
+function ensureSkipCountdownWatcher(isSkipped) {
+  if (isSkipped && !skipCountdownIntervalId) {
+    skipCountdownIntervalId = setInterval(updateDashboard, 1000);
+  } else if (!isSkipped && skipCountdownIntervalId) {
+    clearInterval(skipCountdownIntervalId);
+    skipCountdownIntervalId = null;
+  }
+}
+
 var pendingJoinPurpose = "";
 
 function setPendingJoinPurpose(value) {
@@ -149,6 +172,7 @@ function updateDashboard() {
   if (!ticketArea || !stationArea) return;
 
   if (!ticket) {
+    ensureSkipCountdownWatcher(false);
     ticketArea.innerHTML = "";
     if (!user) {
       stationArea.innerHTML = "";
@@ -182,11 +206,33 @@ function updateDashboard() {
 
   pendingJoinPurpose = "";
 
+  if (ticket.recalledAt && typeof ticket.recalledAt.toMillis === "function") {
+    var recallMs = ticket.recalledAt.toMillis();
+    if (recallMs !== lastNotifiedRecallMs) {
+      lastNotifiedRecallMs = recallMs;
+      notifyRecall();
+    }
+  }
+
+  ensureSkipCountdownWatcher(ticket.status === "skipped");
+
   var ticketStation = stations.find(function (station) {
     return station.id === ticket.stationId;
   });
-  var statusClass = ticket.verified ? "status-pill done" : "status-pill waiting";
-  var statusText = ticket.verified ? "Verified ✓" : "Waiting";
+
+  var statusClass = "status-pill waiting";
+  var statusText = "Waiting";
+  var countdownHtml = "";
+  if (ticket.status === "serving") {
+    statusClass = "status-pill done";
+    statusText = "Now Serving";
+  } else if (ticket.status === "skipped") {
+    statusClass = "status-pill danger";
+    statusText = "Skipped";
+    var baseMs = (ticket.skippedAt && typeof ticket.skippedAt.toMillis === "function") ? ticket.skippedAt.toMillis() : Date.now();
+    var remainingMs = AUTO_VOID_WINDOW_MS - (Date.now() - baseMs);
+    countdownHtml = '<p class="ticket-countdown">⚠️ Please return to the counter — auto-void in ' + formatCountdown(remainingMs) + '</p>';
+  }
 
   var detailCellsHtml = '<div><span class="ticket-purpose-label">Purpose</span><span class="ticket-purpose-value">' + escapeHtml(ticket.purpose || "—") + '</span></div>';
   if (ticket.studentType) {
@@ -206,6 +252,7 @@ function updateDashboard() {
         '</div>' +
         '<span class="' + statusClass + '">' + statusText + '</span>' +
       '</div>' +
+      countdownHtml +
       '<div class="ticket-detail-grid">' + detailCellsHtml + '</div>' +
     '</div>' +
     '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>';
