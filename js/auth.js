@@ -1,3 +1,9 @@
+function getStudentNumberFromEmail(email) {
+  var localPart = (email || "").split("@")[0];
+  var digits = localPart.replace(/\D/g, "");
+  return digits ? "02000" + digits : "";
+}
+
 function login() {
   var provider = new firebase.auth.OAuthProvider("microsoft.com");
   provider.setCustomParameters({
@@ -14,7 +20,8 @@ function login() {
         type: "student",
         id: signedInUser.uid,
         name: name,
-        email: signedInUser.email
+        email: signedInUser.email,
+        studentNumber: getStudentNumberFromEmail(signedInUser.email)
       };
 
       document.getElementById("welcomeText").textContent = "Welcome, " + name;

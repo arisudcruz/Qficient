@@ -301,7 +301,17 @@ body.dark .app-page input {
   align-items: center;
   justify-content: space-between;
 }
+.ticket-owner-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .ticket-owner { font-weight: 600; color: var(--app-text); font-size: 14px; }
+.ticket-student-no {
+  font-family: 'Courier New', monospace;
+  font-size: 11.5px;
+  color: var(--app-text-muted);
+}
 .ticket-purpose-row {
   background: var(--app-surface);
   padding: 0 20px 16px;

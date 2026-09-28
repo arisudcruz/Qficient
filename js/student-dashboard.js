@@ -135,7 +135,10 @@ function updateDashboard() {
         '<p class="ticket-number">' + escapeHtml(ticket.ticketNo) + '</p>' +
       '</div>' +
       '<div class="ticket-body">' +
-        '<span class="ticket-owner">' + escapeHtml(ticket.ownerName) + '</span>' +
+        '<div class="ticket-owner-block">' +
+          '<span class="ticket-owner">' + escapeHtml(ticket.ownerName) + '</span>' +
+          (ticket.studentNumber ? '<span class="ticket-student-no">' + escapeHtml(ticket.studentNumber) + '</span>' : '') +
+        '</div>' +
         '<span class="' + statusClass + '">' + statusText + '</span>' +
       '</div>' +
       '<div class="ticket-purpose-row">' +
