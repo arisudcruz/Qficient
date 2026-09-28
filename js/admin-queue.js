@@ -21,11 +21,20 @@ function toggleQueueTransfer() {
   }
 }
 
+function tickQueueCountdowns() {
+  var now = Date.now();
+  document.querySelectorAll(".void-countdown[data-skipped-ms]").forEach(function (el) {
+    var baseMs = Number(el.getAttribute("data-skipped-ms"));
+    var remainingMs = AUTO_VOID_WINDOW_MS - (now - baseMs);
+    el.textContent = "Auto-void in " + formatCountdown(remainingMs);
+  });
+}
+
 function startAutoVoidWatcher() {
   if (autoVoidIntervalId) return;
   autoVoidIntervalId = setInterval(function () {
     checkAutoVoid();
-    renderQueueManagement();
+    tickQueueCountdowns();
   }, 1000);
 }
 
@@ -92,7 +101,7 @@ function renderQueueManagement() {
       statusCell =
         '<div class="skip-cell">' +
           '<span class="status-badge skip">Skipped</span>' +
-          '<span class="void-countdown">Auto-void in ' + formatCountdown(remainingMs) + '</span>' +
+          '<span class="void-countdown" data-skipped-ms="' + baseMs + '">Auto-void in ' + formatCountdown(remainingMs) + '</span>' +
           '<button type="button" class="recall-inline-btn" onclick="recallTicket(\'' + ticket.id + '\')">Recall</button>' +
         '</div>';
     } else {
