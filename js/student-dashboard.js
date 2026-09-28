@@ -169,6 +169,8 @@ function updateDashboard() {
       '</button>' : '';
   }
 
+  refreshNotificationToggle();
+
   if (!ticketArea || !stationArea) return;
 
   if (!ticket) {
