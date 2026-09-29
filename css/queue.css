@@ -82,12 +82,23 @@ body.dark .app-page input {
   justify-content: center;
   font-size: 14px;
 }
+.app-user-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 .app-greeting {
   font-family: var(--font-display);
   font-weight: 600;
   color: var(--app-text);
   font-size: 15px;
 }
+.app-student-no {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--app-text-muted);
+}
+.app-student-no:empty { display: none; }
 
 .app-icon-btn {
   width: 38px;

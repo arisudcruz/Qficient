@@ -25,8 +25,6 @@ function login() {
         studentType: null
       };
 
-      document.getElementById("welcomeText").textContent = "Welcome, " + name;
-
       db.collection("students").doc(user.id).get()
         .then(function (doc) {
           if (doc.exists && doc.data().studentType) {
@@ -134,7 +132,6 @@ function verifyGuestOtp() {
         purpose: purpose
       };
 
-      document.getElementById("welcomeText").textContent = "Welcome, " + name;
       joinQueue("admission", purpose);
       updateDashboard();
       goTo("pageDashboard");
