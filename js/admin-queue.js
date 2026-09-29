@@ -122,7 +122,9 @@ function renderQueueManagement() {
   var servingHtml = serving ?
     '<div class="serving-number">' + escapeAdminText(serving.ticketNo) + '</div>' +
     '<div class="serving-details">' +
-      '<div><span class="detail-label">Name</span><span class="detail-value">' + escapeAdminText(serving.ownerName) + '</span></div>' +
+      '<div><span class="detail-label">Name</span><span class="detail-value">' + escapeAdminText(serving.ownerName) + '</span>' +
+        (serving.studentNumber ? '<span class="detail-subvalue">' + escapeAdminText(serving.studentNumber) + '</span>' : '') +
+      '</div>' +
       '<div><span class="detail-label">Student Type</span><span class="detail-value">' + escapeAdminText(STUDENT_TYPE_LABELS[serving.studentType] || serving.studentType || "—") + '</span></div>' +
       '<div class="detail-full"><span class="detail-label">Purpose</span><span class="detail-value">' + escapeAdminText(serving.purpose || "—") + '</span></div>' +
     '</div>' :

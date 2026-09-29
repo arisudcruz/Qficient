@@ -608,6 +608,14 @@
   color: #fff;
 }
 
+.detail-subvalue {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 2px;
+}
+
 .serving-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
