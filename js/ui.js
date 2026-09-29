@@ -3,11 +3,6 @@ function toggleTheme() {
   document.getElementById("themeToggle").textContent = isDark ? "☀️" : "🌙";
 }
 
-if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-  document.body.classList.add("dark");
-  document.getElementById("themeToggle").textContent = "☀️";
-}
-
 function say(text) {
   if (typeof Swal !== "undefined") {
     var lowerText = text.toLowerCase();

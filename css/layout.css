@@ -547,6 +547,11 @@
   border-radius: 14px;
   padding: 16px 18px;
   margin-bottom: 18px;
+  border: 3px solid transparent;
+}
+
+.serving-card.verified {
+  border-color: #22c55e;
 }
 
 .serving-card-top {
@@ -608,6 +613,14 @@
   color: #fff;
 }
 
+.detail-subvalue {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 2px;
+}
+
 .serving-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -631,6 +644,21 @@
   background: #c7d2e4;
   color: #7d8598;
   cursor: not-allowed;
+}
+
+.queue-action-verify {
+  grid-column: 1 / -1;
+  background: #16a34a;
+}
+
+.queue-action-verify:hover {
+  background: #15803d;
+}
+
+.queue-action-verify:disabled {
+  background: #dcfce7;
+  color: #16a34a;
+  cursor: default;
 }
 
 .skip-cell {
