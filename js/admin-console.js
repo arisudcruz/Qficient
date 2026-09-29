@@ -1,5 +1,48 @@
 var adminTrafficStation = "all";
 
+function closeConfirmModal() {
+  var overlay = document.getElementById("confirmModal");
+  if (overlay) overlay.remove();
+}
+
+function showConfirmModal(options) {
+  closeConfirmModal();
+
+  var toneClass = options.tone === "danger" ? "confirm-modal-btn-danger" : "confirm-modal-btn-primary";
+
+  var overlay = document.createElement("div");
+  overlay.className = "confirm-modal-backdrop";
+  overlay.id = "confirmModal";
+  overlay.innerHTML =
+    '<div class="confirm-modal-card">' +
+      '<button type="button" class="confirm-modal-close" aria-label="Close">✕</button>' +
+      '<h2 class="confirm-modal-title">' + escapeAdminText(options.title) + '</h2>' +
+      '<p class="confirm-modal-message">' + escapeAdminText(options.message) + '</p>' +
+      '<div class="confirm-modal-actions">' +
+        '<button type="button" class="confirm-modal-btn confirm-modal-btn-cancel">Cancel</button>' +
+        '<button type="button" class="confirm-modal-btn ' + toneClass + '">' + escapeAdminText(options.confirmLabel) + '</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector(".confirm-modal-close").addEventListener("click", closeConfirmModal);
+  overlay.querySelector(".confirm-modal-btn-cancel").addEventListener("click", closeConfirmModal);
+  overlay.querySelector("." + toneClass).addEventListener("click", function () {
+    closeConfirmModal();
+    options.onConfirm();
+  });
+  overlay.addEventListener("click", function (event) {
+    if (event.target === overlay) closeConfirmModal();
+  });
+  document.addEventListener("keydown", function handleEscape(event) {
+    if (event.key === "Escape") {
+      closeConfirmModal();
+      document.removeEventListener("keydown", handleEscape);
+    }
+  });
+}
+
 function escapeAdminText(value) {
   return String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
