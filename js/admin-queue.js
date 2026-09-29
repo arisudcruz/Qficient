@@ -21,6 +21,64 @@ function toggleQueueTransfer() {
   }
 }
 
+function getServingTicket(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  return station && station.nowServingId ? tickets.find(function (t) { return t.id === station.nowServingId; }) : null;
+}
+
+function confirmCallNext(stationId) {
+  var serving = getServingTicket(stationId);
+
+  showConfirmModal({
+    title: serving ? "Call the next ticket?" : "Call the first ticket?",
+    message: serving ?
+      "This marks ticket " + serving.ticketNo + " as completed and calls the next person in line." :
+      "This calls the next waiting ticket for this station.",
+    confirmLabel: "Call Next",
+    tone: "primary",
+    onConfirm: function () { callNextTicket(stationId); }
+  });
+}
+
+function confirmSkip(stationId) {
+  var serving = getServingTicket(stationId);
+  if (!serving) return;
+
+  showConfirmModal({
+    title: "Skip ticket " + serving.ticketNo + "?",
+    message: "They'll get a 1-minute window to be recalled before their ticket is automatically voided.",
+    confirmLabel: "Skip",
+    tone: "danger",
+    onConfirm: function () { skipCurrentTicket(stationId); }
+  });
+}
+
+function confirmRemove(stationId) {
+  var serving = getServingTicket(stationId);
+  if (!serving) return;
+
+  showConfirmModal({
+    title: "Remove ticket " + serving.ticketNo + "?",
+    message: "This immediately voids the ticket. This can't be undone.",
+    confirmLabel: "Remove",
+    tone: "danger",
+    onConfirm: function () { removeCurrentTicket(stationId); }
+  });
+}
+
+function confirmRecall(ticketId) {
+  if (!ticketId) return;
+  var ticket = tickets.find(function (t) { return t.id === ticketId; });
+
+  showConfirmModal({
+    title: "Recall ticket " + (ticket ? ticket.ticketNo : "") + "?",
+    message: "This notifies them to return to the counter and resets their auto-void countdown.",
+    confirmLabel: "Recall",
+    tone: "primary",
+    onConfirm: function () { recallTicket(ticketId); }
+  });
+}
+
 function tickQueueCountdowns() {
   var now = Date.now();
   document.querySelectorAll(".void-countdown[data-skipped-ms]").forEach(function (el) {
@@ -53,8 +111,7 @@ function renderQueueManagement() {
     activeQueueStation = stations[0].id;
   }
 
-  var station = stations.find(function (s) { return s.id === activeQueueStation; });
-  var serving = station && station.nowServingId ? tickets.find(function (t) { return t.id === station.nowServingId; }) : null;
+  var serving = getServingTicket(activeQueueStation);
 
   var tabsHtml = stations.map(function (s) {
     var activeClass = s.id === activeQueueStation ? " active" : "";
@@ -102,7 +159,7 @@ function renderQueueManagement() {
         '<div class="skip-cell">' +
           '<span class="status-badge skip">Skipped</span>' +
           '<span class="void-countdown" data-skipped-ms="' + baseMs + '">Auto-void in ' + formatCountdown(remainingMs) + '</span>' +
-          '<button type="button" class="recall-inline-btn" onclick="recallTicket(\'' + ticket.id + '\')">Recall</button>' +
+          '<button type="button" class="recall-inline-btn" onclick="confirmRecall(\'' + ticket.id + '\')">Recall</button>' +
         '</div>';
     } else {
       statusCell = '<span class="status-badge waiting">Waiting</span>';
@@ -128,10 +185,10 @@ function renderQueueManagement() {
           servingHtml +
         '</div>' +
         '<div class="serving-actions">' +
-          '<button type="button" class="queue-action-btn" onclick="callNextTicket(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
-          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="recallTicket(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
-          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="skipCurrentTicket(\'' + activeQueueStation + '\')">⏭ Skip</button>' +
-          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="removeCurrentTicket(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
+          '<button type="button" class="queue-action-btn" onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
+          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRecall(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
+          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏭ Skip</button>' +
+          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRemove(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
         '</div>' +
         '<label class="transfer-toggle-row">' +
           '<span class="switch"><input type="checkbox" id="queueTransferToggle" checked onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
