@@ -154,6 +154,21 @@ function skipCurrentTicket(stationId) {
   });
 }
 
+function verifyCurrentTicket(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station || !station.nowServingId) {
+    say("No ticket is currently being served.");
+    return;
+  }
+
+  db.collection("tickets").doc(station.nowServingId).update({
+    verified: true,
+    verifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function (err) {
+    say("Could not verify ticket: " + err.message);
+  });
+}
+
 function removeCurrentTicket(stationId) {
   var station = stations.find(function (s) { return s.id === stationId; });
   if (!station || !station.nowServingId) {

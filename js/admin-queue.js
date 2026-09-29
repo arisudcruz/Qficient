@@ -40,6 +40,19 @@ function confirmCallNext(stationId) {
   });
 }
 
+function confirmVerify(stationId) {
+  var serving = getServingTicket(stationId);
+  if (!serving || serving.verified) return;
+
+  showConfirmModal({
+    title: "Verify ticket " + serving.ticketNo + "?",
+    message: "This marks " + serving.ownerName + "'s ticket as verified.",
+    confirmLabel: "Verify",
+    tone: "primary",
+    onConfirm: function () { verifyCurrentTicket(stationId); }
+  });
+}
+
 function confirmSkip(stationId) {
   var serving = getServingTicket(stationId);
   if (!serving) return;
@@ -174,12 +187,16 @@ function renderQueueManagement() {
 
   if (!rowsHtml) rowsHtml = '<tr><td colspan="3" class="empty-row">No tickets currently queued for this station.</td></tr>';
 
+  var servingCardClass = "serving-card" + (serving && serving.verified ? " verified" : "");
+  var verifyDisabled = !serving || serving.verified;
+  var verifyLabel = serving && serving.verified ? "✓ Verified" : "✓ Verify";
+
   area.innerHTML =
     '<div class="dashboard-header"><div class="header-greeting">Queue Management</div></div>' +
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
     '<div class="queue-mgmt-grid">' +
       '<section class="panel serving-panel">' +
-        '<div class="serving-card">' +
+        '<div class="' + servingCardClass + '">' +
           '<div class="serving-card-top">' +
             '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
             '<span class="serving-time">' + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + '</span>' +
@@ -187,16 +204,17 @@ function renderQueueManagement() {
           servingHtml +
         '</div>' +
         '<div class="serving-actions">' +
+          '<button type="button" class="queue-action-btn queue-action-verify"' + (verifyDisabled ? ' disabled' : '') + ' onclick="confirmVerify(\'' + activeQueueStation + '\')">' + verifyLabel + '</button>' +
           '<button type="button" class="queue-action-btn" onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRecall(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏭ Skip</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRemove(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
         '</div>' +
         '<label class="transfer-toggle-row">' +
-          '<span class="switch"><input type="checkbox" id="queueTransferToggle" checked onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
+          '<span class="switch"><input type="checkbox" id="queueTransferToggle" onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
           '<span>Transfer Ticket</span>' +
         '</label>' +
-        '<div class="transfer-section" id="queueTransferSection">' +
+        '<div class="transfer-section" id="queueTransferSection" style="display: none">' +
           '<div class="transfer-form">' +
             '<div><label>Purpose</label><select>' + purposeOptionsHtml + '</select></div>' +
             '<div><label>To Station</label><select>' + stationOptionsHtml + '</select></div>' +
