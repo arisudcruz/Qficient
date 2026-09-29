@@ -299,7 +299,7 @@ function updateDashboard() {
   }
 
   ticketArea.innerHTML =
-    '<div class="ticket-card">' +
+    '<div class="ticket-card' + (ticket.verified ? ' verified' : '') + '">' +
       '<div class="ticket-head">' +
         '<p class="ticket-station-label">' + escapeHtml(ticketStation ? ticketStation.name : "") + '</p>' +
         '<p class="ticket-number">' + escapeHtml(ticket.ticketNo) + '</p>' +

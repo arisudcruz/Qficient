@@ -306,6 +306,10 @@ body.dark .app-page input {
   overflow: hidden;
   box-shadow: var(--app-shadow);
   margin-bottom: 16px;
+  border: 3px solid transparent;
+}
+.ticket-card.verified {
+  border-color: #22c55e;
 }
 .ticket-head {
   background: linear-gradient(135deg, var(--app-primary), var(--app-primary-dark));
