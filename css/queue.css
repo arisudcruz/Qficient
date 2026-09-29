@@ -82,12 +82,23 @@ body.dark .app-page input {
   justify-content: center;
   font-size: 14px;
 }
+.app-user-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 .app-greeting {
   font-family: var(--font-display);
   font-weight: 600;
   color: var(--app-text);
   font-size: 15px;
 }
+.app-student-no {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--app-text-muted);
+}
+.app-student-no:empty { display: none; }
 
 .app-icon-btn {
   width: 38px;
@@ -455,10 +466,18 @@ body.dark .app-page input {
   padding: 32px 12px;
 }
 
-/* Student type chip */
-#studentTypeChip:empty { display: none; }
-#studentTypeChip { padding: 0 20px 14px; }
-.student-type-chip {
+/* Header chips (student type, notifications) */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 20px 14px;
+}
+#studentTypeChip:empty,
+#notificationToggle:empty { display: none; }
+
+.student-type-chip,
+.notif-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -472,6 +491,9 @@ body.dark .app-page input {
   border-radius: 999px;
 }
 .student-type-chip .edit-icon { color: var(--app-text-muted); font-size: 11px; }
+
+.notif-chip-on { border-color: var(--app-success); color: var(--app-success); background: var(--app-success-bg); }
+.notif-chip-off { border-color: var(--app-danger); color: var(--app-danger); background: var(--app-danger-bg); opacity: 0.85; }
 
 /* Student type modal */
 .app-modal-backdrop {

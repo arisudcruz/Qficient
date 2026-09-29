@@ -14,7 +14,8 @@ var appScripts = [
   "js/student-dashboard.js",
   "js/admin-console.js",
   "js/admin-queue.js",
-  "js/firebase.js"
+  "js/firebase.js",
+  "js/notifications.js"
 ];
 
 function loadTextFile(path) {

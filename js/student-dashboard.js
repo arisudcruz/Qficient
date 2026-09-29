@@ -155,11 +155,15 @@ function updateDashboard() {
   var ticketArea = document.getElementById("ticketArea");
   var stationArea = document.getElementById("stationArea");
   var avatar = document.getElementById("dashAvatar");
+  var greetingEl = document.getElementById("welcomeText");
+  var studentNoEl = document.getElementById("welcomeStudentNo");
   var typeChipArea = document.getElementById("studentTypeChip");
 
   renderLiveBoard();
 
   if (avatar && user) avatar.textContent = getInitials(user.name);
+  if (greetingEl) greetingEl.textContent = user ? ("Welcome, " + user.name) : "Welcome";
+  if (studentNoEl) studentNoEl.textContent = (user && user.studentNumber) ? user.studentNumber : "";
 
   if (typeChipArea) {
     typeChipArea.innerHTML = (user && user.type === "student") ?
@@ -168,6 +172,8 @@ function updateDashboard() {
         ' <span class="edit-icon">✎</span>' +
       '</button>' : '';
   }
+
+  refreshNotificationToggle();
 
   if (!ticketArea || !stationArea) return;
 

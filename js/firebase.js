@@ -37,6 +37,7 @@ db.collection("stations").onSnapshot(function (snapshot) {
   });
   updateDashboard();
   updateAdmin();
+  renderQueueManagement();
 }, function (err) {
   say("Connection error: " + err.message);
 });
@@ -47,6 +48,7 @@ db.collection("tickets").onSnapshot(function (snapshot) {
   });
   updateDashboard();
   updateAdmin();
+  renderQueueManagement();
 }, function (err) {
   say("Connection error: " + err.message);
 });
