@@ -1,5 +1,22 @@
 var AUTO_VOID_WINDOW_MS = 60 * 1000;
+var CANCEL_COOLDOWN_MS = 20 * 1000;
 var ACTIVE_TICKET_STATUSES = ["waiting", "serving", "skipped"];
+
+function getCancelCooldownRemaining() {
+  if (!user) return 0;
+
+  var lastCancelMs = 0;
+  tickets.forEach(function (t) {
+    if (t.ownerId !== user.id || t.status !== "cancelled") return;
+    var ms = (t.cancelledAt && typeof t.cancelledAt.toMillis === "function") ? t.cancelledAt.toMillis() : 0;
+    if (ms > lastCancelMs) lastCancelMs = ms;
+  });
+
+  if (!lastCancelMs) return 0;
+
+  var remaining = CANCEL_COOLDOWN_MS - (Date.now() - lastCancelMs);
+  return remaining > 0 ? remaining : 0;
+}
 
 function myTicket() {
   for (var i = 0; i < tickets.length; i++) {
@@ -21,6 +38,12 @@ function formatCountdown(ms) {
 function joinQueue(stationId, purpose) {
   if (myTicket()) {
     say("You already have an active ticket.");
+    return;
+  }
+
+  var cooldownMs = getCancelCooldownRemaining();
+  if (cooldownMs > 0) {
+    say("Please wait " + formatCountdown(cooldownMs) + " before joining again.");
     return;
   }
 
@@ -62,7 +85,10 @@ function joinQueue(stationId, purpose) {
 function cancelTicket() {
   var ticket = myTicket();
   if (ticket) {
-    db.collection("tickets").doc(ticket.id).update({ status: "cancelled" });
+    db.collection("tickets").doc(ticket.id).update({
+      status: "cancelled",
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
   }
 }
 

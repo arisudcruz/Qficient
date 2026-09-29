@@ -63,12 +63,51 @@ function notifyRecall() {
   }).showToast();
 }
 
+function tickTicketCountdown() {
+  var el = document.getElementById("ticketCountdownText");
+  if (!el) return;
+
+  var remaining = AUTO_VOID_WINDOW_MS - (Date.now() - Number(el.getAttribute("data-skipped-ms")));
+  if (remaining <= 0) {
+    clearInterval(skipCountdownIntervalId);
+    skipCountdownIntervalId = null;
+    updateDashboard();
+    return;
+  }
+  el.textContent = "⚠️ Please return to the counter — auto-void in " + formatCountdown(remaining);
+}
+
 function ensureSkipCountdownWatcher(isSkipped) {
   if (isSkipped && !skipCountdownIntervalId) {
-    skipCountdownIntervalId = setInterval(updateDashboard, 1000);
+    skipCountdownIntervalId = setInterval(tickTicketCountdown, 1000);
   } else if (!isSkipped && skipCountdownIntervalId) {
     clearInterval(skipCountdownIntervalId);
     skipCountdownIntervalId = null;
+  }
+}
+
+var joinCooldownIntervalId = null;
+
+function tickJoinCooldown() {
+  var el = document.getElementById("joinCooldownText");
+  if (!el) return;
+
+  var remaining = getCancelCooldownRemaining();
+  if (remaining <= 0) {
+    clearInterval(joinCooldownIntervalId);
+    joinCooldownIntervalId = null;
+    updateDashboard();
+    return;
+  }
+  el.textContent = "You can join again in " + formatCountdown(remaining);
+}
+
+function ensureJoinCooldownWatcher(active) {
+  if (active && !joinCooldownIntervalId) {
+    joinCooldownIntervalId = setInterval(tickJoinCooldown, 1000);
+  } else if (!active && joinCooldownIntervalId) {
+    clearInterval(joinCooldownIntervalId);
+    joinCooldownIntervalId = null;
   }
 }
 
@@ -181,7 +220,20 @@ function updateDashboard() {
     ensureSkipCountdownWatcher(false);
     ticketArea.innerHTML = "";
     if (!user) {
+      ensureJoinCooldownWatcher(false);
       stationArea.innerHTML = "";
+      return;
+    }
+
+    var cooldownMs = getCancelCooldownRemaining();
+    ensureJoinCooldownWatcher(cooldownMs > 0);
+
+    if (cooldownMs > 0) {
+      stationArea.innerHTML =
+        '<div class="cooldown-card">' +
+          '<p class="cooldown-title">⏳ Please wait before joining again</p>' +
+          '<p class="cooldown-text" id="joinCooldownText">You can join again in ' + formatCountdown(cooldownMs) + '</p>' +
+        '</div>';
       return;
     }
 
@@ -211,6 +263,7 @@ function updateDashboard() {
   }
 
   pendingJoinPurpose = "";
+  ensureJoinCooldownWatcher(false);
 
   if (ticket.recalledAt && typeof ticket.recalledAt.toMillis === "function") {
     var recallMs = ticket.recalledAt.toMillis();
@@ -237,7 +290,7 @@ function updateDashboard() {
     statusText = "Skipped";
     var baseMs = (ticket.skippedAt && typeof ticket.skippedAt.toMillis === "function") ? ticket.skippedAt.toMillis() : Date.now();
     var remainingMs = AUTO_VOID_WINDOW_MS - (Date.now() - baseMs);
-    countdownHtml = '<p class="ticket-countdown">⚠️ Please return to the counter — auto-void in ' + formatCountdown(remainingMs) + '</p>';
+    countdownHtml = '<p class="ticket-countdown" id="ticketCountdownText" data-skipped-ms="' + baseMs + '">⚠️ Please return to the counter — auto-void in ' + formatCountdown(remainingMs) + '</p>';
   }
 
   var detailCellsHtml = '<div><span class="ticket-purpose-label">Purpose</span><span class="ticket-purpose-value">' + escapeHtml(ticket.purpose || "—") + '</span></div>';
