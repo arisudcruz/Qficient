@@ -187,7 +187,6 @@ function renderQueueManagement() {
 
   if (!rowsHtml) rowsHtml = '<tr><td colspan="3" class="empty-row">No tickets currently queued for this station.</td></tr>';
 
-  var servingCardClass = "serving-card" + (serving && serving.verified ? " verified" : "");
   var verifyDisabled = !serving || serving.verified;
   var verifyLabel = serving && serving.verified ? "✓ Verified" : "✓ Verify";
 
@@ -196,7 +195,7 @@ function renderQueueManagement() {
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
     '<div class="queue-mgmt-grid">' +
       '<section class="panel serving-panel">' +
-        '<div class="' + servingCardClass + '">' +
+        '<div class="serving-card">' +
           '<div class="serving-card-top">' +
             '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
             '<span class="serving-time">' + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + '</span>' +
