@@ -14,6 +14,7 @@ var appScripts = [
   "js/student-dashboard.js",
   "js/admin-console.js",
   "js/admin-queue.js",
+  "js/admin-settings.js",
   "js/firebase.js",
   "js/notifications.js"
 ];
