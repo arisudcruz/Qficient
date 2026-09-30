@@ -199,6 +199,15 @@ function updateAdmin() {
     '<section class="panel table-panel"><div class="panel-header table-header"><h2>Queue Transactions</h2><span class="traffic-selection">' + escapeAdminText(dateLabel) + '</span></div><div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>';
 }
 
+function toggleSidebar() {
+  var shell = document.querySelector("#pageAdmin .admin-shell");
+  var toggle = document.querySelector("#pageAdmin .sidebar-toggle");
+  var collapsed = shell.classList.toggle("sidebar-collapsed");
+
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+}
+
 var ADMIN_SECTION_AREAS = {
   dashboard: "adminArea",
   queue: "adminQueueArea",
