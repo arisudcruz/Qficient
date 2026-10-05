@@ -3,6 +3,7 @@ var viewFiles = [
   "views/login.html",
   "views/guest.html",
   "views/dashboard.html",
+  "views/admin-login.html",
   "views/admin.html"
 ];
 
@@ -16,6 +17,7 @@ var appScripts = [
   "js/admin-queue.js",
   "js/admin-settings.js",
   "js/firebase.js",
+  "js/admin-auth.js",
   "js/notifications.js"
 ];
 

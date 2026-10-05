@@ -62,7 +62,7 @@ function renderSettings() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">System Settings</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout">Logout</button></div>' +
+      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
     '</div>' +
 
     '<div class="settings-config-head">' +

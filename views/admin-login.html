@@ -1,0 +1,25 @@
+<div class="page admin-login-page" id="pageAdminLogin">
+  <div class="admin-login-card">
+    <div class="admin-login-brand">
+      <div class="admin-login-badge">PL</div>
+      <div class="admin-login-name">QFicient</div>
+    </div>
+
+    <h1 class="admin-login-title">Admin Sign In</h1>
+    <p class="admin-login-sub">Sign in with your administrator account to continue.</p>
+
+    <form id="adminLoginForm" onsubmit="adminLogin(event)" novalidate>
+      <label for="adminEmail">Email</label>
+      <input type="email" id="adminEmail" autocomplete="username" placeholder="admin@example.com">
+
+      <label for="adminPassword">Password</label>
+      <input type="password" id="adminPassword" autocomplete="current-password" placeholder="Enter your password">
+
+      <p class="admin-login-error" id="adminLoginError" role="alert" style="display: none"></p>
+
+      <button type="submit" class="admin-login-submit" id="adminLoginSubmit">Sign in</button>
+    </form>
+
+    <span class="admin-login-back" onclick="goTo('pageHome')">← Back to home</span>
+  </div>
+</div>
