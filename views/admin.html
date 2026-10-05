@@ -21,7 +21,7 @@
           <span class="nav-icon">◌</span>
           <span class="nav-text">Queue Management</span>
         </button>
-        <button type="button" class="nav-item" data-section="enforcer" title="Queue Enforcer">
+        <button type="button" class="nav-item" data-section="enforcer" title="Queue Enforcer" onclick="setAdminSection('enforcer')">
           <span class="nav-icon">◈</span>
           <span class="nav-text">Queue Enforcer</span>
         </button>
@@ -37,6 +37,10 @@
           <span class="nav-icon">⚙</span>
           <span class="nav-text">Settings</span>
         </button>
+        <button type="button" class="tool-item" data-section="rules" title="Rules">
+          <span class="nav-icon">⚖</span>
+          <span class="nav-text">Rules</span>
+        </button>
         <div class="admin-user-row" title="Admin User">
           <div class="user-badge">AU</div>
           <div class="user-meta">Admin User</div>
@@ -48,6 +52,7 @@
     <main class="dashboard-main">
       <div id="adminArea"></div>
       <div id="adminQueueArea" style="display: none"></div>
+      <div id="adminEnforcerArea" style="display: none"></div>
       <div id="adminSettingsArea" style="display: none"></div>
     </main>
   </div>

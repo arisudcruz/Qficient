@@ -211,6 +211,7 @@ function toggleSidebar() {
 var ADMIN_SECTION_AREAS = {
   dashboard: "adminArea",
   queue: "adminQueueArea",
+  enforcer: "adminEnforcerArea",
   settings: "adminSettingsArea"
 };
 
@@ -233,6 +234,8 @@ function setAdminSection(section) {
   stopAutoVoidWatcher();
   if (section === "settings") {
     renderSettings();
+  } else if (section === "enforcer") {
+    renderEnforcer();
   } else {
     updateAdmin();
   }
