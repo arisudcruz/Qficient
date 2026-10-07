@@ -3,6 +3,10 @@ var AUTO_VOID_WINDOW_MS = systemSettings.autoVoidMinutes * 60 * 1000;
 var CANCEL_COOLDOWN_MS = 20 * 1000;
 var ACTIVE_TICKET_STATUSES = ["waiting", "serving", "skipped"];
 
+function getTicketPrefix(stationName) {
+  return String(stationName).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "TK";
+}
+
 function formatVoidWindow() {
   var minutes = systemSettings.autoVoidMinutes;
   return minutes + (minutes === 1 ? " minute" : " minutes");
@@ -80,9 +84,8 @@ function joinQueue(stationId, purpose) {
     return transaction.get(stationRef).then(function (doc) {
       var data = doc.data();
       var newCount = (data.count || 0) + 1;
-      var letter = data.name.charAt(0);
       var number = String(newCount).padStart(3, "0");
-      var ticketNo = letter + "-" + number;
+      var ticketNo = getTicketPrefix(data.name) + "-" + number;
 
       transaction.update(stationRef, { count: newCount });
       var ticketRef = db.collection("tickets").doc();
