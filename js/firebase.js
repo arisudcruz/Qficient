@@ -21,12 +21,16 @@ function seedStations() {
     { id: "admission", name: "Evaluation / Admission" }
   ];
 
-  defaults.forEach(function (station) {
-    var ref = db.collection("stations").doc(station.id);
-    ref.get().then(function (doc) {
-      if (!doc.exists) {
-        ref.set({ name: station.name, count: 0, nowServingId: null });
-      }
+  db.collection("stations").limit(1).get().then(function (snapshot) {
+    if (!snapshot.empty) return;
+
+    defaults.forEach(function (station) {
+      db.collection("stations").doc(station.id).set({
+        name: station.name,
+        count: 0,
+        nowServingId: null,
+        active: true
+      });
     });
   });
 }
@@ -38,8 +42,18 @@ db.collection("stations").onSnapshot(function (snapshot) {
   updateDashboard();
   updateAdmin();
   renderQueueManagement();
+  refreshSettings();
 }, function (err) {
   say("Connection error: " + err.message);
+});
+
+db.collection("settings").doc("system").onSnapshot(function (doc) {
+  var minutes = doc.exists ? Number(doc.data().autoVoidMinutes) : 1;
+  systemSettings.autoVoidMinutes = minutes > 0 ? minutes : 1;
+  AUTO_VOID_WINDOW_MS = systemSettings.autoVoidMinutes * 60 * 1000;
+  refreshSettings();
+}, function (err) {
+  console.error("Could not load system settings: " + err.message);
 });
 
 db.collection("tickets").onSnapshot(function (snapshot) {

@@ -59,7 +59,7 @@ function confirmSkip(stationId) {
 
   showConfirmModal({
     title: "Skip ticket " + serving.ticketNo + "?",
-    message: "They'll get a 1-minute window to be recalled before their ticket is automatically voided.",
+    message: "They'll have " + formatVoidWindow() + " to be recalled before their ticket is automatically voided.",
     confirmLabel: "Skip",
     tone: "danger",
     onConfirm: function () { skipCurrentTicket(stationId); }

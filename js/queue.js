@@ -1,6 +1,27 @@
-var AUTO_VOID_WINDOW_MS = 60 * 1000;
+var systemSettings = { autoVoidMinutes: 1 };
+var AUTO_VOID_WINDOW_MS = systemSettings.autoVoidMinutes * 60 * 1000;
 var CANCEL_COOLDOWN_MS = 20 * 1000;
 var ACTIVE_TICKET_STATUSES = ["waiting", "serving", "skipped"];
+
+function getTicketPrefix(stationName) {
+  return String(stationName).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "TK";
+}
+
+function formatVoidWindow() {
+  var minutes = systemSettings.autoVoidMinutes;
+  return minutes + (minutes === 1 ? " minute" : " minutes");
+}
+
+function countStationTicketsToday(stationId) {
+  var startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  return tickets.filter(function (t) {
+    if (t.stationId !== stationId || t.status === "cancelled" || t.status === "void") return false;
+    var createdMs = (t.createdAt && typeof t.createdAt.toMillis === "function") ? t.createdAt.toMillis() : Date.now();
+    return createdMs >= startOfToday.getTime();
+  }).length;
+}
 
 function getCancelCooldownRemaining() {
   if (!user) return 0;
@@ -47,15 +68,24 @@ function joinQueue(stationId, purpose) {
     return;
   }
 
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (station && station.active === false) {
+    say("This station is currently unavailable.");
+    return;
+  }
+  if (station && station.maxQueue > 0 && countStationTicketsToday(stationId) >= station.maxQueue) {
+    say("This station has reached its daily queue limit. Please try again tomorrow.");
+    return;
+  }
+
   var stationRef = db.collection("stations").doc(stationId);
 
   db.runTransaction(function (transaction) {
     return transaction.get(stationRef).then(function (doc) {
       var data = doc.data();
       var newCount = (data.count || 0) + 1;
-      var letter = data.name.charAt(0);
       var number = String(newCount).padStart(3, "0");
-      var ticketNo = letter + "-" + number;
+      var ticketNo = getTicketPrefix(data.name) + "-" + number;
 
       transaction.update(stationRef, { count: newCount });
       var ticketRef = db.collection("tickets").doc();

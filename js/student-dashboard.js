@@ -55,7 +55,7 @@ var skipCountdownIntervalId = null;
 function notifyRecall() {
   if (typeof Toastify === "undefined") return;
   Toastify({
-    text: "⏰ You've been recalled! Please return to the counter within 1 minute.",
+    text: "⏰ You've been recalled! Please return to the counter within " + formatVoidWindow() + ".",
     duration: 8000,
     gravity: "top",
     position: "center",
@@ -174,7 +174,7 @@ function renderLiveBoard() {
     return '<div class="board-card">' +
       '<div class="board-card-top">' +
         '<span class="board-station-name">' + escapeHtml(station.name) + '</span>' +
-        '<span class="board-waiting-chip">' + waitingCount + ' waiting</span>' +
+        '<span class="board-waiting-chip">' + (station.active === false ? 'Closed' : waitingCount + ' waiting') + '</span>' +
       '</div>' +
       '<div class="board-serving-row">' +
         '<span class="board-serving-label">Now Serving</span>' +
@@ -244,6 +244,7 @@ function updateDashboard() {
       '</div>';
     for (var i = 0; i < stations.length; i++) {
       var station = stations[i];
+      if (station.active === false) continue;
       var servingTicket = station.nowServingId ? tickets.find(function (item) {
         return item.id === station.nowServingId;
       }) : null;

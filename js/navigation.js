@@ -1,4 +1,8 @@
 function goTo(pageId) {
+  if (pageId === "pageAdmin" && !isAdminSignedIn()) {
+    pageId = "pageAdminLogin";
+  }
+
   var pages = document.querySelectorAll(".page");
   for (var i = 0; i < pages.length; i++) {
     pages[i].classList.remove("show");

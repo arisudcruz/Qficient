@@ -199,23 +199,44 @@ function updateAdmin() {
     '<section class="panel table-panel"><div class="panel-header table-header"><h2>Queue Transactions</h2><span class="traffic-selection">' + escapeAdminText(dateLabel) + '</span></div><div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>';
 }
 
-function setAdminSection(section) {
-  var dashboardArea = document.getElementById("adminArea");
-  var queueArea = document.getElementById("adminQueueArea");
-  var navItems = document.querySelectorAll("#pageAdmin .nav-item[data-section]");
+function toggleSidebar() {
+  var shell = document.querySelector("#pageAdmin .admin-shell");
+  var toggle = document.querySelector("#pageAdmin .sidebar-toggle");
+  var collapsed = shell.classList.toggle("sidebar-collapsed");
 
-  navItems.forEach(function (item) {
-    item.classList.toggle("active", item.getAttribute("data-section") === section);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+}
+
+var ADMIN_SECTION_AREAS = {
+  dashboard: "adminArea",
+  queue: "adminQueueArea",
+  enforcer: "adminEnforcerArea",
+  settings: "adminSettingsArea"
+};
+
+function setAdminSection(section) {
+  Object.keys(ADMIN_SECTION_AREAS).forEach(function (key) {
+    var area = document.getElementById(ADMIN_SECTION_AREAS[key]);
+    if (area) area.style.display = key === section ? "" : "none";
   });
 
-  if (dashboardArea) dashboardArea.style.display = section === "queue" ? "none" : "";
-  if (queueArea) queueArea.style.display = section === "queue" ? "" : "none";
+  document.querySelectorAll("#pageAdmin [data-section]").forEach(function (item) {
+    item.classList.toggle("active", item.getAttribute("data-section") === section);
+  });
 
   if (section === "queue") {
     renderQueueManagement();
     startAutoVoidWatcher();
+    return;
+  }
+
+  stopAutoVoidWatcher();
+  if (section === "settings") {
+    renderSettings();
+  } else if (section === "enforcer") {
+    renderEnforcer();
   } else {
-    stopAutoVoidWatcher();
     updateAdmin();
   }
 }
