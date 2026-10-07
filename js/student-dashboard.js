@@ -183,12 +183,10 @@ function renderLiveBoard() {
   if (!area) return;
 
   var cardsHtml = stations.map(function (station) {
-    var servingTicket = station.nowServingId ? tickets.find(function (item) {
-      return item.id === station.nowServingId;
-    }) : null;
+    var servingTicket = servingTicketOf(station);
     var servingText = servingTicket ? servingTicket.ticketNo : "—";
     var waitingCount = tickets.filter(function (item) {
-      return item.stationId === station.id && item.status === "waiting";
+      return item.stationId === station.id && item.status === "waiting" && isTodayTicket(item);
     }).length;
 
     return '<div class="board-card">' +
@@ -265,9 +263,7 @@ function updateDashboard() {
     for (var i = 0; i < stations.length; i++) {
       var station = stations[i];
       if (station.active === false) continue;
-      var servingTicket = station.nowServingId ? tickets.find(function (item) {
-        return item.id === station.nowServingId;
-      }) : null;
+      var servingTicket = servingTicketOf(station);
       var servingText = servingTicket ? servingTicket.ticketNo : "—";
       html +=
         '<div class="station-card">' +
@@ -344,7 +340,7 @@ function updateDashboard() {
       countdownHtml +
       '<div class="ticket-detail-grid">' + detailCellsHtml + '</div>' +
     '</div>' +
-    '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>';
+    (ticket.status === "serving" ? '' : '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>');
 
   stationArea.innerHTML = "";
 }

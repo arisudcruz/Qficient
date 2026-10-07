@@ -42,15 +42,33 @@ service cloud.firestore {
 
     // ---------- Stations ----------
     // Public to read (students pick a station). Only admins manage them. A
-    // student's join transaction may bump the ticket counter by exactly one.
+    // student's join transaction may bump the ticket counter by exactly one, or
+    // restart it at 1 for the first join of a new day (Philippine time, UTC+8).
+
+    function today() {
+      let t = request.time + duration.value(8, 'h');
+      return string(t.year()) + '-' +
+        (t.month() < 10 ? '0' : '') + string(t.month()) + '-' +
+        (t.day() < 10 ? '0' : '') + string(t.day());
+    }
+
+    function isCounterBump() {
+      return changedKeys().hasOnly(['count']) &&
+        request.resource.data.count == resource.data.get('count', 0) + 1;
+    }
+
+    function isDailyCounterReset() {
+      return changedKeys().hasOnly(['count', 'countDay']) &&
+        request.resource.data.count == 1 &&
+        request.resource.data.countDay == today() &&
+        resource.data.get('countDay', '') != today();
+    }
 
     match /stations/{stationId} {
       allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() ||
-        (signedIn() &&
-         changedKeys().hasOnly(['count']) &&
-         request.resource.data.count == resource.data.get('count', 0) + 1);
+        (signedIn() && (isCounterBump() || isDailyCounterReset()));
     }
 
     // ---------- System settings ----------
@@ -69,7 +87,8 @@ service cloud.firestore {
     // ---------- Tickets ----------
     // Readable by any signed-in user (the live board and queue counts need all
     // tickets). Anyone signed in may create their own waiting ticket at an
-    // active station and cancel it. Everything else is admin-only.
+    // active station and cancel it until staff start serving it. Everything
+    // else is admin-only.
 
     function stationIsOpen(stationId) {
       let path = /databases/$(database)/documents/stations/$(stationId);
@@ -97,7 +116,7 @@ service cloud.firestore {
 
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
-        resource.data.status in ['waiting', 'serving', 'skipped'] &&
+        resource.data.status in ['waiting', 'skipped'] &&
         request.resource.data.status == 'cancelled' &&
         changedKeys().hasOnly(['status', 'cancelledAt']) &&
         request.resource.data.cancelledAt == request.time;

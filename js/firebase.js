@@ -66,4 +66,6 @@ firebase.auth().onAuthStateChanged(function (firebaseUser) {
   } else {
     stopTicketsListener();
   }
+
+  restoreStudentSession(firebaseUser);
 });

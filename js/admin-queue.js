@@ -22,8 +22,7 @@ function toggleQueueTransfer() {
 }
 
 function getServingTicket(stationId) {
-  var station = stations.find(function (s) { return s.id === stationId; });
-  return station && station.nowServingId ? tickets.find(function (t) { return t.id === station.nowServingId; }) : null;
+  return servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
 }
 
 function confirmCallNext(stationId) {
@@ -180,6 +179,7 @@ function renderQueueManagement() {
   var queueListTickets = tickets.filter(function (t) {
     return t.stationId === activeQueueStation &&
       (t.status === "waiting" || t.status === "skipped") &&
+      isTodayTicket(t) &&
       (!serving || t.id !== serving.id);
   }).sort(function (a, b) {
     var aMs = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
