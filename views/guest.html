@@ -6,31 +6,34 @@
   </div>
 
   <div class="app-body">
-    <p class="app-subtitle">You'll be routed automatically to Admission.</p>
+    <p class="app-subtitle">Tell us a bit about yourself, then pick the service you need.</p>
 
-    <div class="app-field">
-      <label>Full Name</label>
-      <input type="text" id="guestName" placeholder="Juan Dela Cruz">
+    <div class="app-field-row">
+      <div class="app-field">
+        <label for="guestFirstName">First Name*</label>
+        <input type="text" id="guestFirstName" placeholder="Juan" autocomplete="given-name" maxlength="40" oninput="setGuestFieldError(this.id, '')">
+        <p class="app-field-error" id="guestFirstNameError" role="alert"></p>
+      </div>
+
+      <div class="app-field">
+        <label for="guestLastName">Last Name*</label>
+        <input type="text" id="guestLastName" placeholder="Dela Cruz" autocomplete="family-name" maxlength="40" oninput="setGuestFieldError(this.id, '')">
+        <p class="app-field-error" id="guestLastNameError" role="alert"></p>
+      </div>
     </div>
 
     <div class="app-field">
-      <label>Mobile Number</label>
-      <input type="text" id="guestMobile" placeholder="09XX XXX XXXX">
+      <label for="guestEmail">Email*</label>
+      <input type="email" id="guestEmail" placeholder="juan@example.com" autocomplete="email" maxlength="254" oninput="setGuestFieldError(this.id, '')">
+      <p class="app-field-error" id="guestEmailError" role="alert"></p>
     </div>
 
     <div class="app-field">
-      <label>Purpose</label>
-      <input type="text" id="guestPurpose" placeholder="e.g. New student admission">
+      <label for="guestPurpose">Purpose*</label>
+      <input type="text" id="guestPurpose" placeholder="e.g. New student admission" oninput="setGuestFieldError(this.id, '')">
+      <p class="app-field-error" id="guestPurposeError" role="alert"></p>
     </div>
 
-    <div id="guestRecaptcha"></div>
-
-    <div id="guestOtpSection" class="app-field" style="display:none;">
-      <label>Verification Code</label>
-      <input type="text" id="guestOtp" placeholder="Enter 6-digit code">
-      <button type="button" class="app-btn app-btn-primary" onclick="verifyGuestOtp()">Verify SMS Code</button>
-    </div>
-
-    <button type="button" class="app-btn app-btn-primary" onclick="requestGuestOtp()">Send SMS Code</button>
+    <button type="button" class="app-btn app-btn-primary" id="guestContinueBtn" onclick="startGuestSession()">Continue as Guest</button>
   </div>
 </div>

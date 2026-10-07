@@ -48,99 +48,82 @@ function login() {
     });
 }
 
-var guestPhoneConfirmation = null;
 
-function normalizeGuestPhone(rawPhone) {
-  var digits = (rawPhone || "").replace(/\D/g, "");
-
-  if (!digits) {
-    return "";
+function guestSignInErrorMessage(code) {
+  switch (code) {
+    case "auth/operation-not-allowed":
+      return "Could not start guest access: anonymous sign-in isn't enabled for this project yet.";
+    case "auth/network-request-failed":
+      return "Could not start guest access. Check your connection and try again.";
+    default:
+      return "Could not start guest access. Please try again.";
   }
-
-  if (digits.startsWith("0")) {
-    digits = "63" + digits.substring(1);
-  }
-
-  return "+" + digits;
 }
 
-function requestGuestOtp() {
-  var name = document.getElementById("guestName").value.trim();
-  var mobile = document.getElementById("guestMobile").value.trim();
+var EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/;
+
+function setGuestFieldError(inputId, message) {
+  var input = document.getElementById(inputId);
+  document.getElementById(inputId + "Error").textContent = message;
+  input.classList.toggle("invalid", message !== "");
+  input.setAttribute("aria-invalid", message !== "" ? "true" : "false");
+}
+
+function guestEmailProblem(email) {
+  if (!email) return "Enter your email address.";
+  if (email.length > 254 || !EMAIL_PATTERN.test(email)) return "Enter a valid email address.";
+  return "";
+}
+
+function startGuestSession() {
+  var firstName = document.getElementById("guestFirstName").value.trim().replace(/\s+/g, " ");
+  var lastName = document.getElementById("guestLastName").value.trim().replace(/\s+/g, " ");
+  var email = document.getElementById("guestEmail").value.trim();
   var purpose = document.getElementById("guestPurpose").value.trim();
 
-  if (!name || !mobile || !purpose) {
-    say("Please fill in all fields.");
+  var problems = [
+    ["guestFirstName", /\p{L}/u.test(firstName) ? "" : "Enter your first name."],
+    ["guestLastName", /\p{L}/u.test(lastName) ? "" : "Enter your last name."],
+    ["guestEmail", guestEmailProblem(email)],
+    ["guestPurpose", purpose ? "" : "Enter your purpose."]
+  ];
+
+  var firstInvalid = null;
+  problems.forEach(function (problem) {
+    setGuestFieldError(problem[0], problem[1]);
+    if (problem[1] && !firstInvalid) firstInvalid = problem[0];
+  });
+
+  if (firstInvalid) {
+    document.getElementById(firstInvalid).focus();
     return;
   }
 
-  var phone = normalizeGuestPhone(mobile);
+  var name = firstName + " " + lastName;
+  var button = document.getElementById("guestContinueBtn");
+  button.disabled = true;
 
-  if (!/^\+\d{10,15}$/.test(phone)) {
-    say("Please enter a valid mobile number.");
-    return;
-  }
-
-  if (!window.guestRecaptchaVerifier) {
-    window.guestRecaptchaVerifier = new firebase.auth.RecaptchaVerifier("guestRecaptcha", {
-      size: "invisible",
-      callback: function () {
-        console.log("reCAPTCHA solved.");
-      },
-      "expired-callback": function () {
-        say("SMS verification timed out. Please try again.");
-      }
-    });
-  }
-
-  firebase.auth().signInWithPhoneNumber(phone, window.guestRecaptchaVerifier)
-    .then(function (confirmationResult) {
-      guestPhoneConfirmation = confirmationResult;
-      document.getElementById("guestOtpSection").style.display = "block";
-      say("Verification code sent to your mobile number.");
-    })
-    .catch(function (error) {
-      console.error(error);
-      say("Could not send SMS: " + error.message);
-    });
-}
-
-function verifyGuestOtp() {
-  var otp = document.getElementById("guestOtp").value.trim();
-
-  if (!otp) {
-    say("Please enter the SMS verification code.");
-    return;
-  }
-
-  if (!guestPhoneConfirmation) {
-    say("Please request the SMS code first.");
-    return;
-  }
-
-  guestPhoneConfirmation.confirm(otp)
+  firebase.auth().signOut()
     .then(function () {
-      var name = document.getElementById("guestName").value.trim();
-      var mobile = document.getElementById("guestMobile").value.trim();
-      var purpose = document.getElementById("guestPurpose").value.trim();
-
+      return firebase.auth().signInAnonymously();
+    })
+    .then(function (credential) {
       user = {
         type: "guest",
-        id: "guest-" + Date.now(),
+        id: credential.user.uid,
         name: name,
-        mobile: mobile,
+        email: email,
         purpose: purpose
       };
 
-      joinQueue("admission", purpose);
+      pendingJoinPurpose = purpose;
       updateDashboard();
       goTo("pageDashboard");
     })
     .catch(function (error) {
-      say("Invalid or expired SMS code: " + error.message);
+      say(guestSignInErrorMessage(error.code));
+    })
+    .then(function () {
+      button.disabled = false;
     });
-}
-
-function guestLogin() {
-  say("Please request and verify the SMS code before joining the queue.");
 }
