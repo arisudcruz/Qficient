@@ -1,0 +1,171 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Identity helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function provider() {
+      return request.auth.token.firebase.sign_in_provider;
+    }
+
+    function isPasswordUser() {
+      return signedIn() && provider() == 'password';
+    }
+
+    function userEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function staffPath() {
+      return /databases/$(database)/documents/staff/$(userEmail());
+    }
+
+    // The bootstrap admin always has access, so the system can never lock
+    // itself out. Everyone else needs a staff record whose role is 'admin'.
+    function isBootstrapAdmin() {
+      return isPasswordUser() && userEmail() == 'admin@qficient.com';
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() ||
+        (isPasswordUser() && exists(staffPath()) && get(staffPath()).data.role == 'admin');
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------- Stations ----------
+    // Public to read (students pick a station). Only admins manage them. A
+    // student's join transaction may bump the ticket counter by exactly one.
+
+    match /stations/{stationId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() ||
+        (signedIn() &&
+         changedKeys().hasOnly(['count']) &&
+         request.resource.data.count == resource.data.get('count', 0) + 1);
+    }
+
+    // ---------- System settings ----------
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin() &&
+        docId == 'system' &&
+        request.resource.data.keys().hasOnly(['autoVoidMinutes', 'updatedAt']) &&
+        request.resource.data.autoVoidMinutes is int &&
+        request.resource.data.autoVoidMinutes >= 1 &&
+        request.resource.data.autoVoidMinutes <= 1440;
+      allow delete: if false;
+    }
+
+    // ---------- Tickets ----------
+    // Readable by any signed-in user (the live board and queue counts need all
+    // tickets). Anyone signed in may create their own waiting ticket at an
+    // active station and cancel it. Everything else is admin-only.
+
+    function stationIsOpen(stationId) {
+      let path = /databases/$(database)/documents/stations/$(stationId);
+      return exists(path) && get(path).data.get('active', true) != false;
+    }
+
+    function isValidNewTicket() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentNumber',
+                               'studentType', 'purpose', 'status', 'verified', 'createdAt']) &&
+        d.keys().hasAll(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'purpose',
+                         'status', 'verified', 'createdAt']) &&
+        d.ownerId == request.auth.uid &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        d.stationId is string &&
+        d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        (!('studentNumber' in d) || (d.studentNumber is string && d.studentNumber.size() <= 20)) &&
+        (!('studentType' in d) || d.studentType in ['', 'regular', 'transferee']) &&
+        stationIsOpen(d.stationId);
+    }
+
+    function isOwnerCancelling() {
+      return resource.data.ownerId == request.auth.uid &&
+        resource.data.status in ['waiting', 'serving', 'skipped'] &&
+        request.resource.data.status == 'cancelled' &&
+        changedKeys().hasOnly(['status', 'cancelledAt']) &&
+        request.resource.data.cancelledAt == request.time;
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || (signedIn() && isValidNewTicket());
+      allow update: if isAdmin() || (signedIn() && isOwnerCancelling());
+      allow delete: if false;
+    }
+
+    // ---------- Staff accounts ----------
+    // One record per email address. Signing in creates the account's own record
+    // as 'standby'; only an admin can change a role afterwards.
+
+    match /staff/{staffEmail} {
+      allow get: if isAdmin() || (isPasswordUser() && staffEmail == userEmail());
+      allow list: if isAdmin();
+
+      allow create: if isPasswordUser() &&
+        staffEmail == userEmail() &&
+        request.resource.data.keys().hasOnly(['email', 'role', 'createdAt', 'updatedAt']) &&
+        request.resource.data.email == staffEmail &&
+        request.resource.data.role == (isBootstrapAdmin() ? 'admin' : 'standby') &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+
+      allow update: if isAdmin() &&
+        changedKeys().hasOnly(['role', 'updatedAt']) &&
+        request.resource.data.role is string &&
+        request.resource.data.role.size() >= 1 &&
+        request.resource.data.role.size() <= 64 &&
+        request.resource.data.updatedAt == request.time &&
+        (staffEmail != 'admin@qficient.com' || request.resource.data.role == 'admin') &&
+        (staffEmail != userEmail() || request.resource.data.role == 'admin');
+
+      allow delete: if false;
+    }
+
+    // ---------- Student profiles ----------
+    // Only the student (signed in with Microsoft) can write their own profile.
+
+    match /students/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() &&
+        provider() == 'microsoft.com' &&
+        request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['studentType', 'updatedAt', 'fcmToken', 'fcmTokenUpdatedAt']) &&
+        (!('studentType' in request.resource.data) ||
+         request.resource.data.studentType in ['regular', 'transferee']);
+      allow delete: if false;
+    }
+
+    // ---------- Push notification tokens ----------
+    // Private to their owner. A server-side sender uses the Admin SDK, which
+    // is not subject to these rules.
+
+    match /deviceTokens/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['token', 'updatedAt']) &&
+        request.resource.data.token is string &&
+        request.resource.data.token.size() >= 1 &&
+        request.resource.data.token.size() <= 4096;
+    }
+
+    // Anything not matched above is denied.
+  }
+}

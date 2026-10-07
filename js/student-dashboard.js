@@ -50,12 +50,13 @@ function promptStudentType(isFirstTime) {
 }
 
 var lastNotifiedRecallMs = null;
+var lastNotifiedLastCallMs = null;
 var skipCountdownIntervalId = null;
 
-function notifyRecall() {
+function showStudentToast(text) {
   if (typeof Toastify === "undefined") return;
   Toastify({
-    text: "⏰ You've been recalled! Please return to the counter within " + formatVoidWindow() + ".",
+    text: text,
     duration: 8000,
     gravity: "top",
     position: "center",
@@ -63,24 +64,43 @@ function notifyRecall() {
   }).showToast();
 }
 
+function notifyRecall() {
+  showStudentToast("⏰ Please go to the counter. You're being called.");
+}
+
+function notifyLastCall() {
+  showStudentToast("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.");
+}
+
+function ticketCountdownText(phase, remainingMs) {
+  if (phase === "final") {
+    return remainingMs > 0 ?
+      "🚨 Last call! Return to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
+      "🚨 Your last chance has ended. Your ticket is being voided.";
+  }
+  return "⚠️ Please return to the counter. " + formatCountdown(remainingMs) + " left.";
+}
+
 function tickTicketCountdown() {
   var el = document.getElementById("ticketCountdownText");
   if (!el) return;
 
-  var remaining = AUTO_VOID_WINDOW_MS - (Date.now() - Number(el.getAttribute("data-skipped-ms")));
-  if (remaining <= 0) {
+  var phase = el.getAttribute("data-phase");
+  var remaining = AUTO_VOID_WINDOW_MS - (Date.now() - Number(el.getAttribute("data-base-ms")));
+
+  if (phase === "initial" && remaining <= 0) {
     clearInterval(skipCountdownIntervalId);
     skipCountdownIntervalId = null;
     updateDashboard();
     return;
   }
-  el.textContent = "⚠️ Please return to the counter — auto-void in " + formatCountdown(remaining);
+  el.textContent = ticketCountdownText(phase, remaining);
 }
 
-function ensureSkipCountdownWatcher(isSkipped) {
-  if (isSkipped && !skipCountdownIntervalId) {
+function ensureSkipCountdownWatcher(needsTimer) {
+  if (needsTimer && !skipCountdownIntervalId) {
     skipCountdownIntervalId = setInterval(tickTicketCountdown, 1000);
-  } else if (!isSkipped && skipCountdownIntervalId) {
+  } else if (!needsTimer && skipCountdownIntervalId) {
     clearInterval(skipCountdownIntervalId);
     skipCountdownIntervalId = null;
   }
@@ -274,7 +294,16 @@ function updateDashboard() {
     }
   }
 
-  ensureSkipCountdownWatcher(ticket.status === "skipped");
+  if (ticket.lastCallAt && typeof ticket.lastCallAt.toMillis === "function") {
+    var lastCallMs = ticket.lastCallAt.toMillis();
+    if (lastCallMs !== lastNotifiedLastCallMs) {
+      lastNotifiedLastCallMs = lastCallMs;
+      notifyLastCall();
+    }
+  }
+
+  var skip = ticket.status === "skipped" ? getSkipPhase(ticket) : null;
+  ensureSkipCountdownWatcher(skip !== null && skip.phase !== "expired");
 
   var ticketStation = stations.find(function (station) {
     return station.id === ticket.stationId;
@@ -286,12 +315,12 @@ function updateDashboard() {
   if (ticket.status === "serving") {
     statusClass = "status-pill done";
     statusText = "Now Serving";
-  } else if (ticket.status === "skipped") {
+  } else if (skip) {
     statusClass = "status-pill danger";
     statusText = "Skipped";
-    var baseMs = (ticket.skippedAt && typeof ticket.skippedAt.toMillis === "function") ? ticket.skippedAt.toMillis() : Date.now();
-    var remainingMs = AUTO_VOID_WINDOW_MS - (Date.now() - baseMs);
-    countdownHtml = '<p class="ticket-countdown" id="ticketCountdownText" data-skipped-ms="' + baseMs + '">⚠️ Please return to the counter — auto-void in ' + formatCountdown(remainingMs) + '</p>';
+    countdownHtml = skip.phase === "expired" ?
+      '<p class="ticket-countdown">⏳ Your time is up. Please go to the counter now. Staff may give you a last call.</p>' :
+      '<p class="ticket-countdown" id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + ticketCountdownText(skip.phase, skip.remainingMs) + '</p>';
   }
 
   var detailCellsHtml = '<div><span class="ticket-purpose-label">Purpose</span><span class="ticket-purpose-value">' + escapeHtml(ticket.purpose || "—") + '</span></div>';

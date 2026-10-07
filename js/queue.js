@@ -96,7 +96,6 @@ function joinQueue(stationId, purpose) {
         ownerName: user.name,
         studentNumber: user.studentNumber || "",
         studentType: user.studentType || "",
-        fcmToken: user.fcmToken || "",
         purpose: purpose || "",
         status: "waiting",
         verified: false,
@@ -221,7 +220,6 @@ function recallTicket(ticketId) {
 
   db.collection("tickets").doc(ticketId).update({
     recalledAt: firebase.firestore.FieldValue.serverTimestamp(),
-    skippedAt: firebase.firestore.FieldValue.serverTimestamp(),
     recallCount: firebase.firestore.FieldValue.increment(1)
   }).then(function () {
     say("Recall notification sent.");
@@ -230,14 +228,45 @@ function recallTicket(ticketId) {
   });
 }
 
+function timestampToMs(timestamp, fallbackMs) {
+  return (timestamp && typeof timestamp.toMillis === "function") ? timestamp.toMillis() : fallbackMs;
+}
+
+function getSkipPhase(ticket) {
+  var now = Date.now();
+
+  if (ticket.lastCalled) {
+    var lastCallBase = timestampToMs(ticket.lastCallAt, now);
+    return { phase: "final", baseMs: lastCallBase, remainingMs: AUTO_VOID_WINDOW_MS - (now - lastCallBase) };
+  }
+
+  var skippedBase = timestampToMs(ticket.skippedAt, now);
+  var remainingMs = AUTO_VOID_WINDOW_MS - (now - skippedBase);
+  return { phase: remainingMs > 0 ? "initial" : "expired", baseMs: skippedBase, remainingMs: remainingMs };
+}
+
+function lastCallTicket(ticketId) {
+  var ticket = tickets.find(function (t) { return t.id === ticketId; });
+  if (!ticket || ticket.status !== "skipped" || getSkipPhase(ticket).phase !== "expired") return;
+
+  db.collection("tickets").doc(ticketId).update({
+    lastCalled: true,
+    lastCallAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function () {
+    say("Last call sent.");
+  }).catch(function (err) {
+    say("Could not send the last call: " + err.message);
+  });
+}
+
 function checkAutoVoid() {
   var now = Date.now();
 
   tickets.forEach(function (ticket) {
-    if (ticket.status !== "skipped") return;
-    if (!ticket.skippedAt || typeof ticket.skippedAt.toMillis !== "function") return;
+    if (ticket.status !== "skipped" || !ticket.lastCalled) return;
+    if (!ticket.lastCallAt || typeof ticket.lastCallAt.toMillis !== "function") return;
 
-    if (now - ticket.skippedAt.toMillis() >= AUTO_VOID_WINDOW_MS) {
+    if (now - ticket.lastCallAt.toMillis() >= AUTO_VOID_WINDOW_MS) {
       db.collection("tickets").doc(ticket.id).update({
         status: "void",
         voidedAt: firebase.firestore.FieldValue.serverTimestamp(),

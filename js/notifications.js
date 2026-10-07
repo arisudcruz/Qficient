@@ -32,23 +32,12 @@ function getFcmMessaging() {
 function saveFcmToken(token) {
   if (!user || !token) return;
 
-  user.fcmToken = token;
-
-  if (user.type === "student") {
-    db.collection("students").doc(user.id).set({
-      fcmToken: token,
-      fcmTokenUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true }).catch(function (err) {
-      console.error("Could not save FCM token: " + err.message);
-    });
-  }
-
-  var ticket = myTicket();
-  if (ticket) {
-    db.collection("tickets").doc(ticket.id).update({ fcmToken: token }).catch(function (err) {
-      console.error("Could not attach FCM token to ticket: " + err.message);
-    });
-  }
+  db.collection("deviceTokens").doc(user.id).set({
+    token: token,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function (err) {
+    console.error("Could not save FCM token: " + err.message);
+  });
 }
 
 function requestFcmToken() {

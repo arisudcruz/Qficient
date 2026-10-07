@@ -515,7 +515,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Queue Rules &amp; Timeouts</h2></div>' +
       '<label class="settings-field-label" for="settingsTimeout">Auto-Void Timeout Minute</label>' +
-      '<p class="settings-help">*Controls the number of minutes a queue entry can remain active before it is automatically voided. Once the configured timeout is reached, the system automatically marks the queue entry as void.</p>' +
+      '<p class="settings-help">*Controls the number of minutes a skipped queue entry has to return to the counter. Once it runs out, staff can send a last call that gives the entry the same amount of time again. If the last call also runs out, the system automatically marks the queue entry as void.</p>' +
       '<input type="number" id="settingsTimeout" class="settings-input" min="1" max="1440" step="1" value="' + escapeAdminText(timeoutValue) + '" oninput="onTimeoutInput(this.value)">' +
     '</section>' +
 

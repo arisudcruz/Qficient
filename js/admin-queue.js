@@ -59,7 +59,7 @@ function confirmSkip(stationId) {
 
   showConfirmModal({
     title: "Skip ticket " + serving.ticketNo + "?",
-    message: "They'll have " + formatVoidWindow() + " to be recalled before their ticket is automatically voided.",
+    message: "They'll have " + formatVoidWindow() + " to return to the counter. After that you can give them a last call before the ticket is voided.",
     confirmLabel: "Skip",
     tone: "danger",
     onConfirm: function () { skipCurrentTicket(stationId); }
@@ -85,20 +85,43 @@ function confirmRecall(ticketId) {
 
   showConfirmModal({
     title: "Recall ticket " + (ticket ? ticket.ticketNo : "") + "?",
-    message: "This notifies them to return to the counter and resets their auto-void countdown.",
+    message: "This notifies them to go to the counter. It doesn't change their countdown.",
     confirmLabel: "Recall",
     tone: "primary",
     onConfirm: function () { recallTicket(ticketId); }
   });
 }
 
+function confirmLastCall(ticketId) {
+  var ticket = tickets.find(function (t) { return t.id === ticketId; });
+  if (!ticket) return;
+
+  showConfirmModal({
+    title: "Last call for ticket " + ticket.ticketNo + "?",
+    message: "This gives them one last chance to return to the counter. If they don't respond within " + formatVoidWindow() + ", the ticket is voided.",
+    confirmLabel: "Last Call",
+    tone: "danger",
+    onConfirm: function () { lastCallTicket(ticketId); }
+  });
+}
+
 function tickQueueCountdowns() {
   var now = Date.now();
-  document.querySelectorAll(".void-countdown[data-skipped-ms]").forEach(function (el) {
-    var baseMs = Number(el.getAttribute("data-skipped-ms"));
-    var remainingMs = AUTO_VOID_WINDOW_MS - (now - baseMs);
-    el.textContent = "Auto-void in " + formatCountdown(remainingMs);
+  var needsRender = false;
+
+  document.querySelectorAll(".void-countdown[data-base-ms]").forEach(function (el) {
+    var phase = el.getAttribute("data-phase");
+    var remainingMs = AUTO_VOID_WINDOW_MS - (now - Number(el.getAttribute("data-base-ms")));
+
+    if (phase === "initial" && remainingMs <= 0) {
+      needsRender = true;
+      return;
+    }
+
+    el.textContent = (phase === "final" ? "Last chance, voids in " : "Respond within ") + formatCountdown(remainingMs);
   });
+
+  if (needsRender) renderQueueManagement();
 }
 
 function startAutoVoidWatcher() {
@@ -164,17 +187,28 @@ function renderQueueManagement() {
     return aMs - bMs;
   });
 
-  var now = Date.now();
   var rowsHtml = queueListTickets.map(function (ticket) {
     var statusCell;
     if (ticket.status === "skipped") {
-      var baseMs = (ticket.skippedAt && ticket.skippedAt.toMillis) ? ticket.skippedAt.toMillis() : now;
-      var remainingMs = AUTO_VOID_WINDOW_MS - (now - baseMs);
+      var skip = getSkipPhase(ticket);
+      var countdownHtml;
+      var lastCallHtml = "";
+
+      if (skip.phase === "initial") {
+        countdownHtml = '<span class="void-countdown" data-phase="initial" data-base-ms="' + skip.baseMs + '">Respond within ' + formatCountdown(skip.remainingMs) + '</span>';
+      } else if (skip.phase === "final") {
+        countdownHtml = '<span class="void-countdown" data-phase="final" data-base-ms="' + skip.baseMs + '">Last chance, voids in ' + formatCountdown(skip.remainingMs) + '</span>';
+      } else {
+        countdownHtml = '<span class="void-countdown">Time is up</span>';
+        lastCallHtml = '<button type="button" class="last-call-btn" onclick="confirmLastCall(\'' + ticket.id + '\')">Last Call</button>';
+      }
+
       statusCell =
         '<div class="skip-cell">' +
           '<span class="status-badge skip">Skipped</span>' +
-          '<span class="void-countdown" data-skipped-ms="' + baseMs + '">Auto-void in ' + formatCountdown(remainingMs) + '</span>' +
+          countdownHtml +
           '<button type="button" class="recall-inline-btn" onclick="confirmRecall(\'' + ticket.id + '\')">Recall</button>' +
+          lastCallHtml +
         '</div>';
     } else {
       statusCell = '<span class="status-badge waiting">Waiting</span>';

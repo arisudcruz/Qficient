@@ -49,16 +49,18 @@ function resolveAdminAccess(firebaseUser) {
   var isBootstrapAdmin = email === ADMIN_EMAIL;
   var now = firebase.firestore.FieldValue.serverTimestamp();
 
-  return ref.get().then(function (doc) {
-    if (doc.exists) {
-      if (isBootstrapAdmin && doc.data().role !== "admin") {
-        return ref.update({ role: "admin", updatedAt: now }).then(function () { return true; });
+  return db.runTransaction(function (transaction) {
+    return transaction.get(ref).then(function (doc) {
+      if (doc.exists) {
+        if (isBootstrapAdmin && doc.data().role !== "admin") {
+          transaction.update(ref, { role: "admin", updatedAt: now });
+          return true;
+        }
+        return doc.data().role === "admin";
       }
-      return doc.data().role === "admin";
-    }
 
-    var role = isBootstrapAdmin ? "admin" : "standby";
-    return ref.set({ email: email, role: role, createdAt: now, updatedAt: now }).then(function () {
+      var role = isBootstrapAdmin ? "admin" : "standby";
+      transaction.set(ref, { email: email, role: role, createdAt: now, updatedAt: now });
       return role === "admin";
     });
   });
