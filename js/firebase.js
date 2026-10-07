@@ -14,27 +14,6 @@ var stations = [];
 var tickets = [];
 var user = null;
 
-function seedStations() {
-  var defaults = [
-    { id: "cashier", name: "Cashier" },
-    { id: "registrar", name: "Registrar" },
-    { id: "admission", name: "Evaluation / Admission" }
-  ];
-
-  db.collection("stations").limit(1).get().then(function (snapshot) {
-    if (!snapshot.empty) return;
-
-    defaults.forEach(function (station) {
-      db.collection("stations").doc(station.id).set({
-        name: station.name,
-        count: 0,
-        nowServingId: null,
-        active: true
-      });
-    });
-  });
-}
-
 db.collection("stations").onSnapshot(function (snapshot) {
   stations = snapshot.docs.map(function (doc) {
     return Object.assign({ id: doc.id }, doc.data());
@@ -56,15 +35,35 @@ db.collection("settings").doc("system").onSnapshot(function (doc) {
   console.error("Could not load system settings: " + err.message);
 });
 
-db.collection("tickets").onSnapshot(function (snapshot) {
-  tickets = snapshot.docs.map(function (doc) {
-    return Object.assign({ id: doc.id }, doc.data());
-  });
-  updateDashboard();
-  updateAdmin();
-  renderQueueManagement();
-}, function (err) {
-  say("Connection error: " + err.message);
-});
+var ticketsUnsubscribe = null;
 
-seedStations();
+function startTicketsListener() {
+  if (ticketsUnsubscribe) return;
+
+  ticketsUnsubscribe = db.collection("tickets").onSnapshot(function (snapshot) {
+    tickets = snapshot.docs.map(function (doc) {
+      return Object.assign({ id: doc.id }, doc.data());
+    });
+    updateDashboard();
+    updateAdmin();
+    renderQueueManagement();
+  }, function (err) {
+    say("Connection error: " + err.message);
+  });
+}
+
+function stopTicketsListener() {
+  if (ticketsUnsubscribe) {
+    ticketsUnsubscribe();
+    ticketsUnsubscribe = null;
+  }
+  tickets = [];
+}
+
+firebase.auth().onAuthStateChanged(function (firebaseUser) {
+  if (firebaseUser) {
+    startTicketsListener();
+  } else {
+    stopTicketsListener();
+  }
+});

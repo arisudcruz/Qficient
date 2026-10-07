@@ -96,7 +96,6 @@ function joinQueue(stationId, purpose) {
         ownerName: user.name,
         studentNumber: user.studentNumber || "",
         studentType: user.studentType || "",
-        fcmToken: user.fcmToken || "",
         purpose: purpose || "",
         status: "waiting",
         verified: false,
