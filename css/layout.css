@@ -1534,7 +1534,7 @@ body.dark .enforcer-field input {
 
 .enforcer-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }
@@ -1562,73 +1562,6 @@ body.dark .enforcer-field input {
 .enforcer-clear {
   color: #64748B;
   border-color: #cbd5e1;
-}
-
-.enforcer-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.enforcer-stat {
-  padding: 16px 18px;
-  background: #fff;
-  border: 1px solid #e6ebf3;
-  border-radius: 16px;
-}
-
-.enforcer-stat-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #172033;
-}
-
-.enforcer-stat-arrow {
-  color: #004B93;
-}
-
-.enforcer-stat-body {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-}
-
-.enforcer-stat-value {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  font-weight: 700;
-  color: #172033;
-}
-
-.enforcer-stat-icon {
-  width: 42px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: #004B93;
-  color: var(--amber);
-  font-size: 1.1rem;
-}
-
-@media (max-width: 1180px) {
-  .enforcer-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .enforcer-stats {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .enforcer-stat {
-    flex: 1 1 200px;
-  }
 }
 
 @media (max-width: 640px) {

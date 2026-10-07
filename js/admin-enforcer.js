@@ -7,13 +7,6 @@ var enforcerManualTickets = [
   { queueNo: "C025", student: "Kai Sotto", purpose: "Tuition Fee", station: "Cashier" }
 ];
 
-var enforcerStats = [
-  { label: "Currently Serving", value: "C01", icon: "👥" },
-  { label: "Next in Line", value: "C02", icon: "👥" },
-  { label: "Skipped", value: "3", icon: "↘" },
-  { label: "Total Students", value: "7", icon: "👤" }
-];
-
 function renderEnforcer() {
   var area = document.getElementById("adminEnforcerArea");
   if (!area) return;
@@ -45,14 +38,6 @@ function renderEnforcer() {
       '<td>' + escapeAdminText(ticket.purpose) + '</td>' +
       '<td>' + escapeAdminText(ticket.station) + '</td>' +
       '<td><span class="status-badge compact queued">Waiting</span></td></tr>';
-  }).join("");
-
-  var statsHtml = enforcerStats.map(function (stat) {
-    return '<article class="enforcer-stat">' +
-      '<div class="enforcer-stat-top"><span>' + escapeAdminText(stat.label) + '</span><span class="enforcer-stat-arrow">↗</span></div>' +
-      '<div class="enforcer-stat-body"><span class="enforcer-stat-value">' + escapeAdminText(stat.value) + '</span>' +
-        '<span class="enforcer-stat-icon">' + stat.icon + '</span></div>' +
-    '</article>';
   }).join("");
 
   area.innerHTML =
@@ -92,7 +77,5 @@ function renderEnforcer() {
             '<tbody>' + rowsHtml + '</tbody></table></div>' +
         '</section>' +
       '</div>' +
-
-      '<aside class="enforcer-stats">' + statsHtml + '</aside>' +
     '</div>';
 }
