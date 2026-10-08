@@ -42,15 +42,33 @@ service cloud.firestore {
 
     // ---------- Stations ----------
     // Public to read (students pick a station). Only admins manage them. A
-    // student's join transaction may bump the ticket counter by exactly one.
+    // student's join transaction may bump the ticket counter by exactly one, or
+    // restart it at 1 for the first join of a new day (Philippine time, UTC+8).
+
+    function today() {
+      let t = request.time + duration.value(8, 'h');
+      return string(t.year()) + '-' +
+        (t.month() < 10 ? '0' : '') + string(t.month()) + '-' +
+        (t.day() < 10 ? '0' : '') + string(t.day());
+    }
+
+    function isCounterBump() {
+      return changedKeys().hasOnly(['count']) &&
+        request.resource.data.count == resource.data.get('count', 0) + 1;
+    }
+
+    function isDailyCounterReset() {
+      return changedKeys().hasOnly(['count', 'countDay']) &&
+        request.resource.data.count == 1 &&
+        request.resource.data.countDay == today() &&
+        resource.data.get('countDay', '') != today();
+    }
 
     match /stations/{stationId} {
       allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() ||
-        (signedIn() &&
-         changedKeys().hasOnly(['count']) &&
-         request.resource.data.count == resource.data.get('count', 0) + 1);
+        (signedIn() && (isCounterBump() || isDailyCounterReset()));
     }
 
     // ---------- System settings ----------
@@ -69,7 +87,8 @@ service cloud.firestore {
     // ---------- Tickets ----------
     // Readable by any signed-in user (the live board and queue counts need all
     // tickets). Anyone signed in may create their own waiting ticket at an
-    // active station and cancel it. Everything else is admin-only.
+    // active station and cancel it until staff start serving it. Everything
+    // else is admin-only.
 
     function stationIsOpen(stationId) {
       let path = /databases/$(database)/documents/stations/$(stationId);
@@ -91,13 +110,13 @@ service cloud.firestore {
         d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
         d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
         (!('studentNumber' in d) || (d.studentNumber is string && d.studentNumber.size() <= 20)) &&
-        (!('studentType' in d) || d.studentType in ['', 'regular', 'transferee']) &&
+        (!('studentType' in d) || d.studentType in ['', 'regular', 'transferee', 'guest']) &&
         stationIsOpen(d.stationId);
     }
 
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
-        resource.data.status in ['waiting', 'serving', 'skipped'] &&
+        resource.data.status in ['waiting', 'skipped'] &&
         request.resource.data.status == 'cancelled' &&
         changedKeys().hasOnly(['status', 'cancelledAt']) &&
         request.resource.data.cancelledAt == request.time;
@@ -164,6 +183,47 @@ service cloud.firestore {
         request.resource.data.token is string &&
         request.resource.data.token.size() >= 1 &&
         request.resource.data.token.size() <= 4096;
+    }
+
+    // ---------- Contact details for manually created tickets ----------
+    // Queue Enforcer keeps the walk-in's email here, not on the ticket that every
+    // signed-in user can read. Admins only; written once, never changed.
+
+    match /ticketContacts/{ticketId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.keys().hasOnly(['email', 'createdBy', 'createdAt']) &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254 &&
+        request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ---------- Admin notification inbox state ----------
+    // Which notifications an admin has read or deleted. One document per admin,
+    // keyed by their email, and only they can see or change it.
+
+    match /staffNotifications/{staffEmail} {
+      allow read: if isAdmin() && staffEmail == userEmail();
+
+      allow create, update: if isAdmin() &&
+        staffEmail == userEmail() &&
+        request.resource.data.keys().hasOnly(['readAllBefore', 'readIds', 'deletedIds', 'updatedAt']) &&
+        (!('readAllBefore' in request.resource.data) || request.resource.data.readAllBefore is timestamp) &&
+        (!('readIds' in request.resource.data) || request.resource.data.readIds is map) &&
+        (!('deletedIds' in request.resource.data) || request.resource.data.deletedIds is map) &&
+        request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---------- Notification server heartbeat ----------
+    // Written only by the always-on notification server (Admin SDK, not subject
+    // to these rules). Admins read it to see whether the server is running.
+
+    match /serverStatus/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // Anything not matched above is denied.

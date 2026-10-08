@@ -15,8 +15,9 @@ function getFcmMessaging() {
     fcmMessaging = firebase.messaging();
     fcmMessaging.onMessage(function (payload) {
       if (typeof Toastify === "undefined") return;
-      var title = (payload.notification && payload.notification.title) || "QFicient";
-      var body = (payload.notification && payload.notification.body) || "";
+      var data = payload.data || {};
+      var title = data.title || (payload.notification && payload.notification.title) || "QFicient";
+      var body = data.body || (payload.notification && payload.notification.body) || "";
       Toastify({
         text: title + (body ? " — " + body : ""),
         duration: 8000,

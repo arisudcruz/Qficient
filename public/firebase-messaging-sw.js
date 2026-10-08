@@ -12,11 +12,30 @@ firebase.initializeApp({
 
 var messaging = firebase.messaging();
 
+// The notification server sends data-only messages, so this is the one place a notification is displayed.
 messaging.onBackgroundMessage(function (payload) {
-  var title = (payload.notification && payload.notification.title) || "QFicient";
+  // A message with a "notification" part is already shown by the Firebase SDK; showing it again would duplicate it.
+  if (payload.notification) return;
+
+  var data = payload.data || {};
   var options = {
-    body: (payload.notification && payload.notification.body) || "",
-    icon: "/assets/qfficient-badge.png"
+    body: data.body || "",
+    icon: "/assets/qfficient-badge.png",
+    tag: data.tag || undefined,
+    renotify: !!data.tag
   };
-  self.registration.showNotification(title, options);
+  self.registration.showNotification(data.title || "QFicient", options);
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clients) {
+      for (var i = 0; i < clients.length; i++) {
+        if ("focus" in clients[i]) return clients[i].focus();
+      }
+      return self.clients.openWindow("/");
+    })
+  );
 });

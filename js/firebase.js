@@ -22,6 +22,7 @@ db.collection("stations").onSnapshot(function (snapshot) {
   updateAdmin();
   renderQueueManagement();
   refreshSettings();
+  refreshEnforcerList();
 }, function (err) {
   say("Connection error: " + err.message);
 });
@@ -47,6 +48,8 @@ function startTicketsListener() {
     updateDashboard();
     updateAdmin();
     renderQueueManagement();
+    refreshNotifications();
+    refreshEnforcerList();
   }, function (err) {
     say("Connection error: " + err.message);
   });
@@ -66,4 +69,6 @@ firebase.auth().onAuthStateChanged(function (firebaseUser) {
   } else {
     stopTicketsListener();
   }
+
+  restoreStudentSession(firebaseUser);
 });

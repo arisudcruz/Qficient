@@ -25,9 +25,10 @@
           <span class="nav-icon">◈</span>
           <span class="nav-text">Queue Enforcer</span>
         </button>
-        <button type="button" class="nav-item" data-section="notifications" title="Notifications">
+        <button type="button" class="nav-item" data-section="notifications" title="Notifications" onclick="setAdminSection('notifications')">
           <span class="nav-icon">◍</span>
           <span class="nav-text">Notifications</span>
+          <span class="nav-badge" id="notifBadge" style="display: none"></span>
         </button>
       </nav>
 
@@ -37,7 +38,7 @@
           <span class="nav-icon">⚙</span>
           <span class="nav-text">Settings</span>
         </button>
-        <button type="button" class="tool-item" data-section="rules" title="Rules">
+        <button type="button" class="tool-item" data-section="rules" title="Rules" onclick="setAdminSection('rules')">
           <span class="nav-icon">⚖</span>
           <span class="nav-text">Rules</span>
         </button>
@@ -50,9 +51,12 @@
     </aside>
 
     <main class="dashboard-main">
+      <div id="adminServerBanner" class="server-banner" style="display: none"></div>
       <div id="adminArea"></div>
       <div id="adminQueueArea" style="display: none"></div>
       <div id="adminEnforcerArea" style="display: none"></div>
+      <div id="adminNotificationsArea" style="display: none"></div>
+      <div id="adminRulesArea" style="display: none"></div>
       <div id="adminSettingsArea" style="display: none"></div>
     </main>
   </div>

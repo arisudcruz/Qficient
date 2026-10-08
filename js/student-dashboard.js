@@ -1,6 +1,13 @@
 var STUDENT_TYPE_LABELS = {
   regular: "Regular",
-  transferee: "Transferee / Irregular"
+  transferee: "Transferee / Irregular",
+  guest: "Guest"
+};
+
+var STUDENT_TYPE_SHORT_LABELS = {
+  regular: "Regular",
+  transferee: "Transferee",
+  guest: "Guest"
 };
 
 function closeStudentTypeModal() {
@@ -183,12 +190,10 @@ function renderLiveBoard() {
   if (!area) return;
 
   var cardsHtml = stations.map(function (station) {
-    var servingTicket = station.nowServingId ? tickets.find(function (item) {
-      return item.id === station.nowServingId;
-    }) : null;
+    var servingTicket = servingTicketOf(station);
     var servingText = servingTicket ? servingTicket.ticketNo : "—";
     var waitingCount = tickets.filter(function (item) {
-      return item.stationId === station.id && item.status === "waiting";
+      return item.stationId === station.id && item.status === "waiting" && isTodayTicket(item);
     }).length;
 
     return '<div class="board-card">' +
@@ -265,9 +270,7 @@ function updateDashboard() {
     for (var i = 0; i < stations.length; i++) {
       var station = stations[i];
       if (station.active === false) continue;
-      var servingTicket = station.nowServingId ? tickets.find(function (item) {
-        return item.id === station.nowServingId;
-      }) : null;
+      var servingTicket = servingTicketOf(station);
       var servingText = servingTicket ? servingTicket.ticketNo : "—";
       html +=
         '<div class="station-card">' +
@@ -329,7 +332,7 @@ function updateDashboard() {
   }
 
   ticketArea.innerHTML =
-    '<div class="ticket-card' + (ticket.verified ? ' verified' : '') + '">' +
+    '<div class="ticket-card' + (STUDENT_TYPE_LABELS[ticket.studentType] ? ' ticket-type-' + ticket.studentType : '') + (ticket.verified ? ' verified' : '') + '">' +
       '<div class="ticket-head">' +
         '<p class="ticket-station-label">' + escapeHtml(ticketStation ? ticketStation.name : "") + '</p>' +
         '<p class="ticket-number">' + escapeHtml(ticket.ticketNo) + '</p>' +
@@ -344,7 +347,7 @@ function updateDashboard() {
       countdownHtml +
       '<div class="ticket-detail-grid">' + detailCellsHtml + '</div>' +
     '</div>' +
-    '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>';
+    (ticket.status === "serving" ? '' : '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>');
 
   stationArea.innerHTML = "";
 }
