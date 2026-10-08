@@ -19,6 +19,7 @@ var appScripts = [
   "js/admin-enforcer.js",
   "js/admin-notifications.js",
   "js/admin-rules.js",
+  "js/admin-status.js",
   "js/firebase.js",
   "js/admin-auth.js",
   "js/notifications.js"

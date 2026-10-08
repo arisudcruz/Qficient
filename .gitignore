@@ -20,3 +20,7 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+
+# Notification server secrets
+server/serviceAccountKey*.json
+*-firebase-adminsdk-*.json

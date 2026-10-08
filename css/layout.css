@@ -1917,3 +1917,34 @@ body.dark .enforcer-field input {
 .queue-actions-note {
   margin: 12px 0 0;
 }
+
+.server-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid #F5C06B;
+  border-radius: 10px;
+  background: #FFF4DC;
+  color: #7A4B00;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.server-banner-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #7A4B00;
+  cursor: pointer;
+}
+
+.server-banner-close:hover {
+  background: rgba(122, 75, 0, 0.12);
+}

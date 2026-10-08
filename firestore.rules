@@ -185,6 +185,15 @@ service cloud.firestore {
         request.resource.data.token.size() <= 4096;
     }
 
+    // ---------- Notification server heartbeat ----------
+    // Written only by the always-on notification server (Admin SDK, not subject
+    // to these rules). Admins read it to see whether the server is running.
+
+    match /serverStatus/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Anything not matched above is denied.
   }
 }

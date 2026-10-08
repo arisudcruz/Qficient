@@ -69,6 +69,7 @@ function resolveAdminAccess(firebaseUser) {
 function deactivateAdminSession() {
   adminUser = null;
   stopStaffListener();
+  stopServerStatusListener();
 }
 
 function activateAdminSession(firebaseUser) {
@@ -81,6 +82,7 @@ function activateAdminSession(firebaseUser) {
     if (allowed) {
       adminUser = firebaseUser;
       startStaffListener();
+      startServerStatusListener();
     } else {
       deactivateAdminSession();
     }
