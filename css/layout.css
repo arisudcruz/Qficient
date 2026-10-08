@@ -2037,3 +2037,8 @@ body.dark .enforcer-field input {
   cursor: not-allowed;
   opacity: 0.4;
 }
+
+.manual-tag {
+  background: #E8EDF4;
+  color: #475569;
+}

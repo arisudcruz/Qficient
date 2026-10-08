@@ -136,18 +136,28 @@ function enforcerStatusClass(status) {
   return status === "cancelled" || status === "voided" ? "void" : (status || "waiting");
 }
 
-// Ticket ids ticked in the manual list. Only tickets still waiting in a queue can be ticked.
+// Ticket ids ticked in the queue list. Only tickets still waiting in a queue can be ticked.
 var enforcerSelection = {};
 
 function isEnforcerSelectable(ticket) {
   return ticket.status === "waiting" || ticket.status === "skipped";
 }
 
+// The whole queue for today: everyone being served, waiting or skipped, grouped by station in queue order.
 function getEnforcerListTickets() {
+  var stationOrder = {};
+  getSortedStations().forEach(function (station, index) { stationOrder[station.id] = index; });
+
   return tickets.filter(function (ticket) {
-    return ticket.manual === true && isTodayTicket(ticket) && (!enforcerFilter || ticket.stationId === enforcerFilter);
+    return (ticket.status === "serving" || ticket.status === "waiting" || ticket.status === "skipped") &&
+      isTodayTicket(ticket) && (!enforcerFilter || ticket.stationId === enforcerFilter);
   }).sort(function (a, b) {
-    return timestampToMs(b.createdAt, Date.now()) - timestampToMs(a.createdAt, Date.now());
+    var byStation = (stationOrder[a.stationId] || 0) - (stationOrder[b.stationId] || 0);
+    if (byStation) return byStation;
+
+    var aServing = a.status === "serving" ? 0 : 1;
+    var bServing = b.status === "serving" ? 0 : 1;
+    return aServing - bServing || compareQueueOrder(a, b);
   });
 }
 
@@ -157,11 +167,24 @@ function getSelectedEnforcerTickets() {
   });
 }
 
+// Small tags next to the name: who created it (manual), the student type when not Regular, and priority.
+function enforcerTagsHtml(ticket) {
+  var tags = "";
+
+  if (ticket.manual === true) tags += ' <span class="type-tag manual-tag">Manual</span>';
+  if (ticket.studentType === "transferee" || ticket.studentType === "guest") {
+    tags += ' <span class="type-tag queue-row-' + ticket.studentType + '">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
+  }
+  if (ticket.prioritizedAt && ticket.status === "waiting") tags += ' <span class="type-tag priority-tag">\u2605 Priority</span>';
+
+  return tags;
+}
+
 function enforcerListRowsHtml() {
   var list = getEnforcerListTickets();
 
   if (!list.length) {
-    return '<tr><td colspan="6" class="empty-row">No manual tickets created today.</td></tr>';
+    return '<tr><td colspan="6" class="empty-row">No tickets in the queue right now.</td></tr>';
   }
 
   return list.map(function (ticket) {
@@ -174,7 +197,7 @@ function enforcerListRowsHtml() {
       '<td class="queue-select-cell"><input type="checkbox" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' +
         (selectable ? '' : ' disabled') + (selected ? ' checked' : '') + '></td>' +
       '<td class="settings-strong">' + escapeAdminText(ticket.ticketNo) + '</td>' +
-      '<td>' + escapeAdminText(ticket.ownerName) + '</td>' +
+      '<td>' + escapeAdminText(ticket.ownerName) + enforcerTagsHtml(ticket) + '</td>' +
       '<td>' + escapeAdminText(ticket.purpose) + '</td>' +
       '<td>' + escapeAdminText(getStationName(ticket.stationId)) + '</td>' +
       '<td><span class="status-badge compact ' + enforcerStatusClass(ticket.status) + '">' + escapeAdminText(formatAdminStatus(ticket.status)) + '</span></td></tr>';
@@ -276,7 +299,7 @@ function confirmEnforcerAction(kind) {
   } else if (kind === "recall") {
     options = {
       title: "Recall " + noun + "?",
-      message: "This records a recall for the selected " + (count === 1 ? "ticket" : "tickets") + ". Walk-ins have no device registered, so no alert is sent to them.",
+      message: "Students using the app are notified to go to the counter. Walk-ins have no device registered, so they are not alerted.",
       confirmLabel: "Recall",
       tone: "primary",
       run: function () { return recallTickets(ids); }
@@ -346,7 +369,7 @@ function renderEnforcer() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Queue Enforcer</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      '<div class="settings-header-user"><span>' + (adminRole === 'enforcer' ? 'Queue Enforcer' : 'QFicient Admin') + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
     '</div>' +
 
     '<div class="enforcer-title-row">' +
@@ -375,7 +398,7 @@ function renderEnforcer() {
         '</section>' +
 
         '<section class="panel settings-panel">' +
-          '<div class="panel-header"><h2>Manual Queue Lists</h2>' +
+          '<div class="panel-header"><h2>Queue List</h2>' +
             '<div class="queued-tools"><button type="button" id="enforcerActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openEnforcerActionsModal()">Action</button></div></div>' +
           '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr>' +
             '<th class="queue-select-cell"><input type="checkbox" id="enforcerSelectAll" aria-label="Select all waiting tickets" onclick="toggleEnforcerSelectAll(this)"></th>' +

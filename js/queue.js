@@ -351,7 +351,7 @@ function createManualTicket(details) {
   var stationRef = db.collection("stations").doc(station.id);
   var ticketRef = db.collection("tickets").doc();
   var contactRef = db.collection("ticketContacts").doc(ticketRef.id);
-  var createdBy = adminUser ? adminUser.email : "";
+  var createdBy = adminUser ? staffKey(adminUser.email) : "";
 
   return db.runTransaction(function (transaction) {
     return transaction.get(stationRef).then(function (doc) {

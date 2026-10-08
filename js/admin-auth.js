@@ -1,10 +1,16 @@
 var ADMIN_EMAIL = "admin@qficient.com";
 
 var adminUser = null;
+var adminRole = null; // "admin" or "enforcer" while signed in
+var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
 var staffUnsubscribe = null;
 
 function isAdminSignedIn() {
   return adminUser !== null;
+}
+
+function isFullAdmin() {
+  return adminUser !== null && adminRole === "admin";
 }
 
 function isPasswordUser(firebaseUser) {
@@ -54,20 +60,21 @@ function resolveAdminAccess(firebaseUser) {
       if (doc.exists) {
         if (isBootstrapAdmin && doc.data().role !== "admin") {
           transaction.update(ref, { role: "admin", updatedAt: now });
-          return true;
+          return "admin";
         }
-        return doc.data().role === "admin";
+        return doc.data().role;
       }
 
       var role = isBootstrapAdmin ? "admin" : "standby";
       transaction.set(ref, { email: email, role: role, createdAt: now, updatedAt: now });
-      return role === "admin";
+      return role;
     });
   });
 }
 
 function deactivateAdminSession() {
   adminUser = null;
+  adminRole = null;
   stopStaffListener();
   stopServerStatusListener();
   stopNotificationsListener();
@@ -79,13 +86,23 @@ function activateAdminSession(firebaseUser) {
     return Promise.resolve(false);
   }
 
-  return resolveAdminAccess(firebaseUser).then(function (allowed) {
+  return resolveAdminAccess(firebaseUser).then(function (role) {
+    var allowed = role === "admin" || role === "enforcer";
+
     if (allowed) {
       adminUser = firebaseUser;
-      startStaffListener();
-      startServerStatusListener();
-      startNotificationsListener();
+      adminRole = role;
+      adminDeniedRole = null;
+
+      // Only a full admin reads staff, server status and the notification inbox.
+      if (role === "admin") {
+        startStaffListener();
+        startServerStatusListener();
+        startNotificationsListener();
+      }
+      applyAdminAccess();
     } else {
+      adminDeniedRole = role;
       deactivateAdminSession();
     }
     return allowed;
@@ -157,7 +174,9 @@ function adminLogin(event) {
         }
 
         passwordInput.value = "";
-        setAdminLoginError("This account is on standby. Ask an administrator to grant you access.");
+        setAdminLoginError(adminDeniedRole && adminDeniedRole !== "standby" ?
+          "This role doesn't have access to the admin console yet. Ask an administrator." :
+          "This account is on standby. Ask an administrator to grant you access.");
         return firebase.auth().signOut();
       });
     })

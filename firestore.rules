@@ -36,6 +36,12 @@ service cloud.firestore {
         (isPasswordUser() && exists(staffPath()) && get(staffPath()).data.role == 'admin');
     }
 
+    // A Queue Enforcer is a separate staff member who manages the queue but never serves it: they can
+    // create manual tickets and prioritize, recall or remove waiting ones. Their role is set by an admin.
+    function isEnforcer() {
+      return isPasswordUser() && exists(staffPath()) && get(staffPath()).data.role == 'enforcer';
+    }
+
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -114,6 +120,44 @@ service cloud.firestore {
         stationIsOpen(d.stationId);
     }
 
+    function isEnforcerNewTicket() {
+      let d = request.resource.data;
+      return isEnforcer() &&
+        d.keys().hasOnly(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentNumber', 'studentType',
+                          'purpose', 'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
+        d.keys().hasAll(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentType', 'purpose',
+                         'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
+        d.manual == true &&
+        d.createdBy == userEmail() &&
+        d.ownerId is string && d.ownerId.matches('manual:.+') &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.studentType in ['regular', 'transferee', 'guest'] &&
+        d.studentNumber == '' &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        d.stationId is string &&
+        d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        stationIsOpen(d.stationId);
+    }
+
+    // The only changes an enforcer may make to an existing ticket, and only while it is still waiting
+    // (or skipped): prioritize it, record a recall, or void it. Never call, skip or complete.
+    function isEnforcerEdit() {
+      return isEnforcer() &&
+        resource.data.status in ['waiting', 'skipped'] &&
+        ((resource.data.status == 'waiting' &&
+          changedKeys().hasOnly(['prioritizedAt']) &&
+          request.resource.data.prioritizedAt == request.time) ||
+         (changedKeys().hasOnly(['recalledAt', 'recallCount']) &&
+          request.resource.data.recalledAt == request.time &&
+          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1) ||
+         (changedKeys().hasOnly(['status', 'voidedAt']) &&
+          request.resource.data.status == 'void' &&
+          request.resource.data.voidedAt == request.time));
+    }
+
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
         resource.data.status in ['waiting', 'skipped'] &&
@@ -124,8 +168,8 @@ service cloud.firestore {
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || (signedIn() && isValidNewTicket());
-      allow update: if isAdmin() || (signedIn() && isOwnerCancelling());
+      allow create: if isAdmin() || isEnforcerNewTicket() || (signedIn() && isValidNewTicket());
+      allow update: if isAdmin() || isEnforcerEdit() || (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }
 
@@ -187,11 +231,12 @@ service cloud.firestore {
 
     // ---------- Contact details for manually created tickets ----------
     // Queue Enforcer keeps the walk-in's email here, not on the ticket that every
-    // signed-in user can read. Admins only; written once, never changed.
+    // signed-in user can read. Written once by an admin or enforcer, never changed,
+    // and readable by admins only.
 
     match /ticketContacts/{ticketId} {
       allow read: if isAdmin();
-      allow create: if isAdmin() &&
+      allow create: if (isAdmin() || isEnforcer()) &&
         request.resource.data.keys().hasOnly(['email', 'createdBy', 'createdAt']) &&
         request.resource.data.email is string &&
         request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254 &&

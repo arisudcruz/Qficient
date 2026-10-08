@@ -217,7 +217,28 @@ var ADMIN_SECTION_AREAS = {
   settings: "adminSettingsArea"
 };
 
+// An Enforcer only gets the Queue Enforcer page; everything else in the console stays with admins.
+function applyAdminAccess() {
+  var restricted = adminRole === "enforcer";
+
+  document.querySelectorAll("#pageAdmin .nav-item[data-section], #pageAdmin .tool-item[data-section]").forEach(function (item) {
+    item.style.display = !restricted || item.getAttribute("data-section") === "enforcer" ? "" : "none";
+  });
+
+  var toolLabel = document.querySelector("#pageAdmin .tool-label");
+  if (toolLabel) toolLabel.style.display = restricted ? "none" : "";
+
+  var badge = document.querySelector("#pageAdmin .user-badge");
+  var meta = document.querySelector("#pageAdmin .user-meta");
+  if (badge) badge.textContent = restricted ? "QE" : "AU";
+  if (meta) meta.textContent = restricted ? "Queue Enforcer" : "Admin User";
+
+  if (restricted) setAdminSection("enforcer");
+}
+
 function setAdminSection(section) {
+  if (adminRole === "enforcer") section = "enforcer";
+
   Object.keys(ADMIN_SECTION_AREAS).forEach(function (key) {
     var area = document.getElementById(ADMIN_SECTION_AREAS[key]);
     if (area) area.style.display = key === section ? "" : "none";
