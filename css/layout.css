@@ -2017,3 +2017,13 @@ body.dark .enforcer-field input {
   justify-content: center;
   margin: 0 0 24px;
 }
+
+.enforcer-span-all {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .enforcer-span-all {
+    grid-column: auto;
+  }
+}

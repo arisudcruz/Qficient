@@ -2,8 +2,14 @@
 var ENFORCER_TYPES = ["regular", "transferee", "guest"];
 
 // Kept here so the form survives switching sections and the list refreshing underneath it.
-var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", email: "" };
+var ENFORCER_OTHER_PURPOSE = "__other__";
+
+var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", email: "" };
 var enforcerFilter = "";
+
+function emptyEnforcerDraft(stationId) {
+  return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "", email: "" };
+}
 
 function getEnforcerStations() {
   return getSortedStations().filter(function (station) { return station.active !== false; });
@@ -17,9 +23,19 @@ function getEnforcerPurposes(stationId) {
 function enforcerPurposeOptionsHtml() {
   var purposes = enforcerDraft.stationId ? getEnforcerPurposes(enforcerDraft.stationId) : [];
 
-  return '<option value="">Select Purpose</option>' + purposes.map(function (purpose) {
+  var options = purposes.map(function (purpose) {
     return '<option value="' + escapeAdminText(purpose) + '"' + (purpose === enforcerDraft.purpose ? ' selected' : '') + '>' + escapeAdminText(purpose) + '</option>';
   }).join("");
+
+  var other = enforcerDraft.stationId ?
+    '<option value="' + ENFORCER_OTHER_PURPOSE + '"' + (enforcerDraft.purpose === ENFORCER_OTHER_PURPOSE ? ' selected' : '') + '>Others, please specify</option>' : '';
+
+  return '<option value="">Select Purpose</option>' + options + other;
+}
+
+function syncEnforcerOtherField() {
+  var field = document.getElementById("enforcerOtherField");
+  if (field) field.style.display = enforcerDraft.purpose === ENFORCER_OTHER_PURPOSE ? "" : "none";
 }
 
 function onEnforcerInput(field, value) {
@@ -27,12 +43,28 @@ function onEnforcerInput(field, value) {
 
   if (field === "stationId") {
     enforcerDraft.purpose = "";
+    enforcerDraft.purposeOther = "";
     var purposeSelect = document.getElementById("enforcerPurpose");
     if (purposeSelect) {
       purposeSelect.innerHTML = enforcerPurposeOptionsHtml();
       purposeSelect.disabled = !value;
     }
   }
+
+  if (field === "stationId" || field === "purpose") {
+    syncEnforcerOtherField();
+    if (field === "purpose" && value === ENFORCER_OTHER_PURPOSE) {
+      var otherInput = document.getElementById("enforcerOther");
+      if (otherInput) otherInput.focus();
+    }
+  }
+}
+
+// The purpose that goes on the ticket: the chosen one, or what was typed for "Others".
+function enforcerFinalPurpose() {
+  return enforcerDraft.purpose === ENFORCER_OTHER_PURPOSE ?
+    enforcerDraft.purposeOther.trim().replace(/\s+/g, " ") :
+    enforcerDraft.purpose;
 }
 
 // The station picker above the form narrows the list and pre-selects that station in the form.
@@ -41,12 +73,13 @@ function onEnforcerFilter(stationId) {
   if (stationId) {
     enforcerDraft.stationId = stationId;
     enforcerDraft.purpose = "";
+    enforcerDraft.purposeOther = "";
   }
   renderEnforcer();
 }
 
 function clearEnforcerForm() {
-  enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: enforcerFilter, purpose: "", email: "" };
+  enforcerDraft = emptyEnforcerDraft(enforcerFilter);
   renderEnforcer();
 }
 
@@ -58,6 +91,7 @@ function enforcerFormProblem() {
   if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
   if (!d.stationId) return "Please select the station.";
   if (!d.purpose) return "Please select the purpose.";
+  if (d.purpose === ENFORCER_OTHER_PURPOSE && !/[\p{L}\p{N}]/u.test(d.purposeOther)) return "Please specify the purpose.";
 
   var emailProblem = guestEmailProblem(d.email.trim());
   return emailProblem ? emailProblem.replace("Enter", "Please enter") : "";
@@ -85,12 +119,12 @@ function confirmCreateManualTicket() {
         lastName: d.lastName.trim().replace(/\s+/g, " "),
         studentType: d.studentType,
         stationId: d.stationId,
-        purpose: d.purpose,
+        purpose: enforcerFinalPurpose(),
         email: d.email.trim()
       }).then(function (result) {
         if (!result) return;
 
-        enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: enforcerFilter, purpose: "", email: "" };
+        enforcerDraft = emptyEnforcerDraft(enforcerFilter);
         renderEnforcer();
         say("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + ".");
       });
@@ -139,6 +173,7 @@ function renderEnforcer() {
   if (!valid(enforcerDraft.stationId)) {
     enforcerDraft.stationId = "";
     enforcerDraft.purpose = "";
+    enforcerDraft.purposeOther = "";
   }
   if (!valid(enforcerFilter)) enforcerFilter = "";
 
@@ -177,6 +212,7 @@ function renderEnforcer() {
             '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId) + '</select></div>' +
             '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
             '<div class="enforcer-field enforcer-span-2"><label for="enforcerEmail">Email*</label><input type="email" id="enforcerEmail" placeholder="e.g. kimfrane@gmail.com" maxlength="254" value="' + escapeAdminText(d.email) + '" oninput="onEnforcerInput(\'email\', this.value)"></div>' +
+            '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +
           '</div>' +
           '<div class="settings-actions enforcer-form-actions">' +
             '<button type="button" class="settings-btn settings-btn-blue enforcer-clear" onclick="clearEnforcerForm()">Clear All</button>' +
