@@ -1844,3 +1844,31 @@ body.dark .enforcer-field input {
 .serving-type-guest .serving-live {
   color: var(--amber);
 }
+
+/* Queue list rows are colour-coded by student type (same colours as the serving card) */
+.queue-row {
+  --type-color: transparent;
+  --type-tint: transparent;
+  --type-text: inherit;
+}
+
+.queue-row-transferee { --type-color: #F29A0D; --type-tint: #FEF1DC; --type-text: #9A5F00; }
+.queue-row-guest { --type-color: #6A2FD6; --type-tint: #EFE8FB; --type-text: #5B21B6; }
+
+.queue-table td.queue-row-no {
+  background: var(--type-tint);
+  box-shadow: inset 4px 0 0 var(--type-color);
+  font-weight: 700;
+}
+
+.type-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--type-tint);
+  color: var(--type-text);
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
+}

@@ -282,8 +282,12 @@ function renderQueueManagement() {
       statusCell = '<span class="status-badge waiting">Waiting</span>';
     }
 
-    return '<tr><td>' + escapeAdminText(ticket.ticketNo) + '</td>' +
-      '<td>' + escapeAdminText(ticket.ownerName) + '</td>' +
+    // Regular tickets stay plain; only the other types are marked.
+    var typeClass = (ticket.studentType === "transferee" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '';
+    var typeTag = typeClass ? ' <span class="type-tag">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>' : '';
+
+    return '<tr class="queue-row' + typeClass + '"><td class="queue-row-no">' + escapeAdminText(ticket.ticketNo) + '</td>' +
+      '<td>' + escapeAdminText(ticket.ownerName) + typeTag + '</td>' +
       '<td>' + statusCell + '</td></tr>';
   }).join("");
 

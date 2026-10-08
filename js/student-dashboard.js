@@ -4,6 +4,12 @@ var STUDENT_TYPE_LABELS = {
   guest: "Guest"
 };
 
+var STUDENT_TYPE_SHORT_LABELS = {
+  regular: "Regular",
+  transferee: "Transferee",
+  guest: "Guest"
+};
+
 function closeStudentTypeModal() {
   var overlay = document.getElementById("studentTypeModal");
   if (overlay) overlay.remove();
