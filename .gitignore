@@ -22,5 +22,5 @@ Thumbs.db
 .idea/
 
 # Notification server secrets
-server/serviceAccountKey*.json
+serviceAccountKey*.json
 *-firebase-adminsdk-*.json
