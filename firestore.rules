@@ -185,6 +185,20 @@ service cloud.firestore {
         request.resource.data.token.size() <= 4096;
     }
 
+    // ---------- Contact details for manually created tickets ----------
+    // Queue Enforcer keeps the walk-in's email here, not on the ticket that every
+    // signed-in user can read. Admins only; written once, never changed.
+
+    match /ticketContacts/{ticketId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.keys().hasOnly(['email', 'createdBy', 'createdAt']) &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254 &&
+        request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     // ---------- Admin notification inbox state ----------
     // Which notifications an admin has read or deleted. One document per admin,
     // keyed by their email, and only they can see or change it.

@@ -334,6 +334,61 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
   });
 }
 
+// Staff create a ticket for someone who can't do it on their own device (Queue Enforcer).
+// The contact email is kept in an admin-only collection, not on the ticket that every signed-in user can read.
+function createManualTicket(details) {
+  var station = stations.find(function (s) { return s.id === details.stationId; });
+
+  if (!station || station.active === false) {
+    say("That station is currently unavailable.");
+    return Promise.resolve(null);
+  }
+  if (station.maxQueue > 0 && countStationTicketsToday(station.id) >= station.maxQueue) {
+    say("This station has reached its daily queue limit.");
+    return Promise.resolve(null);
+  }
+
+  var stationRef = db.collection("stations").doc(station.id);
+  var ticketRef = db.collection("tickets").doc();
+  var contactRef = db.collection("ticketContacts").doc(ticketRef.id);
+  var createdBy = adminUser ? adminUser.email : "";
+
+  return db.runTransaction(function (transaction) {
+    return transaction.get(stationRef).then(function (doc) {
+      var data = doc.data();
+      if (!data || data.active === false) throw new Error("That station is currently unavailable.");
+
+      var today = queueDayKey(Date.now());
+      var isNewDay = data.countDay !== today;
+      var newCount = isNewDay ? 1 : (data.count || 0) + 1;
+      var ticketNo = getTicketPrefix(data.name) + "-" + String(newCount).padStart(3, "0");
+      var now = firebase.firestore.FieldValue.serverTimestamp();
+
+      transaction.update(stationRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
+      transaction.set(ticketRef, {
+        ticketNo: ticketNo,
+        stationId: station.id,
+        ownerId: "manual:" + ticketRef.id,
+        ownerName: details.firstName + " " + details.lastName,
+        studentNumber: "",
+        studentType: details.studentType,
+        purpose: details.purpose,
+        status: "waiting",
+        verified: false,
+        createdAt: now,
+        manual: true,
+        createdBy: createdBy
+      });
+      transaction.set(contactRef, { email: details.email, createdBy: createdBy, createdAt: now });
+
+      return { ticketNo: ticketNo, stationName: data.name };
+    });
+  }).catch(function (err) {
+    say("Could not create the ticket: " + err.message);
+    return null;
+  });
+}
+
 /* Actions on tickets picked from the queued list */
 
 function reportQueueAction(promise, errorLabel) {
