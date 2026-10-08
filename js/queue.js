@@ -163,14 +163,21 @@ function cancelTicket() {
   });
 }
 
+// Prioritized tickets go first (earliest prioritized first), then everyone else in arrival order.
+function compareQueueOrder(a, b) {
+  var aPriority = !!a.prioritizedAt;
+  var bPriority = !!b.prioritizedAt;
+
+  if (aPriority !== bPriority) return aPriority ? -1 : 1;
+  if (aPriority) return timestampToMs(a.prioritizedAt, Date.now()) - timestampToMs(b.prioritizedAt, Date.now());
+
+  return timestampToMs(a.createdAt, 0) - timestampToMs(b.createdAt, 0);
+}
+
 function getNextWaitingTicket(stationId) {
   return tickets
     .filter(function (t) { return t.stationId === stationId && t.status === "waiting" && isTodayTicket(t); })
-    .sort(function (a, b) {
-      var aMs = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
-      var bMs = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
-      return aMs - bMs;
-    })[0] || null;
+    .sort(compareQueueOrder)[0] || null;
 }
 
 function advanceStation(stationId) {
@@ -325,6 +332,75 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
     say("Could not transfer ticket: " + err.message);
     return null;
   });
+}
+
+/* Actions on tickets picked from the queued list */
+
+function reportQueueAction(promise, errorLabel) {
+  return promise.then(function () {
+    return true;
+  }).catch(function (err) {
+    say("Could not " + errorLabel + ": " + err.message);
+    return false;
+  });
+}
+
+function batchUpdateTickets(ticketIds, data) {
+  var batch = db.batch();
+  ticketIds.forEach(function (id) {
+    batch.update(db.collection("tickets").doc(id), data);
+  });
+  return batch.commit();
+}
+
+// Serves a chosen ticket now, ahead of the rest of the queue. A ticket that is still being served is completed first.
+function callSelectedTicket(stationId, ticketId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  var ticket = tickets.find(function (t) { return t.id === ticketId; });
+
+  if (!station || !ticket || ticket.stationId !== stationId || (ticket.status !== "waiting" && ticket.status !== "skipped")) {
+    say("That ticket can't be called right now.");
+    return Promise.resolve(false);
+  }
+
+  var now = firebase.firestore.FieldValue.serverTimestamp();
+  var remove = firebase.firestore.FieldValue.delete();
+  var current = servingTicketOf(station);
+  var batch = db.batch();
+
+  if (current) {
+    batch.update(db.collection("tickets").doc(current.id), { status: "completed", completedAt: now });
+  }
+  batch.update(db.collection("tickets").doc(ticket.id), {
+    status: "serving",
+    servingAt: now,
+    skippedAt: remove,
+    lastCalled: remove,
+    lastCallAt: remove
+  });
+  batch.update(db.collection("stations").doc(stationId), { nowServingId: ticket.id });
+
+  return reportQueueAction(batch.commit(), "call that ticket");
+}
+
+function prioritizeTickets(ticketIds) {
+  return reportQueueAction(batchUpdateTickets(ticketIds, {
+    prioritizedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }), "prioritize the tickets");
+}
+
+function recallTickets(ticketIds) {
+  return reportQueueAction(batchUpdateTickets(ticketIds, {
+    recalledAt: firebase.firestore.FieldValue.serverTimestamp(),
+    recallCount: firebase.firestore.FieldValue.increment(1)
+  }), "recall the tickets");
+}
+
+function removeTickets(ticketIds) {
+  return reportQueueAction(batchUpdateTickets(ticketIds, {
+    status: "void",
+    voidedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }), "remove the tickets");
 }
 
 function recallTicket(ticketId) {

@@ -1872,3 +1872,48 @@ body.dark .enforcer-field input {
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* Selectable rows in the queued list */
+.queued-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.queue-row {
+  cursor: pointer;
+}
+
+.queue-row.selected td:not(.queue-row-no) {
+  background: #EEF4FF;
+}
+
+.queue-table .queue-select-cell {
+  width: 36px;
+  padding-right: 0;
+  text-align: center;
+}
+
+.queue-select-box,
+#queueSelectAll {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--navy);
+  cursor: pointer;
+}
+
+.priority-tag {
+  background: #FFF3C4;
+  color: #8A6100;
+}
+
+.queue-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.queue-actions-note {
+  margin: 12px 0 0;
+}

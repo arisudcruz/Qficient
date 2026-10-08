@@ -15,10 +15,168 @@ function resetQueueTransfer() {
   queueTransfer = { open: false, stationId: "", purpose: "" };
 }
 
+// Ticket ids ticked in the queued list; kept here because the list re-renders on every live update.
+var queueSelection = {};
+
 function selectQueueStation(stationId) {
   activeQueueStation = stationId;
   resetQueueTransfer();
+  queueSelection = {};
   renderQueueManagement();
+}
+
+function getQueueListTickets() {
+  var serving = getServingTicket(activeQueueStation);
+
+  return tickets.filter(function (t) {
+    return t.stationId === activeQueueStation &&
+      (t.status === "waiting" || t.status === "skipped") &&
+      isTodayTicket(t) &&
+      (!serving || t.id !== serving.id);
+  }).sort(compareQueueOrder);
+}
+
+function getSelectedQueueTickets() {
+  return getQueueListTickets().filter(function (t) { return queueSelection[t.id]; });
+}
+
+function updateQueueSelectionUI() {
+  var listTickets = getQueueListTickets();
+  var selectedCount = 0;
+
+  // Forget tickets that left the list (served, cancelled, removed).
+  var valid = {};
+  listTickets.forEach(function (t) { valid[t.id] = true; });
+  Object.keys(queueSelection).forEach(function (id) {
+    if (!valid[id]) delete queueSelection[id];
+  });
+
+  document.querySelectorAll("#adminQueueArea .queue-row[data-ticket]").forEach(function (row) {
+    var selected = !!queueSelection[row.getAttribute("data-ticket")];
+    row.classList.toggle("selected", selected);
+    row.querySelector(".queue-select-box").checked = selected;
+    if (selected) selectedCount++;
+  });
+
+  var selectAll = document.getElementById("queueSelectAll");
+  if (selectAll) {
+    selectAll.checked = listTickets.length > 0 && selectedCount === listTickets.length;
+    selectAll.indeterminate = selectedCount > 0 && selectedCount < listTickets.length;
+  }
+
+  var actionBtn = document.getElementById("queueActionBtn");
+  if (actionBtn) {
+    actionBtn.style.display = selectedCount ? "" : "none";
+    actionBtn.textContent = "Action (" + selectedCount + ")";
+  }
+}
+
+function toggleQueueSelection(ticketId, event) {
+  if (event && event.target.closest("button")) return;
+
+  if (queueSelection[ticketId]) delete queueSelection[ticketId];
+  else queueSelection[ticketId] = true;
+  updateQueueSelectionUI();
+}
+
+function toggleQueueSelectAll(checkbox) {
+  queueSelection = {};
+  if (checkbox.checked) {
+    getQueueListTickets().forEach(function (t) { queueSelection[t.id] = true; });
+  }
+  updateQueueSelectionUI();
+}
+
+function queueActionButtonHtml(label, onclick, disabled, title) {
+  return '<button type="button" class="queue-action-btn"' + (disabled ? ' disabled' : '') +
+    (title ? ' title="' + escapeAdminText(title) + '"' : '') + ' onclick="' + onclick + '">' + label + '</button>';
+}
+
+function openQueueActionsModal() {
+  var selected = getSelectedQueueTickets();
+  if (!selected.length) return;
+
+  var waitingCount = selected.filter(function (t) { return t.status === "waiting"; }).length;
+  var numbers = selected.map(function (t) { return escapeAdminText(t.ticketNo); }).join(", ");
+
+  showFormModal("Queue Actions",
+    '<p class="modal-help">' + selected.length + ' ticket' + (selected.length === 1 ? '' : 's') + ' selected: ' + numbers + '</p>' +
+    '<div class="queue-actions-grid">' +
+      queueActionButtonHtml('📞 Call Next', "confirmSelectedAction('call')", selected.length > 1, "Call Next works on one ticket at a time") +
+      queueActionButtonHtml('⬆ Prioritize', "confirmSelectedAction('prioritize')", waitingCount === 0, "Only waiting tickets can be prioritized") +
+      queueActionButtonHtml('↺ Recall', "confirmSelectedAction('recall')", false, "") +
+      queueActionButtonHtml('🗑 Remove', "confirmSelectedAction('remove')", false, "") +
+    '</div>' +
+    (selected.length > 1 ? '<p class="modal-help queue-actions-note">Call Next is only available when a single ticket is selected.</p>' : ''));
+}
+
+function confirmSelectedAction(kind) {
+  var selected = getSelectedQueueTickets();
+  if (!selected.length) {
+    closeFormModal();
+    return;
+  }
+
+  var count = selected.length;
+  var noun = count === 1 ? "ticket " + selected[0].ticketNo : count + " tickets";
+  var stationId = activeQueueStation;
+  var ids = selected.map(function (t) { return t.id; });
+  var options;
+
+  if (kind === "call") {
+    if (count !== 1) return;
+    var serving = getServingTicket(stationId);
+    options = {
+      title: "Call ticket " + selected[0].ticketNo + " next?",
+      message: (serving ? "This marks ticket " + serving.ticketNo + " as completed and calls " : "This calls ") +
+        selected[0].ticketNo + " now, ahead of the rest of the queue.",
+      confirmLabel: "Call Next",
+      tone: "primary",
+      run: function () { return callSelectedTicket(stationId, ids[0]); }
+    };
+  } else if (kind === "prioritize") {
+    var waitingIds = selected.filter(function (t) { return t.status === "waiting"; }).map(function (t) { return t.id; });
+    if (!waitingIds.length) return;
+    options = {
+      title: "Prioritize " + (waitingIds.length === 1 ? "this ticket" : waitingIds.length + " tickets") + "?",
+      message: "They move to the front of the queue, ahead of everyone who isn't prioritized." +
+        (waitingIds.length < count ? " Skipped tickets in your selection are left as they are." : ""),
+      confirmLabel: "Prioritize",
+      tone: "primary",
+      run: function () { return prioritizeTickets(waitingIds); }
+    };
+  } else if (kind === "recall") {
+    options = {
+      title: "Recall " + noun + "?",
+      message: "This notifies them to go to the counter. It doesn't change any countdown.",
+      confirmLabel: "Recall",
+      tone: "primary",
+      run: function () { return recallTickets(ids); }
+    };
+  } else {
+    options = {
+      title: "Remove " + noun + "?",
+      message: "This immediately voids the selected " + (count === 1 ? "ticket" : "tickets") + ". This can't be undone.",
+      confirmLabel: "Remove",
+      tone: "danger",
+      run: function () { return removeTickets(ids); }
+    };
+  }
+
+  showConfirmModal({
+    title: options.title,
+    message: options.message,
+    confirmLabel: options.confirmLabel,
+    tone: options.tone,
+    onConfirm: function () {
+      options.run().then(function (done) {
+        if (!done) return;
+        closeFormModal();
+        queueSelection = {};
+        updateQueueSelectionUI();
+      });
+    }
+  });
 }
 
 function toggleQueueTransfer() {
@@ -244,16 +402,7 @@ function renderQueueManagement() {
     return '<option value="' + escapeAdminText(s.id) + '"' + (s.id === queueTransfer.stationId ? ' selected' : '') + '>' + escapeAdminText(s.name) + '</option>';
   }).join("");
 
-  var queueListTickets = tickets.filter(function (t) {
-    return t.stationId === activeQueueStation &&
-      (t.status === "waiting" || t.status === "skipped") &&
-      isTodayTicket(t) &&
-      (!serving || t.id !== serving.id);
-  }).sort(function (a, b) {
-    var aMs = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
-    var bMs = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
-    return aMs - bMs;
-  });
+  var queueListTickets = getQueueListTickets();
 
   var rowsHtml = queueListTickets.map(function (ticket) {
     var statusCell;
@@ -285,13 +434,17 @@ function renderQueueManagement() {
     // Regular tickets stay plain; only the other types are marked.
     var typeClass = (ticket.studentType === "transferee" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '';
     var typeTag = typeClass ? ' <span class="type-tag">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>' : '';
+    var priorityTag = (ticket.prioritizedAt && ticket.status === "waiting") ? ' <span class="type-tag priority-tag">★ Priority</span>' : '';
+    var id = escapeAdminText(ticket.id);
 
-    return '<tr class="queue-row' + typeClass + '"><td class="queue-row-no">' + escapeAdminText(ticket.ticketNo) + '</td>' +
-      '<td>' + escapeAdminText(ticket.ownerName) + typeTag + '</td>' +
+    return '<tr class="queue-row' + typeClass + (queueSelection[ticket.id] ? ' selected' : '') + '" data-ticket="' + id + '" onclick="toggleQueueSelection(\'' + id + '\', event)">' +
+      '<td class="queue-select-cell"><input type="checkbox" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' + (queueSelection[ticket.id] ? ' checked' : '') + '></td>' +
+      '<td class="queue-row-no">' + escapeAdminText(ticket.ticketNo) + '</td>' +
+      '<td>' + escapeAdminText(ticket.ownerName) + typeTag + priorityTag + '</td>' +
       '<td>' + statusCell + '</td></tr>';
   }).join("");
 
-  if (!rowsHtml) rowsHtml = '<tr><td colspan="3" class="empty-row">No tickets currently queued for this station.</td></tr>';
+  if (!rowsHtml) rowsHtml = '<tr><td colspan="4" class="empty-row">No tickets currently queued for this station.</td></tr>';
 
   var verifyDisabled = !serving || serving.verified;
   var verifyLabel = serving && serving.verified ? "✓ Verified" : "✓ Verify";
@@ -328,10 +481,16 @@ function renderQueueManagement() {
         '</div>' +
       '</section>' +
       '<section class="panel queued-list-panel">' +
-        '<div class="panel-header"><h2>Current Queued List</h2><span class="traffic-selection">' + queueListTickets.length + ' in Queue</span></div>' +
-        '<div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
+        '<div class="panel-header"><h2>Current Queued List</h2>' +
+          '<div class="queued-tools"><span class="traffic-selection">' + queueListTickets.length + ' in Queue</span>' +
+          '<button type="button" id="queueActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openQueueActionsModal()">Action</button></div></div>' +
+        '<div class="table-wrap"><table class="queue-table"><thead><tr>' +
+          '<th class="queue-select-cell"><input type="checkbox" id="queueSelectAll" aria-label="Select all tickets" onclick="toggleQueueSelectAll(this)"></th>' +
+          '<th>Queue No.</th><th>Student</th><th>Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
       '</section>' +
     '</div>';
+
+  updateQueueSelectionUI();
 }
 
 window.addEventListener('DOMContentLoaded', function () {
