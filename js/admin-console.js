@@ -213,6 +213,7 @@ var ADMIN_SECTION_AREAS = {
   queue: "adminQueueArea",
   enforcer: "adminEnforcerArea",
   notifications: "adminNotificationsArea",
+  rules: "adminRulesArea",
   settings: "adminSettingsArea"
 };
 
@@ -239,6 +240,8 @@ function setAdminSection(section) {
     renderEnforcer();
   } else if (section === "notifications") {
     renderNotifications();
+  } else if (section === "rules") {
+    renderRules();
   } else {
     updateAdmin();
   }
