@@ -1573,3 +1573,147 @@ body.dark .enforcer-field input {
     grid-column: auto;
   }
 }
+
+.notif-group {
+  margin-bottom: 28px;
+}
+
+.notif-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+}
+
+.notif-group-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.notif-controls {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.notif-mark-all {
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.notif-tabs {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 6px;
+  background: #E2E8F0;
+}
+
+.notif-tab {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #64748B;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notif-tab.active {
+  background: var(--navy);
+  color: #fff;
+}
+
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notif-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px 14px 0;
+  background: #DCEAFE;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.notif-card::before {
+  content: "";
+  align-self: stretch;
+  flex: 0 0 6px;
+  margin: -14px 0;
+  background: var(--navy);
+}
+
+.notif-card.read {
+  background: #fff;
+}
+
+.notif-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #4DA3FF;
+  font-size: 1rem;
+}
+
+.notif-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #172033;
+}
+
+.notif-detail {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: #64748B;
+}
+
+.notif-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.notif-menu-btn {
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #172033;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.notif-time {
+  font-size: 0.78rem;
+  color: #172033;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .notif-group-head {
+    flex-wrap: wrap;
+  }
+}
