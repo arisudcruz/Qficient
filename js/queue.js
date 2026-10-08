@@ -319,7 +319,10 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
         servingAt: remove,
         verifiedAt: remove,
         recalledAt: remove,
-        recallCount: remove
+        recallCount: remove,
+        // Back of the queue means back of the queue: priority from the old station must not carry over.
+        prioritizedAt: remove,
+        nextNotified: remove
       });
 
       return { ticketNo: ticketNo, stationName: dest.name };

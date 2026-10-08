@@ -56,8 +56,27 @@ function promptStudentType(isFirstTime) {
   host.appendChild(overlay);
 }
 
-var lastNotifiedRecallMs = null;
-var lastNotifiedLastCallMs = null;
+// What the student has already been told about their current ticket. The first time a ticket is seen, any
+// recall or last call it already has is only recorded, so an old one doesn't pop up again after a refresh;
+// a message shows only for a change after that, or for one that happened moments ago.
+var FRESH_ALERT_MS = 30 * 1000;
+var alertBaseline = { ticketId: null, recallMs: 0, lastCallMs: 0 };
+
+function checkTicketAlerts(ticket) {
+  var recallMs = timestampToMs(ticket.recalledAt, 0);
+  var lastCallMs = timestampToMs(ticket.lastCallAt, 0);
+  var firstSight = alertBaseline.ticketId !== ticket.id;
+  var now = Date.now();
+
+  if (firstSight) alertBaseline = { ticketId: ticket.id, recallMs: 0, lastCallMs: 0 };
+
+  if (recallMs && recallMs !== alertBaseline.recallMs && (!firstSight || now - recallMs < FRESH_ALERT_MS)) notifyRecall();
+  if (lastCallMs && lastCallMs !== alertBaseline.lastCallMs && (!firstSight || now - lastCallMs < FRESH_ALERT_MS)) notifyLastCall();
+
+  alertBaseline.recallMs = recallMs;
+  alertBaseline.lastCallMs = lastCallMs;
+}
+
 var skipCountdownIntervalId = null;
 
 function showStudentToast(text) {
@@ -214,6 +233,8 @@ function renderLiveBoard() {
     (cardsHtml || '<p class="empty-hint">No stations available yet.</p>');
 }
 
+var lastJoinCardsHtml = null;
+
 function updateDashboard() {
   var ticket = user ? myTicket() : null;
   var ticketArea = document.getElementById("ticketArea");
@@ -262,17 +283,13 @@ function updateDashboard() {
       return;
     }
 
-    var html = '<p class="section-label">Select a service to join the queue</p>' +
-      '<div class="app-field">' +
-        '<label>Purpose</label>' +
-        '<input type="text" id="queuePurpose" placeholder="e.g. Certificate of Registration" value="' + escapeHtml(pendingJoinPurpose) + '" oninput="setPendingJoinPurpose(this.value)">' +
-      '</div>';
+    var cardsHtml = '';
     for (var i = 0; i < stations.length; i++) {
       var station = stations[i];
       if (station.active === false) continue;
       var servingTicket = servingTicketOf(station);
       var servingText = servingTicket ? servingTicket.ticketNo : "—";
-      html +=
+      cardsHtml +=
         '<div class="station-card">' +
           '<span class="station-icon">🏷️</span>' +
           '<div class="station-copy">' +
@@ -282,28 +299,33 @@ function updateDashboard() {
           '<button type="button" class="station-join-btn" onclick="joinSelectedStation(\'' + station.id + '\')">Join</button>' +
         '</div>';
     }
-    stationArea.innerHTML = html;
+
+    // The Purpose box is built once and kept, so a live update elsewhere in the queue never steals focus
+    // from a student who is typing. Only the station list underneath is refreshed.
+    var purposeBox = document.getElementById("queuePurpose");
+    var cardsHost = document.getElementById("joinStationCards");
+    if (!purposeBox || !cardsHost || !stationArea.contains(purposeBox)) {
+      stationArea.innerHTML = '<p class="section-label">Select a service to join the queue</p>' +
+        '<div class="app-field">' +
+          '<label>Purpose</label>' +
+          '<input type="text" id="queuePurpose" placeholder="e.g. Certificate of Registration" value="' + escapeHtml(pendingJoinPurpose) + '" oninput="setPendingJoinPurpose(this.value)">' +
+        '</div>' +
+        '<div id="joinStationCards"></div>';
+      cardsHost = document.getElementById("joinStationCards");
+      lastJoinCardsHtml = null;
+    }
+
+    if (cardsHtml !== lastJoinCardsHtml) {
+      cardsHost.innerHTML = cardsHtml;
+      lastJoinCardsHtml = cardsHtml;
+    }
     return;
   }
 
   pendingJoinPurpose = "";
   ensureJoinCooldownWatcher(false);
 
-  if (ticket.recalledAt && typeof ticket.recalledAt.toMillis === "function") {
-    var recallMs = ticket.recalledAt.toMillis();
-    if (recallMs !== lastNotifiedRecallMs) {
-      lastNotifiedRecallMs = recallMs;
-      notifyRecall();
-    }
-  }
-
-  if (ticket.lastCallAt && typeof ticket.lastCallAt.toMillis === "function") {
-    var lastCallMs = ticket.lastCallAt.toMillis();
-    if (lastCallMs !== lastNotifiedLastCallMs) {
-      lastNotifiedLastCallMs = lastCallMs;
-      notifyLastCall();
-    }
-  }
+  checkTicketAlerts(ticket);
 
   var skip = ticket.status === "skipped" ? getSkipPhase(ticket) : null;
   ensureSkipCountdownWatcher(skip !== null && skip.phase !== "expired");

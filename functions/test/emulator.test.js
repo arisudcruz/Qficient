@@ -160,12 +160,16 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await ticket("old2", "CA-901", "ghost", "cashier", { status: "waiting", createdAt: ts(3 * 24 * 3600 * 1000) });
   await ticket("old3", "CA-902", "ghost", "cashier", { status: "completed", createdAt: ts(3 * 24 * 3600 * 1000) });
   await db.collection("pushEvents").doc("ancient").set({ at: ts(5 * 24 * 3600 * 1000) });
+  await db.collection("deviceTokens").doc("staleDevice").set({ token: "old", updatedAt: ts(40 * 24 * 3600 * 1000) });
+  await db.collection("deviceTokens").doc("freshDevice").set({ token: "new", updatedAt: ts(2 * 24 * 3600 * 1000) });
   const cleaned = await cleanStale({ db, FieldValue, Timestamp, config });
   const o1 = (await db.collection("tickets").doc("old1").get()).data();
   const o3 = (await db.collection("tickets").doc("old3").get()).data();
   check("cleanup: leftovers from earlier days are voided", cleaned === 2 && o1.status === "void" && o1.staleCleanup === true, String(cleaned));
   check("cleanup: finished tickets are left alone", o3.status === "completed");
   check("cleanup: a station no longer points at a stale ticket", (await db.collection("stations").doc("cashier").get()).data().nowServingId === null);
+  check("cleanup: a device registration untouched for a month is removed", !(await db.collection("deviceTokens").doc("staleDevice").get()).exists);
+  check("cleanup: a recently refreshed device registration is kept", (await db.collection("deviceTokens").doc("freshDevice").get()).exists);
   check("cleanup: old de-duplication records are removed", !(await db.collection("pushEvents").doc("ancient").get()).exists);
 
   const failed = results.filter((r) => !r.ok);

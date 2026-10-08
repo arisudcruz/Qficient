@@ -79,6 +79,7 @@ function resolveAdminAccess(firebaseUser) {
 function deactivateAdminSession() {
   adminUser = null;
   adminRole = null;
+  setTicketsScope(1);
   stopStaffListener();
   stopServerStatusListener();
   stopNotificationsListener();
@@ -101,6 +102,7 @@ function activateAdminSession(firebaseUser) {
 
       // Only a full admin reads staff, server status and the notification inbox.
       if (role === "admin") {
+        setTicketsScope(ADMIN_HISTORY_DAYS);
         startStaffListener();
         startServerStatusListener();
         startNotificationsListener();

@@ -1,7 +1,7 @@
 var FCM_VAPID_KEY = "BJqn3yUfZEwESTb-e13tIxQnHE0LDFo4grtHFTs0lU17xWhzzoXyD4WtFdoyBdMsULnyDOYLsQU2Rnxx12CHpdo";
 
 var fcmMessaging = null;
-var fcmTokenRefreshed = false;
+var fcmTokenRegisteredFor = null; // the uid whose token was last saved from this page
 
 function isFcmSupported() {
   return typeof Notification !== "undefined" &&
@@ -39,6 +39,26 @@ function saveFcmToken(token) {
   }).catch(function (err) {
     console.error("Could not save FCM token: " + err.message);
   });
+}
+
+// Called when a different person is about to use this browser (log out, switch account). The device's
+// push token is deleted, so alerts meant for the previous person can't reach whoever uses it next.
+function forgetThisDevice(uid) {
+  var jobs = [];
+
+  if (uid) {
+    jobs.push(db.collection("deviceTokens").doc(uid).delete().catch(function () {}));
+  }
+
+  if (isFcmSupported() && Notification.permission === "granted") {
+    var messaging = getFcmMessaging();
+    if (messaging && typeof messaging.deleteToken === "function") {
+      jobs.push(Promise.resolve(messaging.deleteToken()).catch(function () {}));
+    }
+  }
+
+  fcmTokenRegisteredFor = null;
+  return Promise.all(jobs);
 }
 
 function requestFcmToken() {
@@ -96,8 +116,8 @@ function refreshNotificationToggle() {
   if (permission === "granted") {
     area.innerHTML = '<span class="notif-chip notif-chip-on">🔔 Notifications On</span>';
 
-    if (!fcmTokenRefreshed && FCM_VAPID_KEY.indexOf("REPLACE_WITH") !== 0) {
-      fcmTokenRefreshed = true;
+    if (fcmTokenRegisteredFor !== user.id && FCM_VAPID_KEY.indexOf("REPLACE_WITH") !== 0) {
+      fcmTokenRegisteredFor = user.id;
       requestFcmToken().then(saveFcmToken).catch(function (err) {
         console.error("Could not refresh FCM token: " + err.message);
       });
