@@ -1895,7 +1895,8 @@ body.dark .enforcer-field input {
 }
 
 .queue-select-box,
-#queueSelectAll {
+#queueSelectAll,
+#enforcerSelectAll {
   width: 16px;
   height: 16px;
   margin: 0;
@@ -2026,4 +2027,13 @@ body.dark .enforcer-field input {
   .enforcer-span-all {
     grid-column: auto;
   }
+}
+
+.queue-row.not-selectable {
+  cursor: default;
+}
+
+.queue-row.not-selectable .queue-select-box {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
