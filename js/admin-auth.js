@@ -1,5 +1,9 @@
 var ADMIN_EMAIL = "admin@qficient.com";
 
+// True when the page was opened from an invitation email. The invite page handles that sign-in itself, so
+// the normal admin sign-in checks stay out of the way until the invitation is accepted.
+var inviteFlowActive = firebase.auth().isSignInWithEmailLink(window.location.href);
+
 var adminUser = null;
 var adminRole = null; // "admin" or "enforcer" while signed in
 var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
@@ -78,10 +82,11 @@ function deactivateAdminSession() {
   stopStaffListener();
   stopServerStatusListener();
   stopNotificationsListener();
+  stopInvitesListener();
 }
 
 function activateAdminSession(firebaseUser) {
-  if (!isPasswordUser(firebaseUser)) {
+  if (inviteFlowActive || !isPasswordUser(firebaseUser)) {
     deactivateAdminSession();
     return Promise.resolve(false);
   }
@@ -99,6 +104,7 @@ function activateAdminSession(firebaseUser) {
         startStaffListener();
         startServerStatusListener();
         startNotificationsListener();
+        startInvitesListener();
       }
       applyAdminAccess();
     } else {

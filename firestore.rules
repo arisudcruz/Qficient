@@ -17,6 +17,10 @@ service cloud.firestore {
       return signedIn() && provider() == 'password';
     }
 
+    function isVerifiedEmail() {
+      return request.auth.token.email_verified == true;
+    }
+
     function userEmail() {
       return request.auth.token.email.lower();
     }
@@ -185,7 +189,9 @@ service cloud.firestore {
         staffEmail == userEmail() &&
         request.resource.data.keys().hasOnly(['email', 'role', 'createdAt', 'updatedAt']) &&
         request.resource.data.email == staffEmail &&
-        request.resource.data.role == (isBootstrapAdmin() ? 'admin' : 'standby') &&
+        (request.resource.data.role == (isBootstrapAdmin() ? 'admin' : 'standby') ||
+         (isVerifiedEmail() && invitePending(staffEmail) &&
+          request.resource.data.role == get(invitePath(staffEmail)).data.role)) &&
         request.resource.data.createdAt == request.time &&
         request.resource.data.updatedAt == request.time;
 
@@ -198,7 +204,65 @@ service cloud.firestore {
         (staffEmail != 'admin@qficient.com' || request.resource.data.role == 'admin') &&
         (staffEmail != userEmail() || request.resource.data.role == 'admin');
 
+      allow update: if isPasswordUser() && isVerifiedEmail() &&
+        staffEmail == userEmail() &&
+        staffEmail != 'admin@qficient.com' &&
+        resource.data.role != 'admin' &&
+        invitePending(staffEmail) &&
+        changedKeys().hasOnly(['role', 'updatedAt']) &&
+        request.resource.data.role == get(invitePath(staffEmail)).data.role &&
+        request.resource.data.updatedAt == request.time;
+
       allow delete: if false;
+    }
+
+    // ---------- Staff invitations ----------
+    // An admin invites an email address to a role. The invitee proves they own the address by signing in
+    // with the emailed link (which verifies the email), then accepts: that is the only way the role is
+    // granted. Invites expire, and only the invited address can accept its own invite.
+
+    function invitePath(email) {
+      return /databases/$(database)/documents/invites/$(email);
+    }
+
+    function invitePending(email) {
+      return exists(invitePath(email)) &&
+        get(invitePath(email)).data.status == 'pending' &&
+        get(invitePath(email)).data.expiresAt > request.time;
+    }
+
+    function isInviteeOf(inviteEmail) {
+      return isPasswordUser() && isVerifiedEmail() && inviteEmail == userEmail();
+    }
+
+    function isValidInvite(inviteEmail) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['email', 'role', 'invitedBy', 'createdAt', 'expiresAt', 'status']) &&
+        inviteEmail == inviteEmail.lower() &&
+        d.email == inviteEmail &&
+        d.role is string && d.role.size() >= 1 && d.role.size() <= 64 && d.role != 'standby' &&
+        d.invitedBy == userEmail() &&
+        d.status == 'pending' &&
+        d.createdAt == request.time &&
+        d.expiresAt is timestamp &&
+        d.expiresAt > request.time &&
+        d.expiresAt <= request.time + duration.value(30, 'd');
+    }
+
+    match /invites/{inviteEmail} {
+      allow get: if isAdmin() || isInviteeOf(inviteEmail);
+      allow list: if isAdmin();
+
+      allow create, update: if isAdmin() && isValidInvite(inviteEmail);
+
+      allow update: if isInviteeOf(inviteEmail) &&
+        resource.data.status == 'pending' &&
+        resource.data.expiresAt > request.time &&
+        changedKeys().hasOnly(['status', 'acceptedAt']) &&
+        request.resource.data.status == 'accepted' &&
+        request.resource.data.acceptedAt == request.time;
+
+      allow delete: if isAdmin();
     }
 
     // ---------- Student profiles ----------

@@ -35,6 +35,7 @@ function computeSettingsSignature() {
   return JSON.stringify([
     stations.map(function (s) { return [s.id, s.name, s.active !== false, s.maxQueue || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role]; }),
+    staffInvites.map(function (i) { return [i.id, i.role, i.status, inviteExpiresMs(i)]; }),
     systemSettings.autoVoidMinutes
   ]);
 }
@@ -537,5 +538,7 @@ function renderSettings() {
           '<button type="button" id="membersSaveBtn" class="settings-btn ' + (membersDirty ? 'settings-btn-primary' : 'settings-btn-muted') + '"' + (membersDirty ? '' : ' disabled') + ' onclick="confirmSaveMemberRoles()">Save Changes</button></div>' +
         membersBodyHtml +
       '</section>' +
-    '</div>';
+    '</div>' +
+
+    inviteSectionHtml();
 }
