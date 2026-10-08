@@ -8,8 +8,16 @@ var queueMgmtPurposes = [
 var activeQueueStation = "cashier";
 var autoVoidIntervalId = null;
 
+// The transfer form lives inside a panel that re-renders on every live update, so its state is kept here.
+var queueTransfer = { open: false, stationId: "", purpose: "" };
+
+function resetQueueTransfer() {
+  queueTransfer = { open: false, stationId: "", purpose: "" };
+}
+
 function selectQueueStation(stationId) {
   activeQueueStation = stationId;
+  resetQueueTransfer();
   renderQueueManagement();
 }
 
@@ -17,8 +25,70 @@ function toggleQueueTransfer() {
   var checkbox = document.getElementById("queueTransferToggle");
   var section = document.getElementById("queueTransferSection");
   if (checkbox && section) {
+    queueTransfer.open = checkbox.checked;
     section.style.display = checkbox.checked ? "" : "none";
   }
+}
+
+function getTransferPurposes(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  return station && Array.isArray(station.purposes) ? station.purposes : [];
+}
+
+function transferPurposeOptionsHtml(stationId) {
+  var purposes = getTransferPurposes(stationId);
+  var placeholder = (!stationId || purposes.length) ? "Select Purpose" : "Keep current purpose";
+
+  return '<option value="">' + placeholder + '</option>' + purposes.map(function (purpose) {
+    return '<option value="' + escapeAdminText(purpose) + '"' + (purpose === queueTransfer.purpose ? ' selected' : '') + '>' + escapeAdminText(purpose) + '</option>';
+  }).join("");
+}
+
+function onTransferStationChange(select) {
+  queueTransfer.stationId = select.value;
+  queueTransfer.purpose = "";
+
+  var purposeSelect = document.getElementById("queueTransferPurpose");
+  if (purposeSelect) {
+    purposeSelect.innerHTML = transferPurposeOptionsHtml(queueTransfer.stationId);
+    purposeSelect.disabled = !queueTransfer.stationId;
+  }
+}
+
+function onTransferPurposeChange(select) {
+  queueTransfer.purpose = select.value;
+}
+
+function confirmTransfer(stationId) {
+  var serving = getServingTicket(stationId);
+  if (!serving) {
+    say("No ticket is currently being served.");
+    return;
+  }
+
+  var dest = stations.find(function (s) { return s.id === queueTransfer.stationId; });
+  if (!dest) {
+    say("Please choose the station to transfer to.");
+    return;
+  }
+  if (getTransferPurposes(dest.id).length && !queueTransfer.purpose) {
+    say("Please select the purpose for " + dest.name + ".");
+    return;
+  }
+
+  showConfirmModal({
+    title: "Transfer ticket " + serving.ticketNo + "?",
+    message: "This sends " + serving.ownerName + "'s ticket to " + dest.name + " at the back of its queue. They get a new queue number there and will need to be verified again.",
+    confirmLabel: "Transfer",
+    tone: "primary",
+    onConfirm: function () {
+      transferServingTicket(stationId, dest.id, queueTransfer.purpose).then(function (result) {
+        if (!result) return;
+        resetQueueTransfer();
+        renderQueueManagement();
+      });
+    }
+  });
 }
 
 function getServingTicket(stationId) {
@@ -166,14 +236,12 @@ function renderQueueManagement() {
     '<div class="serving-number serving-empty">--</div>' +
     '<div class="serving-details"><div class="detail-full"><span class="detail-value">No ticket currently being served.</span></div></div>';
 
-  var purposeOptionsHtml = '<option value="">Select Purpose</option>' + queueMgmtPurposes.map(function (purpose) {
-    return '<option value="' + escapeAdminText(purpose) + '">' + escapeAdminText(purpose) + '</option>';
-  }).join("");
+  var purposeOptionsHtml = transferPurposeOptionsHtml(queueTransfer.stationId);
 
   var stationOptionsHtml = '<option value="">Select Station</option>' + stations.filter(function (s) {
-    return s.id !== activeQueueStation;
+    return s.id !== activeQueueStation && s.active !== false;
   }).map(function (s) {
-    return '<option value="' + s.id + '">' + escapeAdminText(s.name) + '</option>';
+    return '<option value="' + escapeAdminText(s.id) + '"' + (s.id === queueTransfer.stationId ? ' selected' : '') + '>' + escapeAdminText(s.name) + '</option>';
   }).join("");
 
   var queueListTickets = tickets.filter(function (t) {
@@ -244,15 +312,15 @@ function renderQueueManagement() {
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRemove(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
         '</div>' +
         '<label class="transfer-toggle-row">' +
-          '<span class="switch"><input type="checkbox" id="queueTransferToggle" onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
+          '<span class="switch"><input type="checkbox" id="queueTransferToggle"' + (queueTransfer.open ? ' checked' : '') + ' onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
           '<span>Transfer Ticket</span>' +
         '</label>' +
-        '<div class="transfer-section" id="queueTransferSection" style="display: none">' +
+        '<div class="transfer-section" id="queueTransferSection" style="' + (queueTransfer.open ? '' : 'display: none') + '">' +
           '<div class="transfer-form">' +
-            '<div><label>Purpose</label><select>' + purposeOptionsHtml + '</select></div>' +
-            '<div><label>To Station</label><select>' + stationOptionsHtml + '</select></div>' +
+            '<div><label>Purpose</label><select id="queueTransferPurpose" onchange="onTransferPurposeChange(this)"' + (queueTransfer.stationId ? '' : ' disabled') + '>' + purposeOptionsHtml + '</select></div>' +
+            '<div><label>To Station</label><select id="queueTransferStation" onchange="onTransferStationChange(this)">' + stationOptionsHtml + '</select></div>' +
           '</div>' +
-          '<button type="button" class="bigBtn transfer-btn">⇄ Transfer</button>' +
+          '<button type="button" class="bigBtn transfer-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmTransfer(\'' + activeQueueStation + '\')">⇄ Transfer</button>' +
         '</div>' +
       '</section>' +
       '<section class="panel queued-list-panel">' +

@@ -258,6 +258,75 @@ function removeCurrentTicket(stationId) {
   });
 }
 
+// Moves the ticket being served to another station as a fresh ticket at the back of that queue.
+function transferServingTicket(sourceStationId, destStationId, purpose) {
+  var serving = servingTicketOf(stations.find(function (s) { return s.id === sourceStationId; }));
+  var destStation = stations.find(function (s) { return s.id === destStationId; });
+
+  if (!serving) {
+    say("No ticket is currently being served.");
+    return Promise.resolve(null);
+  }
+  if (!destStation || destStation.id === sourceStationId) {
+    say("Please choose the station to transfer to.");
+    return Promise.resolve(null);
+  }
+  if (destStation.active === false) {
+    say("That station is currently unavailable.");
+    return Promise.resolve(null);
+  }
+  if (destStation.maxQueue > 0 && countStationTicketsToday(destStationId) >= destStation.maxQueue) {
+    say("That station has reached its daily queue limit.");
+    return Promise.resolve(null);
+  }
+
+  var destRef = db.collection("stations").doc(destStationId);
+  var ticketRef = db.collection("tickets").doc(serving.id);
+
+  return db.runTransaction(function (transaction) {
+    return Promise.all([transaction.get(destRef), transaction.get(ticketRef)]).then(function (docs) {
+      var dest = docs[0].data();
+      var ticket = docs[1].data();
+
+      if (!dest || dest.active === false) throw new Error("That station is currently unavailable.");
+      if (!ticket || ticket.status !== "serving") throw new Error("This ticket is no longer being served.");
+
+      var today = queueDayKey(Date.now());
+      var isNewDay = dest.countDay !== today;
+      var newCount = isNewDay ? 1 : (dest.count || 0) + 1;
+      var ticketNo = getTicketPrefix(dest.name) + "-" + String(newCount).padStart(3, "0");
+      var now = firebase.firestore.FieldValue.serverTimestamp();
+      var remove = firebase.firestore.FieldValue.delete();
+
+      transaction.update(destRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
+      transaction.update(ticketRef, {
+        stationId: destStationId,
+        ticketNo: ticketNo,
+        purpose: purpose || ticket.purpose,
+        status: "waiting",
+        verified: false,
+        createdAt: now,
+        transferredFrom: sourceStationId,
+        previousTicketNo: ticket.ticketNo,
+        transferredAt: now,
+        servingAt: remove,
+        verifiedAt: remove,
+        recalledAt: remove,
+        recallCount: remove
+      });
+
+      return { ticketNo: ticketNo, stationName: dest.name };
+    });
+  }).then(function (result) {
+    advanceStation(sourceStationId);
+    say("Ticket transferred to " + result.stationName + " as " + result.ticketNo + ".");
+    return result;
+  }).catch(function (err) {
+    say("Could not transfer ticket: " + err.message);
+    return null;
+  });
+}
+
 function recallTicket(ticketId) {
   if (!ticketId) return;
 
