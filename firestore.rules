@@ -110,7 +110,7 @@ service cloud.firestore {
         d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
         d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
         (!('studentNumber' in d) || (d.studentNumber is string && d.studentNumber.size() <= 20)) &&
-        (!('studentType' in d) || d.studentType in ['', 'regular', 'transferee']) &&
+        (!('studentType' in d) || d.studentType in ['', 'regular', 'transferee', 'guest']) &&
         stationIsOpen(d.stationId);
     }
 

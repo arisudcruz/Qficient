@@ -229,7 +229,7 @@ function renderQueueManagement() {
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
     '<div class="queue-mgmt-grid">' +
       '<section class="panel serving-panel">' +
-        '<div class="serving-card">' +
+        '<div class="serving-card' + (serving && STUDENT_TYPE_LABELS[serving.studentType] ? ' serving-type-' + serving.studentType : '') + '">' +
           '<div class="serving-card-top">' +
             '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
             '<span class="serving-time">' + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + '</span>' +

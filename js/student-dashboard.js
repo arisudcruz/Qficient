@@ -1,6 +1,7 @@
 var STUDENT_TYPE_LABELS = {
   regular: "Regular",
-  transferee: "Transferee / Irregular"
+  transferee: "Transferee / Irregular",
+  guest: "Guest"
 };
 
 function closeStudentTypeModal() {

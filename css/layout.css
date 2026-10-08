@@ -571,7 +571,7 @@
 }
 
 .serving-card {
-  background: var(--navyDark);
+  background: linear-gradient(180deg, #00509C 0%, #001F44 100%);
   color: #fff;
   border-radius: 14px;
   padding: 16px 18px;
@@ -1825,4 +1825,22 @@ body.dark .enforcer-field input {
 
 .rules-table td.rules-action .switch {
   vertical-align: middle;
+}
+
+/* Currently Serving card colour-codes the ticket owner's type */
+.serving-type-transferee {
+  background: linear-gradient(180deg, #F29A0D 0%, #A66A06 100%);
+}
+
+.serving-type-guest {
+  background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%);
+}
+
+.serving-type-regular .live-dot,
+.serving-type-transferee .live-dot {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.serving-type-guest .serving-live {
+  color: var(--amber);
 }
