@@ -1948,3 +1948,72 @@ body.dark .enforcer-field input {
 .server-banner-close:hover {
   background: rgba(122, 75, 0, 0.12);
 }
+
+/* Admin notifications: live inbox */
+.nav-item {
+  position: relative;
+}
+
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #172033;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.admin-shell.sidebar-collapsed .nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 0.6rem;
+}
+
+.notif-card {
+  position: relative;
+  cursor: pointer;
+}
+
+.notif-mark-all:disabled {
+  color: #94A3B8;
+  cursor: default;
+}
+
+.notif-popover {
+  position: absolute;
+  top: 34px;
+  right: 56px;
+  z-index: 5;
+  padding: 4px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+.notif-popover button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #E8EDF4;
+  color: #172033;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.notif-popover button:hover {
+  background: #DCE4EF;
+}
+
+.notif-more {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 24px;
+}

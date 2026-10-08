@@ -70,6 +70,7 @@ function deactivateAdminSession() {
   adminUser = null;
   stopStaffListener();
   stopServerStatusListener();
+  stopNotificationsListener();
 }
 
 function activateAdminSession(firebaseUser) {
@@ -83,6 +84,7 @@ function activateAdminSession(firebaseUser) {
       adminUser = firebaseUser;
       startStaffListener();
       startServerStatusListener();
+      startNotificationsListener();
     } else {
       deactivateAdminSession();
     }

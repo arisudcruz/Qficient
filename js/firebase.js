@@ -47,6 +47,7 @@ function startTicketsListener() {
     updateDashboard();
     updateAdmin();
     renderQueueManagement();
+    refreshNotifications();
   }, function (err) {
     say("Connection error: " + err.message);
   });

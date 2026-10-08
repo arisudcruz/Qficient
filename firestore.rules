@@ -185,6 +185,24 @@ service cloud.firestore {
         request.resource.data.token.size() <= 4096;
     }
 
+    // ---------- Admin notification inbox state ----------
+    // Which notifications an admin has read or deleted. One document per admin,
+    // keyed by their email, and only they can see or change it.
+
+    match /staffNotifications/{staffEmail} {
+      allow read: if isAdmin() && staffEmail == userEmail();
+
+      allow create, update: if isAdmin() &&
+        staffEmail == userEmail() &&
+        request.resource.data.keys().hasOnly(['readAllBefore', 'readIds', 'deletedIds', 'updatedAt']) &&
+        (!('readAllBefore' in request.resource.data) || request.resource.data.readAllBefore is timestamp) &&
+        (!('readIds' in request.resource.data) || request.resource.data.readIds is map) &&
+        (!('deletedIds' in request.resource.data) || request.resource.data.deletedIds is map) &&
+        request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
     // ---------- Notification server heartbeat ----------
     // Written only by the always-on notification server (Admin SDK, not subject
     // to these rules). Admins read it to see whether the server is running.
