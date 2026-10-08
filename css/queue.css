@@ -337,6 +337,16 @@ body.dark .app-page input.invalid {
   padding: 20px;
   text-align: center;
 }
+/* Ticket header is colour-coded by the owner's type (matches the admin serving card) */
+.ticket-type-regular .ticket-head {
+  background: linear-gradient(180deg, #00509C 0%, #001F44 100%);
+}
+.ticket-type-transferee .ticket-head {
+  background: linear-gradient(180deg, #F29A0D 0%, #A66A06 100%);
+}
+.ticket-type-guest .ticket-head {
+  background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%);
+}
 .ticket-station-label {
   font-size: 11px;
   letter-spacing: 0.1em;
