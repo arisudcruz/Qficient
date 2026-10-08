@@ -77,10 +77,15 @@ var rulesCatalog = [
   }
 ];
 
-function renderRules() {
-  var area = document.getElementById("adminRulesArea");
-  if (!area) return;
+var rulesActiveTab = "general";
+var rulesRoleOptions = ["Cashier", "Registrar", "Admission"];
 
+function setRulesTab(tab) {
+  rulesActiveTab = tab;
+  renderRules();
+}
+
+function renderGeneralRulesBody() {
   var sectionsHtml = rulesCatalog.map(function (group, groupIndex) {
     var rowsHtml = group.rules.map(function (rule, ruleIndex) {
       return '<tr><td class="settings-strong">' + escapeAdminText(rule[0]) + '</td>' +
@@ -96,19 +101,7 @@ function renderRules() {
     '</section>';
   }).join("");
 
-  area.innerHTML =
-    '<div class="dashboard-header">' +
-      '<div class="header-greeting">System Rules</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
-    '</div>' +
-
-    '<div class="rules-tabs" role="tablist">' +
-      '<button type="button" class="rules-tab active" role="tab">General Rules</button>' +
-      '<button type="button" class="rules-tab" role="tab">Role</button>' +
-      '<button type="button" class="rules-tab" role="tab">Station</button>' +
-    '</div>' +
-
-    '<div class="settings-config-head">' +
+  return '<div class="settings-config-head">' +
       '<div><h2 class="settings-title rules-title">Access Permission</h2>' +
         '<p class="settings-sub">Configure the available permission rules for system access and actions. These rules can be assigned to roles to control what each user is allowed to perform.</p></div>' +
       '<div class="settings-actions">' +
@@ -122,6 +115,60 @@ function renderRules() {
     '</div>' +
 
     sectionsHtml;
+}
+
+function renderRoleRulesBody() {
+  var roleOptionsHtml = rulesRoleOptions.map(function (name) {
+    return '<option>' + escapeAdminText(name) + '</option>';
+  }).join("");
+
+  var sectionsHtml = rulesCatalog.map(function (group) {
+    var rowsHtml = group.rules.map(function (rule) {
+      return '<tr><td class="settings-strong">' + escapeAdminText(rule[0]) + '</td>' +
+        '<td class="rules-desc">' + escapeAdminText(rule[1]) + '</td>' +
+        '<td class="rules-action"><label class="switch"><input type="checkbox" aria-label="Allow ' + escapeAdminText(rule[0]) + '"><span class="switch-track"></span></label></td></tr>';
+    }).join("");
+
+    return '<section class="panel settings-panel rules-section">' +
+      '<div class="panel-header"><h2>' + escapeAdminText(group.section) + '</h2></div>' +
+      '<div class="table-wrap rules-table-wrap"><table class="queue-table settings-table rules-table"><thead><tr>' +
+        '<th>Rules</th><th>Description</th><th class="rules-action">Access</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody></table></div>' +
+    '</section>';
+  }).join("");
+
+  return '<div class="settings-config-head">' +
+      '<div><h2 class="settings-title rules-title">Role Rules</h2>' +
+        '<p class="settings-sub">Assign permissions to the selected role to control which features and actions its users can access.</p></div>' +
+      '<select class="enforcer-station-select" aria-label="Role">' + roleOptionsHtml + '</select>' +
+    '</div>' +
+
+    '<div class="rules-allow-all">' +
+      '<span>Allow All</span>' +
+      '<label class="switch"><input type="checkbox" checked aria-label="Allow all rules"><span class="switch-track"></span></label>' +
+    '</div>' +
+
+    sectionsHtml;
+}
+
+function renderRules() {
+  var area = document.getElementById("adminRulesArea");
+  if (!area) return;
+
+  var tabsHtml = [["general", "General Rules"], ["role", "Role"], ["station", "Station"]].map(function (tab) {
+    var attrs = tab[0] === "station" ? '' : ' onclick="setRulesTab(\'' + tab[0] + '\')"';
+    return '<button type="button" class="rules-tab' + (tab[0] === rulesActiveTab ? ' active' : '') + '" role="tab"' + attrs + '>' + tab[1] + '</button>';
+  }).join("");
+
+  area.innerHTML =
+    '<div class="dashboard-header">' +
+      '<div class="header-greeting">System Rules</div>' +
+      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+    '</div>' +
+
+    '<div class="rules-tabs" role="tablist">' + tabsHtml + '</div>' +
+
+    (rulesActiveTab === "role" ? renderRoleRulesBody() : renderGeneralRulesBody());
 }
 
 function openCreateRuleModal() {

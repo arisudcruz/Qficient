@@ -1811,3 +1811,18 @@ body.dark .enforcer-field input {
 .rules-table td.rules-action {
   width: 110px;
 }
+
+.rules-allow-all {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.rules-table td.rules-action .switch {
+  vertical-align: middle;
+}
