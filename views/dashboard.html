@@ -1,35 +1,66 @@
-<div class="page app-page has-tabbar" id="pageDashboard">
-  <div class="app-header">
-    <div class="app-header-user">
-      <span class="app-avatar" id="dashAvatar">S</span>
-      <div class="app-user-block">
-        <span class="app-greeting" id="welcomeText">Welcome</span>
-        <span class="app-student-no" id="welcomeStudentNo"></span>
+<div class="page app-page ud-page" id="pageDashboard">
+  <header class="ud-header">
+    <div class="ud-brand">
+      <img src="/assets/qfficient-badge.png" alt="" width="32" height="32">
+      <span>QFicient</span>
+    </div>
+
+    <div class="ud-header-right">
+      <div id="notificationToggle"></div>
+      <span class="ud-divider" aria-hidden="true"></span>
+
+      <div class="ud-user-wrap">
+        <button type="button" class="ud-user" id="udUserButton" onclick="toggleUserMenu(event)" aria-haspopup="menu" aria-expanded="false">
+          <span class="ud-user-text">
+            <span class="ud-user-name" id="welcomeText"></span>
+            <span class="ud-user-meta" id="welcomeStudentNo"></span>
+          </span>
+          <span class="ud-avatar" id="dashAvatar">?</span>
+        </button>
+
+        <div class="ud-menu" id="udUserMenu" role="menu" hidden>
+          <div class="ud-menu-head">
+            <strong id="udMenuName"></strong>
+            <span id="udMenuMeta"></span>
+          </div>
+          <button type="button" role="menuitem" id="udMenuType" onclick="changeStudentTypeFromMenu()">Change student type</button>
+          <button type="button" role="menuitem" id="udMenuTheme" onclick="toggleThemeFromMenu()">Dark mode</button>
+          <button type="button" role="menuitem" class="ud-menu-danger" onclick="logoutFromMenu()">Log out</button>
+        </div>
       </div>
     </div>
-    <button type="button" class="app-icon-btn" onclick="studentLogout()" aria-label="Log out">⎋</button>
-  </div>
+  </header>
 
-  <div class="chip-row">
-    <div id="studentTypeChip"></div>
-    <div id="notificationToggle"></div>
-  </div>
+  <main class="ud-main">
+    <section id="dashboardTabQueue">
+      <div class="ud-hero" id="udHero">
+        <h1>Making Every <em>Queue Efficient.</em></h1>
+      </div>
 
-  <div class="app-body" id="dashboardTabQueue">
-    <div id="ticketArea"></div>
-    <div id="stationArea"></div>
-  </div>
+      <div id="udStations"></div>
 
-  <div class="app-body" id="dashboardTabBoard" style="display: none">
-    <div id="boardArea"></div>
-  </div>
+      <div class="ud-station-view" id="udStationView" hidden>
+        <div class="ud-join-card" id="udJoinCard"></div>
+        <p class="ud-notice" id="udNotice" hidden>Queue joined. We'll let you know when it's your turn.</p>
+        <div id="ticketArea"></div>
+      </div>
+    </section>
 
-  <nav class="app-tabbar">
-    <button type="button" class="app-tab active" id="tabBtnQueue" onclick="setDashboardTab('queue')">
-      <span class="tab-icon">🎫</span><span>My Queue</span>
+    <section id="dashboardTabBoard" hidden>
+      <div class="ud-board" id="boardArea"></div>
+    </section>
+  </main>
+
+  <button type="button" class="ud-back" id="udBack" onclick="backToStations()" aria-label="Back to stations" hidden>
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  </button>
+
+  <nav class="ud-tabbar" aria-label="Dashboard sections">
+    <button type="button" class="ud-tab active" id="tabBtnQueue" onclick="setDashboardTab('queue')" aria-label="Queue" title="Queue">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg>
     </button>
-    <button type="button" class="app-tab" id="tabBtnBoard" onclick="setDashboardTab('board')">
-      <span class="tab-icon">📊</span><span>Live Board</span>
+    <button type="button" class="ud-tab" id="tabBtnBoard" onclick="setDashboardTab('board')" aria-label="Live Board" title="Live Board">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 9h5M7 12h9"/></svg>
     </button>
   </nav>
 </div>

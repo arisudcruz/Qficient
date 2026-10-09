@@ -157,23 +157,17 @@ function ensureJoinCooldownWatcher(active) {
   }
 }
 
+// Guests type their purpose on the guest form; it pre-fills the Purpose box of the first station they open.
 var pendingJoinPurpose = "";
+var JOIN_OTHER_PURPOSE = "__other__";
 
-function setPendingJoinPurpose(value) {
-  pendingJoinPurpose = value;
-}
-
-function joinSelectedStation(stationId) {
-  var purposeInput = document.getElementById("queuePurpose");
-  var purpose = purposeInput ? purposeInput.value.trim() : "";
-
-  if (!purpose) {
-    say("Please enter your purpose before joining.");
-    return;
-  }
-
-  joinQueue(stationId, purpose);
-}
+var dashView = "stations";
+var dashStationId = "";
+var dashHadTicket = false;
+var dashBrowsing = false; // looking at the station list while holding a ticket
+var joinDraft = { stationId: "", purpose: "", other: "" };
+var lastStationsHtml = null;
+var lastJoinCardKey = null;
 
 function escapeHtml(value) {
   return String(value == null ? "" : value)
@@ -192,17 +186,169 @@ function getInitials(name) {
   return initials.toUpperCase();
 }
 
+function setText(id, text) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function ordinalLabel(n) {
+  var rest = n % 100;
+  var suffix = "TH";
+  if (rest < 11 || rest > 13) suffix = ({ 1: "ST", 2: "ND", 3: "RD" })[n % 10] || "TH";
+  return n + suffix;
+}
+
+function joinPurposesFor(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  return station && Array.isArray(station.purposes) && station.purposes.length ? station.purposes : queueMgmtPurposes;
+}
+
+function waitingTicketsOf(stationId) {
+  return tickets.filter(function (item) {
+    return item.stationId === stationId && item.status === "waiting" && isTodayTicket(item);
+  }).sort(compareQueueOrder);
+}
+
+/* ---------- Account menu ---------- */
+
+function closeUserMenu() {
+  var menu = document.getElementById("udUserMenu");
+  var button = document.getElementById("udUserButton");
+  if (menu) menu.hidden = true;
+  if (button) button.setAttribute("aria-expanded", "false");
+}
+
+function toggleUserMenu(event) {
+  if (event) event.stopPropagation();
+  var menu = document.getElementById("udUserMenu");
+  var button = document.getElementById("udUserButton");
+  if (!menu) return;
+
+  menu.hidden = !menu.hidden;
+  if (button) button.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+}
+
+function changeStudentTypeFromMenu() {
+  closeUserMenu();
+  promptStudentType(false);
+}
+
+function toggleThemeFromMenu() {
+  closeUserMenu();
+  toggleTheme();
+  renderHeader();
+}
+
+function logoutFromMenu() {
+  closeUserMenu();
+  studentLogout();
+}
+
+document.addEventListener("click", function (event) {
+  if (!event.target.closest || !event.target.closest(".ud-user-wrap")) closeUserMenu();
+});
+
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape") closeUserMenu();
+});
+
+/* ---------- Navigation inside the dashboard ---------- */
+
 function setDashboardTab(tab) {
+  var onBoard = tab === "board";
   var queuePanel = document.getElementById("dashboardTabQueue");
   var boardPanel = document.getElementById("dashboardTabBoard");
-  var tabBtnQueue = document.getElementById("tabBtnQueue");
-  var tabBtnBoard = document.getElementById("tabBtnBoard");
 
-  if (queuePanel) queuePanel.style.display = tab === "board" ? "none" : "";
-  if (boardPanel) boardPanel.style.display = tab === "board" ? "" : "none";
-  if (tabBtnQueue) tabBtnQueue.classList.toggle("active", tab !== "board");
-  if (tabBtnBoard) tabBtnBoard.classList.toggle("active", tab === "board");
+  if (queuePanel) queuePanel.hidden = onBoard;
+  if (boardPanel) boardPanel.hidden = !onBoard;
+
+  ["tabBtnQueue", "tabBtnBoard"].forEach(function (id) {
+    var btn = document.getElementById(id);
+    if (btn) btn.classList.toggle("active", (id === "tabBtnBoard") === onBoard);
+  });
+
+  updateDashboard();
 }
+
+function viewMyTicket() {
+  dashBrowsing = false;
+  updateDashboard();
+  window.scrollTo(0, 0);
+}
+
+function openStation(stationId) {
+  if (!user || myTicket()) return;
+
+  var cooldownMs = getCancelCooldownRemaining();
+  if (cooldownMs > 0) {
+    say("Please wait " + formatCountdown(cooldownMs) + " before joining again.");
+    return;
+  }
+
+  dashStationId = stationId;
+  dashView = "station";
+
+  if (joinDraft.stationId !== stationId) {
+    joinDraft = { stationId: stationId, purpose: "", other: "" };
+    if (pendingJoinPurpose) {
+      if (joinPurposesFor(stationId).indexOf(pendingJoinPurpose) !== -1) {
+        joinDraft.purpose = pendingJoinPurpose;
+      } else {
+        joinDraft.purpose = JOIN_OTHER_PURPOSE;
+        joinDraft.other = pendingJoinPurpose;
+      }
+    }
+  }
+  lastJoinCardKey = null;
+  updateDashboard();
+  window.scrollTo(0, 0);
+}
+
+function backToStations() {
+  dashBrowsing = !!(user && myTicket());
+  dashView = "stations";
+  dashStationId = "";
+  updateDashboard();
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Joining ---------- */
+
+function onPurposeChange(value) {
+  joinDraft.purpose = value;
+  var other = document.getElementById("udPurposeOther");
+  if (other) {
+    other.hidden = value !== JOIN_OTHER_PURPOSE;
+    if (value === JOIN_OTHER_PURPOSE) other.focus();
+  }
+}
+
+function onPurposeOtherInput(value) {
+  joinDraft.other = value;
+}
+
+function generateTicket() {
+  if (!dashStationId) return;
+
+  if (!joinDraft.purpose) {
+    say("Please select your purpose before generating a ticket.");
+    return;
+  }
+
+  var purpose = joinDraft.purpose === JOIN_OTHER_PURPOSE ? joinDraft.other.trim().replace(/\s+/g, " ") : joinDraft.purpose;
+  if (!/[\p{L}\p{N}]/u.test(purpose)) {
+    say("Please specify your purpose.");
+    return;
+  }
+
+  joinQueue(dashStationId, purpose);
+}
+
+/* ---------- Rendering ---------- */
+
+var STATION_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>';
 
 function renderLiveBoard() {
   var area = document.getElementById("boardArea");
@@ -211,9 +357,7 @@ function renderLiveBoard() {
   var cardsHtml = stations.map(function (station) {
     var servingTicket = servingTicketOf(station);
     var servingText = servingTicket ? servingTicket.ticketNo : "—";
-    var waitingCount = tickets.filter(function (item) {
-      return item.stationId === station.id && item.status === "waiting" && isTodayTicket(item);
-    }).length;
+    var waitingCount = waitingTicketsOf(station.id).length;
 
     return '<div class="board-card">' +
       '<div class="board-card-top">' +
@@ -233,143 +377,258 @@ function renderLiveBoard() {
     (cardsHtml || '<p class="empty-hint">No stations available yet.</p>');
 }
 
-var lastJoinCardsHtml = null;
+function renderHeader() {
+  var name = user ? user.name : "";
+  var meta = user ? (user.studentNumber || (user.type === "guest" ? "Guest" : "")) : "";
+  var typeLabel = user && user.type === "student" ? (STUDENT_TYPE_LABELS[user.studentType] || "") : "";
+
+  setText("dashAvatar", user ? getInitials(user.name) : "?");
+  setText("welcomeText", name);
+  setText("welcomeStudentNo", meta);
+  setText("udMenuName", name);
+  setText("udMenuMeta", meta);
+
+  var typeBtn = document.getElementById("udMenuType");
+  if (typeBtn) {
+    typeBtn.hidden = !(user && user.type === "student");
+    typeBtn.textContent = "Student type: " + (typeLabel || "Not set");
+  }
+
+  var themeBtn = document.getElementById("udMenuTheme");
+  if (themeBtn) themeBtn.textContent = document.body.classList.contains("dark") ? "Light mode" : "Dark mode";
+}
+
+function renderStationCards(cooldownMs, ticket) {
+  var host = document.getElementById("udStations");
+  if (!host) return;
+
+  var cards = "";
+  stations.forEach(function (station) {
+    if (station.active === false) return;
+    var servingTicket = servingTicketOf(station);
+
+    cards +=
+      '<div class="ud-station-card">' +
+        '<div class="ud-station-top"></div>' +
+        '<div class="ud-station-icon">' + STATION_ICON_SVG + '</div>' +
+        '<h3>' + escapeHtml(station.name) + '</h3>' +
+        '<div class="ud-station-foot">' +
+          '<div>' +
+            '<p class="ud-joined">' + waitingTicketsOf(station.id).length + ' waiting</p>' +
+            '<p class="ud-serving">Now serving ' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</p>' +
+          '</div>' +
+          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket ? ' disabled' : '') + '>Join</button>' +
+        '</div>' +
+      '</div>';
+  });
+
+  var html = "";
+  if (ticket) {
+    html += '<p class="ud-banner">You are already in line (' + escapeHtml(ticket.ticketNo) + '). <button type="button" class="ud-link" onclick="viewMyTicket()">View ticket</button></p>';
+  }
+  if (cooldownMs > 0) {
+    html += '<p class="ud-banner">⏳ Please wait before joining again. <span id="joinCooldownText">You can join again in ' + formatCountdown(cooldownMs) + '</span></p>';
+  }
+  html += cards ?
+    '<div class="ud-stations-grid">' + cards + '</div>' :
+    '<p class="empty-hint">No stations are open right now.</p>';
+
+  if (html !== lastStationsHtml) {
+    host.innerHTML = html;
+    lastStationsHtml = html;
+  }
+}
+
+// Built once per situation and then left alone, so a live update elsewhere in the queue never resets the
+// dropdown or steals focus while the student is choosing a purpose.
+function renderJoinCard(station, ticket) {
+  var card = document.getElementById("udJoinCard");
+  if (!card) return;
+
+  var purposes = joinPurposesFor(station.id);
+  var key = [station.id, station.name, ticket ? "ticket" : "free", purposes.join("|")].join("::");
+  if (key === lastJoinCardKey && card.innerHTML) return;
+  lastJoinCardKey = key;
+
+  var locked = !!ticket;
+  var current = joinDraft.purpose;
+  var otherValue = joinDraft.other;
+  if (locked) {
+    current = purposes.indexOf(ticket.purpose) !== -1 ? ticket.purpose : JOIN_OTHER_PURPOSE;
+    otherValue = current === JOIN_OTHER_PURPOSE ? ticket.purpose : "";
+  }
+
+  var options = '<option value="">Select Purpose</option>' + purposes.map(function (purpose) {
+    return '<option value="' + escapeHtml(purpose) + '"' + (purpose === current ? ' selected' : '') + '>' + escapeHtml(purpose) + '</option>';
+  }).join("") + '<option value="' + JOIN_OTHER_PURPOSE + '"' + (current === JOIN_OTHER_PURPOSE ? ' selected' : '') + '>Others, please specify</option>';
+
+  card.innerHTML =
+    '<h2 class="ud-join-title">' + escapeHtml(station.name) + '</h2>' +
+    '<p class="ud-join-text">Select your purpose and generate a ticket to join the queue.</p>' +
+    '<div class="ud-join-row">' +
+      '<select class="ud-select" id="udPurpose" aria-label="Purpose" onchange="onPurposeChange(this.value)"' + (locked ? ' disabled' : '') + '>' + options + '</select>' +
+      '<button type="button" class="ud-generate" onclick="generateTicket()"' + (locked ? ' disabled' : '') + '>Generate Ticket</button>' +
+    '</div>' +
+    '<input type="text" class="ud-other" id="udPurposeOther" maxlength="100" placeholder="Please specify your purpose" aria-label="Specify your purpose" value="' + escapeHtml(otherValue) + '" oninput="onPurposeOtherInput(this.value)"' +
+      (locked ? ' disabled' : '') + (current === JOIN_OTHER_PURPOSE ? '' : ' hidden') + '>';
+}
+
+function renderTicketCard(ticket) {
+  var ticketStation = stations.find(function (station) { return station.id === ticket.stationId; });
+  var skip = ticket.status === "skipped" ? getSkipPhase(ticket) : null;
+  ensureSkipCountdownWatcher(skip !== null && skip.phase !== "expired");
+
+  var statusClass = "ud-status";
+  var statusText = "Waiting";
+  var alertHtml = "";
+  if (ticket.status === "serving") {
+    statusClass += " is-serving";
+    statusText = "Now Serving";
+  } else if (skip) {
+    statusClass += " is-skipped";
+    statusText = "Skipped";
+    alertHtml = skip.phase === "expired" ?
+      '<p class="ud-ticket-alert">⏳ Your time is up. Please go to the counter now. Staff may give you a last call.</p>' :
+      '<p class="ud-ticket-alert" id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + escapeHtml(ticketCountdownText(skip.phase, skip.remainingMs)) + '</p>';
+  }
+
+  var servingTicket = servingTicketOf(ticketStation);
+  var place = waitingTicketsOf(ticket.stationId).findIndex(function (item) { return item.id === ticket.id; });
+
+  var posBig;
+  var posLabel;
+  if (ticket.status === "serving") {
+    posBig = "NOW";
+    posLabel = "Your turn";
+  } else if (skip) {
+    posBig = "Skipped";
+    posLabel = "Go to counter";
+  } else {
+    posBig = place === -1 ? "—" : ordinalLabel(place + 1);
+    posLabel = "In line";
+  }
+
+  var typeLabel = STUDENT_TYPE_LABELS[ticket.studentType];
+
+  var notice = document.getElementById("udNotice");
+  if (notice) {
+    notice.hidden = !!skip;
+    notice.textContent = ticket.status === "serving" ?
+      "It's your turn. Please proceed to the counter." :
+      "Queue joined. We'll let you know when it's your turn.";
+  }
+
+  document.getElementById("ticketArea").innerHTML =
+    '<div class="ud-ticket' + (typeLabel ? ' ticket-type-' + ticket.studentType : '') + (ticket.verified ? ' verified' : '') + '">' +
+      '<div class="ud-ticket-head">' +
+        '<p class="ud-ticket-station">' + escapeHtml(ticketStation ? ticketStation.name : "") + '</p>' +
+        '<p class="ud-ticket-no">' + escapeHtml(ticket.ticketNo) + '</p>' +
+      '</div>' +
+      alertHtml +
+      '<div class="ud-ticket-who">' +
+        '<div>' +
+          '<p class="ud-ticket-name">' + escapeHtml(ticket.ownerName) + '</p>' +
+          (ticket.studentNumber ? '<p class="ud-ticket-sub">' + escapeHtml(ticket.studentNumber) + '</p>' : '') +
+        '</div>' +
+        '<span class="' + statusClass + '">' + statusText + '</span>' +
+      '</div>' +
+      '<div class="ud-ticket-details">' +
+        '<div><span>Purpose</span><b>' + escapeHtml(ticket.purpose || "—") + '</b></div>' +
+        (typeLabel ? '<div><span>Student Type</span><b>' + escapeHtml(typeLabel) + '</b></div>' : '') +
+      '</div>' +
+      '<div class="ud-ticket-pos">' +
+        '<div class="ud-pos-box"><b>' + escapeHtml(posBig) + '</b><span>' + escapeHtml(posLabel) + '</span></div>' +
+        '<div class="ud-pos-box"><b>' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</b><span>Now serving</span></div>' +
+      '</div>' +
+    '</div>' +
+    (ticket.status === "serving" ? '' : '<button type="button" class="ud-cancel" onclick="cancelTicket()">Cancel Queue</button>');
+}
+
+function resetDashboardState() {
+  dashView = "stations";
+  dashStationId = "";
+  dashHadTicket = false;
+  dashBrowsing = false;
+  joinDraft = { stationId: "", purpose: "", other: "" };
+  pendingJoinPurpose = "";
+  lastStationsHtml = null;
+  lastJoinCardKey = null;
+}
 
 function updateDashboard() {
   var ticket = user ? myTicket() : null;
-  var ticketArea = document.getElementById("ticketArea");
-  var stationArea = document.getElementById("stationArea");
-  var avatar = document.getElementById("dashAvatar");
-  var greetingEl = document.getElementById("welcomeText");
-  var studentNoEl = document.getElementById("welcomeStudentNo");
-  var typeChipArea = document.getElementById("studentTypeChip");
 
   renderLiveBoard();
-
-  if (avatar && user) avatar.textContent = getInitials(user.name);
-  if (greetingEl) greetingEl.textContent = user ? ("Welcome, " + user.name) : "Welcome";
-  if (studentNoEl) studentNoEl.textContent = (user && user.studentNumber) ? user.studentNumber : "";
-
-  if (typeChipArea) {
-    typeChipArea.innerHTML = (user && user.type === "student") ?
-      '<button type="button" class="student-type-chip" onclick="promptStudentType(false)">' +
-        escapeHtml(STUDENT_TYPE_LABELS[user.studentType] || "Set student type") +
-        ' <span class="edit-icon">✎</span>' +
-      '</button>' : '';
-  }
-
+  renderHeader();
   refreshNotificationToggle();
 
-  if (!ticketArea || !stationArea) return;
+  var hero = document.getElementById("udHero");
+  var stationsHost = document.getElementById("udStations");
+  var stationView = document.getElementById("udStationView");
+  var back = document.getElementById("udBack");
+  var boardPanel = document.getElementById("dashboardTabBoard");
+  if (!hero || !stationsHost || !stationView) return;
+
+  if (!user) {
+    ensureSkipCountdownWatcher(false);
+    ensureJoinCooldownWatcher(false);
+    resetDashboardState();
+    stationsHost.innerHTML = "";
+    document.getElementById("ticketArea").innerHTML = "";
+    return;
+  }
+
+  // Recall and last-call alerts fire wherever the student happens to be looking.
+  if (ticket) checkTicketAlerts(ticket);
+
+  // Someone with a live ticket (including after a refresh) lands on that station's page; once the ticket
+  // ends they go back to the station list.
+  if (!ticket) dashBrowsing = false;
+  if (ticket && !dashBrowsing) {
+    dashView = "station";
+    dashStationId = ticket.stationId;
+  } else if (ticket) {
+    dashView = "stations";
+    dashStationId = "";
+  } else if (dashHadTicket) {
+    dashView = "stations";
+    dashStationId = "";
+    joinDraft = { stationId: "", purpose: "", other: "" };
+    lastJoinCardKey = null;
+  }
+  dashHadTicket = !!ticket;
+
+  var station = stations.find(function (s) { return s.id === dashStationId; });
+  if (dashView === "station" && !station) {
+    dashView = "stations";
+    dashStationId = "";
+  }
+
+  var cooldownMs = ticket ? 0 : getCancelCooldownRemaining();
+  ensureJoinCooldownWatcher(cooldownMs > 0);
+
+  var inStation = dashView === "station";
+  hero.hidden = inStation;
+  stationsHost.hidden = inStation;
+  stationView.hidden = !inStation;
+  if (back) back.hidden = !inStation || (!!boardPanel && !boardPanel.hidden);
+
+  if (!inStation) {
+    ensureSkipCountdownWatcher(false);
+    renderStationCards(cooldownMs, ticket);
+    return;
+  }
+
+  renderJoinCard(station, ticket);
 
   if (!ticket) {
     ensureSkipCountdownWatcher(false);
-    ticketArea.innerHTML = "";
-    if (!user) {
-      ensureJoinCooldownWatcher(false);
-      stationArea.innerHTML = "";
-      return;
-    }
-
-    var cooldownMs = getCancelCooldownRemaining();
-    ensureJoinCooldownWatcher(cooldownMs > 0);
-
-    if (cooldownMs > 0) {
-      stationArea.innerHTML =
-        '<div class="cooldown-card">' +
-          '<p class="cooldown-title">⏳ Please wait before joining again</p>' +
-          '<p class="cooldown-text" id="joinCooldownText">You can join again in ' + formatCountdown(cooldownMs) + '</p>' +
-        '</div>';
-      return;
-    }
-
-    var cardsHtml = '';
-    for (var i = 0; i < stations.length; i++) {
-      var station = stations[i];
-      if (station.active === false) continue;
-      var servingTicket = servingTicketOf(station);
-      var servingText = servingTicket ? servingTicket.ticketNo : "—";
-      cardsHtml +=
-        '<div class="station-card">' +
-          '<span class="station-icon">🏷️</span>' +
-          '<div class="station-copy">' +
-            '<p class="station-name">' + escapeHtml(station.name) + '</p>' +
-            '<p class="station-sub">Now serving ' + escapeHtml(servingText) + '</p>' +
-          '</div>' +
-          '<button type="button" class="station-join-btn" onclick="joinSelectedStation(\'' + station.id + '\')">Join</button>' +
-        '</div>';
-    }
-
-    // The Purpose box is built once and kept, so a live update elsewhere in the queue never steals focus
-    // from a student who is typing. Only the station list underneath is refreshed.
-    var purposeBox = document.getElementById("queuePurpose");
-    var cardsHost = document.getElementById("joinStationCards");
-    if (!purposeBox || !cardsHost || !stationArea.contains(purposeBox)) {
-      stationArea.innerHTML = '<p class="section-label">Select a service to join the queue</p>' +
-        '<div class="app-field">' +
-          '<label>Purpose</label>' +
-          '<input type="text" id="queuePurpose" placeholder="e.g. Certificate of Registration" value="' + escapeHtml(pendingJoinPurpose) + '" oninput="setPendingJoinPurpose(this.value)">' +
-        '</div>' +
-        '<div id="joinStationCards"></div>';
-      cardsHost = document.getElementById("joinStationCards");
-      lastJoinCardsHtml = null;
-    }
-
-    if (cardsHtml !== lastJoinCardsHtml) {
-      cardsHost.innerHTML = cardsHtml;
-      lastJoinCardsHtml = cardsHtml;
-    }
+    var notice = document.getElementById("udNotice");
+    if (notice) notice.hidden = true;
+    document.getElementById("ticketArea").innerHTML = "";
     return;
   }
 
   pendingJoinPurpose = "";
-  ensureJoinCooldownWatcher(false);
-
-  checkTicketAlerts(ticket);
-
-  var skip = ticket.status === "skipped" ? getSkipPhase(ticket) : null;
-  ensureSkipCountdownWatcher(skip !== null && skip.phase !== "expired");
-
-  var ticketStation = stations.find(function (station) {
-    return station.id === ticket.stationId;
-  });
-
-  var statusClass = "status-pill waiting";
-  var statusText = "Waiting";
-  var countdownHtml = "";
-  if (ticket.status === "serving") {
-    statusClass = "status-pill done";
-    statusText = "Now Serving";
-  } else if (skip) {
-    statusClass = "status-pill danger";
-    statusText = "Skipped";
-    countdownHtml = skip.phase === "expired" ?
-      '<p class="ticket-countdown">⏳ Your time is up. Please go to the counter now. Staff may give you a last call.</p>' :
-      '<p class="ticket-countdown" id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + ticketCountdownText(skip.phase, skip.remainingMs) + '</p>';
-  }
-
-  var detailCellsHtml = '<div><span class="ticket-purpose-label">Purpose</span><span class="ticket-purpose-value">' + escapeHtml(ticket.purpose || "—") + '</span></div>';
-  if (ticket.studentType) {
-    detailCellsHtml += '<div><span class="ticket-purpose-label">Student Type</span><span class="ticket-purpose-value">' + escapeHtml(STUDENT_TYPE_LABELS[ticket.studentType] || ticket.studentType) + '</span></div>';
-  }
-
-  ticketArea.innerHTML =
-    '<div class="ticket-card' + (STUDENT_TYPE_LABELS[ticket.studentType] ? ' ticket-type-' + ticket.studentType : '') + (ticket.verified ? ' verified' : '') + '">' +
-      '<div class="ticket-head">' +
-        '<p class="ticket-station-label">' + escapeHtml(ticketStation ? ticketStation.name : "") + '</p>' +
-        '<p class="ticket-number">' + escapeHtml(ticket.ticketNo) + '</p>' +
-      '</div>' +
-      '<div class="ticket-body">' +
-        '<div class="ticket-owner-block">' +
-          '<span class="ticket-owner">' + escapeHtml(ticket.ownerName) + '</span>' +
-          (ticket.studentNumber ? '<span class="ticket-student-no">' + escapeHtml(ticket.studentNumber) + '</span>' : '') +
-        '</div>' +
-        '<span class="' + statusClass + '">' + statusText + '</span>' +
-      '</div>' +
-      countdownHtml +
-      '<div class="ticket-detail-grid">' + detailCellsHtml + '</div>' +
-    '</div>' +
-    (ticket.status === "serving" ? '' : '<button type="button" class="app-btn app-btn-outline" onclick="cancelTicket()">Cancel Queue</button>');
-
-  stationArea.innerHTML = "";
+  renderTicketCard(ticket);
 }
