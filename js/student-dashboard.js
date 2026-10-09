@@ -157,8 +157,6 @@ function ensureJoinCooldownWatcher(active) {
   }
 }
 
-// Guests type their purpose on the guest form; it pre-fills the Purpose box of the first station they open.
-var pendingJoinPurpose = "";
 var JOIN_OTHER_PURPOSE = "__other__";
 
 var dashView = "stations";
@@ -307,14 +305,6 @@ function openStation(stationId) {
 
   if (joinDraft.stationId !== stationId) {
     joinDraft = { stationId: stationId, purpose: "", other: "" };
-    if (pendingJoinPurpose) {
-      if (joinPurposesFor(stationId).indexOf(pendingJoinPurpose) !== -1) {
-        joinDraft.purpose = pendingJoinPurpose;
-      } else {
-        joinDraft.purpose = JOIN_OTHER_PURPOSE;
-        joinDraft.other = pendingJoinPurpose;
-      }
-    }
   }
   lastJoinCardKey = null;
   syncRoute(false);
@@ -668,7 +658,6 @@ function resetDashboardState() {
   dashHadTicket = false;
   dashBrowsing = false;
   joinDraft = { stationId: "", purpose: "", other: "" };
-  pendingJoinPurpose = "";
   lastStationsHtml = null;
   lastJoinCardKey = null;
 }
@@ -754,6 +743,5 @@ function renderDashboard() {
     return;
   }
 
-  pendingJoinPurpose = "";
   renderTicketCard(ticket);
 }

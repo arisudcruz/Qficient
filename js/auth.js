@@ -188,13 +188,11 @@ function startGuestSession() {
   var firstName = document.getElementById("guestFirstName").value.trim().replace(/\s+/g, " ");
   var lastName = document.getElementById("guestLastName").value.trim().replace(/\s+/g, " ");
   var email = document.getElementById("guestEmail").value.trim();
-  var purpose = document.getElementById("guestPurpose").value.trim();
 
   var problems = [
     ["guestFirstName", /\p{L}/u.test(firstName) ? "" : "Enter your first name."],
     ["guestLastName", /\p{L}/u.test(lastName) ? "" : "Enter your last name."],
-    ["guestEmail", guestEmailProblem(email)],
-    ["guestPurpose", purpose ? "" : "Enter your purpose."]
+    ["guestEmail", guestEmailProblem(email)]
   ];
 
   var firstInvalid = null;
@@ -227,12 +225,10 @@ function startGuestSession() {
         type: "guest",
         id: credential.user.uid,
         name: name,
-        email: email,
-        purpose: purpose
+        email: email
       };
 
       saveGuestProfile({ uid: user.id, name: name, email: email });
-      pendingJoinPurpose = purpose;
       updateDashboard();
       goTo("pageDashboard");
     })
