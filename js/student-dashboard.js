@@ -178,8 +178,18 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+// Microsoft gives names as "Dela Cruz, John Aris (STI Malolos)"; show them as "John Aris Dela Cruz".
+function friendlyName(name) {
+  var cleaned = String(name || "").replace(/\s*\([^)]*\)?\s*$/, "").trim();
+  var comma = cleaned.indexOf(",");
+  if (comma > 0 && comma < cleaned.length - 1) {
+    cleaned = (cleaned.slice(comma + 1).trim() + " " + cleaned.slice(0, comma).trim()).trim();
+  }
+  return cleaned.replace(/\s+/g, " ");
+}
+
 function getInitials(name) {
-  var trimmed = (name || "").trim();
+  var trimmed = friendlyName(name);
   if (!trimmed) return "?";
   var parts = trimmed.split(/\s+/);
   var initials = parts[0].charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : "");
@@ -424,7 +434,7 @@ function renderLiveBoard() {
   var select = document.getElementById("udBoardStation");
   if (select && select.value !== boardStationId) select.value = boardStationId;
 
-  var firstName = user && user.name ? user.name.trim().split(/\s+/)[0] : "";
+  var firstName = user && user.name ? friendlyName(user.name).split(" ")[0] : "";
   setText("udGreeting", "Good Day, " + (firstName || "User"));
 
   var body = document.getElementById("udBoardBody");
@@ -477,7 +487,7 @@ function renderLiveBoard() {
 }
 
 function renderHeader() {
-  var name = user ? user.name : "";
+  var name = user ? friendlyName(user.name) : "";
   var meta = user ? (user.studentNumber || (user.type === "guest" ? "Guest" : "")) : "";
   var typeLabel = user && user.type === "student" ? (STUDENT_TYPE_LABELS[user.studentType] || "") : "";
 

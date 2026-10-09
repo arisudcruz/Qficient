@@ -62,10 +62,14 @@ function forgetThisDevice(uid) {
 }
 
 function requestFcmToken() {
+  // A freshly registered worker is still installing; subscribing before it is active fails with
+  // "no active Service Worker", so wait until it is ready.
   return navigator.serviceWorker.register("/firebase-messaging-sw.js").then(function (registration) {
-    return getFcmMessaging().getToken({
-      vapidKey: FCM_VAPID_KEY,
-      serviceWorkerRegistration: registration
+    return navigator.serviceWorker.ready.then(function (ready) {
+      return getFcmMessaging().getToken({
+        vapidKey: FCM_VAPID_KEY,
+        serviceWorkerRegistration: ready || registration
+      });
     });
   });
 }
