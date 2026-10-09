@@ -248,7 +248,9 @@ function routeAfterAdminAuthChange() {
   var loginPage = document.getElementById("pageAdminLogin");
   var adminPage = document.getElementById("pageAdmin");
 
-  if (adminUser && loginPage.classList.contains("show")) {
+  var waitingForAdminLink = typeof pendingRoute !== "undefined" && pendingRoute && pendingRoute.name === "admin";
+
+  if (adminUser && (loginPage.classList.contains("show") || waitingForAdminLink)) {
     goTo("pageAdmin");
   } else if (!adminUser && adminPage.classList.contains("show")) {
     goTo("pageAdminLogin");
