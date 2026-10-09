@@ -97,6 +97,7 @@ function formatCountdown(ms) {
   return minutes + ":" + String(seconds).padStart(2, "0");
 }
 
+var JOIN_FUNCTION_REGION = "asia-east2"; // keep in step with functions/config.js
 var joiningQueue = false;
 
 function joinQueue(stationId, purpose) {
@@ -123,45 +124,24 @@ function joinQueue(stationId, purpose) {
     return;
   }
 
-  var stationRef = db.collection("stations").doc(stationId);
-
   joiningQueue = true;
 
-  db.runTransaction(function (transaction) {
-    return transaction.get(stationRef).then(function (doc) {
-      var data = doc.data();
-      var today = queueDayKey(Date.now());
-
-      // Ticket numbers restart at 001 on the first join of each day.
-      var isNewDay = data.countDay !== today;
-      var newCount = isNewDay ? 1 : (data.count || 0) + 1;
-      var number = String(newCount).padStart(3, "0");
-      var ticketNo = getTicketPrefix(data.name) + "-" + number;
-
-      transaction.update(stationRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
-      var ticketRef = db.collection("tickets").doc();
-      transaction.set(ticketRef, {
-        ticketNo: ticketNo,
-        stationId: stationId,
-        ownerId: user.id,
-        ownerName: user.name,
-        studentNumber: user.studentNumber || "",
-        studentType: user.type === "guest" ? "guest" : (user.studentType || ""),
-        purpose: purpose || "",
-        status: "waiting",
-        verified: false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      return { ticketNo: ticketNo, stationName: data.name };
-    });
-  }).then(function (result) {
+  // The server creates the ticket (and enforces one live ticket per person and the join limits), so the
+  // browser can't skip those checks by writing to the database directly.
+  firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
+    stationId: stationId,
+    purpose: purpose,
+    guestName: user.type === "guest" ? user.name : ""
+  }).then(function (response) {
+    var result = response.data || {};
     // Hold the lock briefly so the new ticket reaches the snapshot before another join is allowed.
     setTimeout(function () { joiningQueue = false; }, 1500);
     say("Ticket " + result.ticketNo + " created for " + result.stationName + "!");
   }).catch(function (err) {
     joiningQueue = false;
-    say("Could not join queue: " + err.message);
+    var code = String(err && err.code || "").replace("functions/", "");
+    var known = ["failed-precondition", "resource-exhausted", "invalid-argument", "not-found", "permission-denied", "unauthenticated"];
+    say(known.indexOf(code) !== -1 ? err.message : "Could not join queue: " + (err && err.message ? err.message : "please try again."));
   });
 }
 

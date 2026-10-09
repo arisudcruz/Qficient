@@ -289,6 +289,8 @@ function setAdminSection(section) {
     item.classList.toggle("active", item.getAttribute("data-section") === section);
   });
 
+  if (typeof syncRoute === "function") syncRoute(false);
+
   if (section === "queue") {
     renderQueueManagement();
     startAutoVoidWatcher();

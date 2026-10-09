@@ -25,7 +25,8 @@ var appScripts = [
   "js/firebase.js",
   "js/admin-auth.js",
   "js/notifications.js",
-  "js/invite.js"
+  "js/invite.js",
+  "js/router.js"
 ];
 
 function loadTextFile(path) {

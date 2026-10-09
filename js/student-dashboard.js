@@ -277,11 +277,18 @@ function setDashboardTab(tab) {
     if (btn) btn.classList.toggle("active", (id === "tabBtnBoard") === onBoard);
   });
 
+  syncRoute(false);
   updateDashboard();
 }
 
 function viewMyTicket() {
+  var mine = myTicket();
   dashBrowsing = false;
+  if (mine) {
+    dashView = "station";
+    dashStationId = mine.stationId;
+  }
+  syncRoute(false);
   updateDashboard();
   window.scrollTo(0, 0);
 }
@@ -310,6 +317,7 @@ function openStation(stationId) {
     }
   }
   lastJoinCardKey = null;
+  syncRoute(false);
   updateDashboard();
   window.scrollTo(0, 0);
 }
@@ -318,6 +326,7 @@ function backToStations() {
   dashBrowsing = !!(user && myTicket());
   dashView = "stations";
   dashStationId = "";
+  syncRoute(false);
   updateDashboard();
   window.scrollTo(0, 0);
 }
@@ -664,7 +673,14 @@ function resetDashboardState() {
   lastJoinCardKey = null;
 }
 
+// Runs after every change; a screen change the app made by itself (a ticket ending, say) updates the
+// address in place instead of adding a history entry.
 function updateDashboard() {
+  renderDashboard();
+  if (shownPageId() === "pageDashboard") syncRoute(true);
+}
+
+function renderDashboard() {
   var ticket = user ? myTicket() : null;
 
   renderLiveBoard();

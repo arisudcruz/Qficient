@@ -4,12 +4,14 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 
 const config = require("./config");
 const { describeChange, onlyChanged, affectsQueueFront } = require("./lib/events");
 const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
+const { joinQueue, JoinError } = require("./lib/join");
 
 initializeApp();
 const db = getFirestore();
@@ -84,4 +86,16 @@ exports.sweepExpiredTickets = onSchedule({ schedule: "every 1 minutes", timeZone
 exports.dailyCleanup = onSchedule({ schedule: "5 0 * * *", timeZone: "Asia/Manila" }, async function () {
   const cleaned = await cleanStale({ db, FieldValue, Timestamp, config });
   logger.info("daily cleanup voided " + cleaned + " leftover ticket(s)");
+});
+
+// Students and guests join the queue through this function instead of writing tickets themselves, so the
+// one-ticket-per-person and rate limits can't be skipped from the browser.
+exports.joinQueue = onCall(async function (request) {
+  try {
+    return await joinQueue({ db, FieldValue, config }, request.auth, request.data);
+  } catch (error) {
+    if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
+    logger.error("joinQueue failed: " + (error && error.stack ? error.stack : error));
+    throw new HttpsError("internal", "Something went wrong while joining the queue. Please try again.");
+  }
 });
