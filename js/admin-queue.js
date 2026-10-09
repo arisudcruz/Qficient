@@ -18,7 +18,14 @@ function resetQueueTransfer() {
 // Ticket ids ticked in the queued list; kept here because the list re-renders on every live update.
 var queueSelection = {};
 
+// The stations this person may run: all of them for an admin, only their own for Queue Management staff.
+function manageableStations() {
+  return stations.filter(function (station) { return canServeStation(station.id); });
+}
+
 function selectQueueStation(stationId) {
+  if (!canServeStation(stationId)) return refuseStation();
+
   activeQueueStation = stationId;
   resetQueueTransfer();
   queueSelection = {};
@@ -370,13 +377,14 @@ function renderQueueManagement() {
   var area = document.getElementById("adminQueueArea");
   if (!area) return;
 
-  if (stations.length && !stations.find(function (s) { return s.id === activeQueueStation; })) {
-    activeQueueStation = stations[0].id;
+  var visibleStations = manageableStations();
+  if (visibleStations.length && !visibleStations.find(function (s) { return s.id === activeQueueStation; })) {
+    activeQueueStation = visibleStations[0].id;
   }
 
   var serving = getServingTicket(activeQueueStation);
 
-  var tabsHtml = stations.map(function (s) {
+  var tabsHtml = visibleStations.map(function (s) {
     var activeClass = s.id === activeQueueStation ? " active" : "";
     return '<button type="button" class="station-tab' + activeClass + '" onclick="selectQueueStation(\'' + s.id + '\')">' +
       escapeAdminText(s.name) + '</button>';

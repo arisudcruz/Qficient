@@ -5,7 +5,7 @@ var ADMIN_EMAIL = "admin@qficient.com";
 var inviteFlowActive = firebase.auth().isSignInWithEmailLink(window.location.href);
 
 var adminUser = null;
-var adminRole = null; // "admin" or "enforcer" while signed in
+var adminRole = null; // "admin", "enforcer", or the id of the station a Queue Management account belongs to
 var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
 var staffUnsubscribe = null;
 
@@ -15,6 +15,35 @@ function isAdminSignedIn() {
 
 function isFullAdmin() {
   return adminUser !== null && adminRole === "admin";
+}
+
+// "admin" (no restrictions), "enforcer", or "station" (Queue Management staff of one station); null when signed out.
+function adminKind() {
+  if (!adminUser) return null;
+  if (adminRole === "admin") return "admin";
+  return adminRole === "enforcer" ? "enforcer" : "station";
+}
+
+function adminDisplayName() {
+  var kind = adminKind();
+  if (kind === "enforcer") return "Queue Enforcer";
+  if (kind === "station") return getStationName(adminRole) + " Staff";
+  return "QFicient Admin";
+}
+
+// Staff of one station only see that station's numbers and notifications. Admins and enforcers see them all.
+function canViewStationData(stationId) {
+  return adminKind() !== "station" || stationId === adminRole;
+}
+
+function isStationRole(role) {
+  if (!role || role === "standby" || role === "admin" || role === "enforcer") return Promise.resolve(false);
+
+  return db.collection("stations").doc(role).get().then(function (doc) {
+    return doc.exists;
+  }).catch(function () {
+    return false;
+  });
 }
 
 function isPasswordUser(firebaseUser) {
@@ -77,6 +106,7 @@ function resolveAdminAccess(firebaseUser) {
 }
 
 function deactivateAdminSession() {
+  if (adminUser) resetAdminPageState();
   adminUser = null;
   adminRole = null;
   setTicketsScope(1);
@@ -93,27 +123,31 @@ function activateAdminSession(firebaseUser) {
   }
 
   return resolveAdminAccess(firebaseUser).then(function (role) {
-    var allowed = role === "admin" || role === "enforcer";
+    var known = role === "admin" || role === "enforcer" ? Promise.resolve(true) : isStationRole(role);
 
-    if (allowed) {
-      adminUser = firebaseUser;
-      adminRole = role;
-      adminDeniedRole = null;
+    return known.then(function (allowed) {
+      if (allowed) {
+        adminUser = firebaseUser;
+        adminRole = role;
+        adminDeniedRole = null;
 
-      // Only a full admin reads staff, server status and the notification inbox.
-      if (role === "admin") {
+        // Every role gets the dashboard and the notification inbox, so each loads the longer ticket history.
         setTicketsScope(ADMIN_HISTORY_DAYS);
-        startStaffListener();
-        startServerStatusListener();
         startNotificationsListener();
-        startInvitesListener();
+
+        // Staff, server status and invitations stay with full admins.
+        if (role === "admin") {
+          startStaffListener();
+          startServerStatusListener();
+          startInvitesListener();
+        }
+        applyAdminAccess();
+      } else {
+        adminDeniedRole = role;
+        deactivateAdminSession();
       }
-      applyAdminAccess();
-    } else {
-      adminDeniedRole = role;
-      deactivateAdminSession();
-    }
-    return allowed;
+      return allowed;
+    });
   }).catch(function (error) {
     deactivateAdminSession();
     throw error;

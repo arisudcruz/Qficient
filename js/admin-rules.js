@@ -85,18 +85,26 @@ function setRulesTab(tab) {
   renderRules();
 }
 
+// Everyone can read the rules; only a full admin can change them.
+function canEditRules() {
+  return isFullAdmin();
+}
+
 function renderGeneralRulesBody() {
+  var editable = canEditRules();
+
   var sectionsHtml = rulesCatalog.map(function (group, groupIndex) {
     var rowsHtml = group.rules.map(function (rule, ruleIndex) {
       return '<tr><td class="settings-strong">' + escapeAdminText(rule[0]) + '</td>' +
         '<td class="rules-desc">' + escapeAdminText(rule[1]) + '</td>' +
-        '<td class="rules-action"><button type="button" class="settings-btn settings-btn-blue" onclick="openEditRuleModal(' + groupIndex + ', ' + ruleIndex + ')">Edit</button></td></tr>';
+        (editable ? '<td class="rules-action"><button type="button" class="settings-btn settings-btn-blue" onclick="openEditRuleModal(' + groupIndex + ', ' + ruleIndex + ')">Edit</button></td>' : '') +
+        '</tr>';
     }).join("");
 
     return '<section class="panel settings-panel rules-section">' +
       '<div class="panel-header"><h2>' + escapeAdminText(group.section) + '</h2></div>' +
       '<div class="table-wrap rules-table-wrap"><table class="queue-table settings-table rules-table"><thead><tr>' +
-        '<th>Rules</th><th>Description</th><th class="rules-action">Action</th></tr></thead>' +
+        '<th>Rules</th><th>Description</th>' + (editable ? '<th class="rules-action">Action</th>' : '') + '</tr></thead>' +
         '<tbody>' + rowsHtml + '</tbody></table></div>' +
     '</section>';
   }).join("");
@@ -104,9 +112,9 @@ function renderGeneralRulesBody() {
   return '<div class="settings-config-head">' +
       '<div><h2 class="settings-title rules-title">Access Permission</h2>' +
         '<p class="settings-sub">Configure the available permission rules for system access and actions. These rules can be assigned to roles to control what each user is allowed to perform.</p></div>' +
-      '<div class="settings-actions">' +
+      (editable ? '<div class="settings-actions">' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openCreateRuleModal()">+ Create New Rule</button>' +
-      '</div>' +
+      '</div>' : '') +
     '</div>' +
 
     '<div class="rules-general-head">' +
@@ -118,6 +126,7 @@ function renderGeneralRulesBody() {
 }
 
 function renderRoleRulesBody() {
+  var locked = canEditRules() ? '' : ' disabled';
   var roleOptionsHtml = rulesRoleOptions.map(function (name) {
     return '<option>' + escapeAdminText(name) + '</option>';
   }).join("");
@@ -126,7 +135,7 @@ function renderRoleRulesBody() {
     var rowsHtml = group.rules.map(function (rule) {
       return '<tr><td class="settings-strong">' + escapeAdminText(rule[0]) + '</td>' +
         '<td class="rules-desc">' + escapeAdminText(rule[1]) + '</td>' +
-        '<td class="rules-action"><label class="switch"><input type="checkbox" aria-label="Allow ' + escapeAdminText(rule[0]) + '"><span class="switch-track"></span></label></td></tr>';
+        '<td class="rules-action"><label class="switch"><input type="checkbox" aria-label="Allow ' + escapeAdminText(rule[0]) + '"' + locked + '><span class="switch-track"></span></label></td></tr>';
     }).join("");
 
     return '<section class="panel settings-panel rules-section">' +
@@ -145,7 +154,7 @@ function renderRoleRulesBody() {
 
     '<div class="rules-allow-all">' +
       '<span>Allow All</span>' +
-      '<label class="switch"><input type="checkbox" checked aria-label="Allow all rules"><span class="switch-track"></span></label>' +
+      '<label class="switch"><input type="checkbox" checked aria-label="Allow all rules"' + locked + '><span class="switch-track"></span></label>' +
     '</div>' +
 
     sectionsHtml;
@@ -163,8 +172,10 @@ function renderRules() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">System Rules</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
     '</div>' +
+
+    (canEditRules() ? '' : '<p class="rules-readonly">You can read these rules, but only an administrator can change them.</p>') +
 
     '<div class="rules-tabs" role="tablist">' + tabsHtml + '</div>' +
 
@@ -172,6 +183,8 @@ function renderRules() {
 }
 
 function openCreateRuleModal() {
+  if (!canEditRules()) return;
+
   showFormModal("Create New Rule",
     '<div class="modal-section">' +
       '<h3 class="modal-section-title">New Rule</h3>' +
@@ -202,6 +215,8 @@ function confirmCreateRule() {
 }
 
 function openEditRuleModal(groupIndex, ruleIndex) {
+  if (!canEditRules()) return;
+
   var rule = rulesCatalog[groupIndex].rules[ruleIndex];
 
   showFormModal("Edit Rule",

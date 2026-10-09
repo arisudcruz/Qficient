@@ -2092,3 +2092,12 @@ body.dark .invite-select {
     flex-basis: auto;
   }
 }
+
+.rules-readonly {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #EAF1FF;
+  color: #1D4FBF;
+  font-size: 0.78rem;
+}

@@ -369,7 +369,7 @@ function renderEnforcer() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Queue Enforcer</div>' +
-      '<div class="settings-header-user"><span>' + (adminRole === 'enforcer' ? 'Queue Enforcer' : 'QFicient Admin') + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
     '</div>' +
 
     '<div class="enforcer-title-row">' +

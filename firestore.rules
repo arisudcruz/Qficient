@@ -46,6 +46,26 @@ service cloud.firestore {
       return isPasswordUser() && exists(staffPath()) && get(staffPath()).data.role == 'enforcer';
     }
 
+    // Queue Management staff: the staff record's role is the id of their one station. They run that
+    // station's queue (call, skip, recall, last call, verify, remove, prioritize, transfer out) and
+    // nothing else; every other station is off limits.
+    function isStationStaffOf(stationId) {
+      return isPasswordUser() && exists(staffPath()) &&
+        get(staffPath()).data.role == stationId &&
+        !(stationId in ['admin', 'enforcer', 'standby']);
+    }
+
+    // Anyone whose role lets them into the admin console: admins, enforcers and the staff of a real station.
+    function isStationStaff() {
+      return isPasswordUser() && exists(staffPath()) &&
+        !(get(staffPath()).data.role in ['admin', 'enforcer', 'standby']) &&
+        exists(/databases/$(database)/documents/stations/$(get(staffPath()).data.role));
+    }
+
+    function hasConsoleAccess() {
+      return isAdmin() || isEnforcer() || isStationStaff();
+    }
+
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -74,10 +94,20 @@ service cloud.firestore {
         resource.data.get('countDay', '') != today();
     }
 
+    // The station's staff may move the "now serving" pointer, but only onto a ticket of that same station.
+    function isStationStaffPointer(stationId) {
+      return isStationStaffOf(stationId) &&
+        changedKeys().hasOnly(['nowServingId']) &&
+        (request.resource.data.nowServingId == null ||
+         (request.resource.data.nowServingId is string &&
+          get(/databases/$(database)/documents/tickets/$(request.resource.data.nowServingId)).data.stationId == stationId));
+    }
+
     match /stations/{stationId} {
       allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() ||
+        isStationStaffPointer(stationId) ||
         (signedIn() && (isCounterBump() || isDailyCounterReset()));
     }
 
@@ -162,6 +192,60 @@ service cloud.firestore {
           request.resource.data.voidedAt == request.time));
     }
 
+    // A timestamp field that is being written must be the server time, or be removed.
+    function freshOrGone(field) {
+      return !changedKeys().hasAny([field]) ||
+        !(field in request.resource.data) ||
+        request.resource.data[field] == request.time;
+    }
+
+    function isAllowedStatusMove() {
+      let from = resource.data.status;
+      let to = request.resource.data.status;
+      return (from in ['waiting', 'skipped'] && to in ['serving', 'void']) ||
+        (from == 'serving' && to in ['completed', 'skipped', 'void']);
+    }
+
+    // Everything a station's staff do to a ticket of their own station, short of moving it elsewhere.
+    function isStationStaffEdit() {
+      return isStationStaffOf(resource.data.stationId) &&
+        changedKeys().hasOnly(['status', 'servingAt', 'completedAt', 'skippedAt', 'lastCalled', 'lastCallAt',
+                               'verified', 'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt',
+                               'voidedAt', 'autoVoided']) &&
+        (!changedKeys().hasAny(['status']) || isAllowedStatusMove()) &&
+        freshOrGone('servingAt') && freshOrGone('completedAt') && freshOrGone('skippedAt') &&
+        freshOrGone('lastCallAt') && freshOrGone('verifiedAt') && freshOrGone('recalledAt') &&
+        freshOrGone('prioritizedAt') && freshOrGone('voidedAt') &&
+        (!changedKeys().hasAny(['verified']) || request.resource.data.verified == true) &&
+        (!changedKeys().hasAny(['lastCalled']) || !('lastCalled' in request.resource.data) ||
+          request.resource.data.lastCalled == true) &&
+        (!changedKeys().hasAny(['autoVoided']) || request.resource.data.autoVoided == true) &&
+        (!changedKeys().hasAny(['recallCount']) ||
+          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1);
+    }
+
+    // Sending the ticket being served to another station, as a fresh waiting ticket at the back of that queue.
+    function isStationStaffTransfer() {
+      let r = resource.data;
+      let d = request.resource.data;
+      return isStationStaffOf(r.stationId) &&
+        r.status == 'serving' &&
+        changedKeys().hasOnly(['stationId', 'ticketNo', 'purpose', 'status', 'verified', 'createdAt',
+                               'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
+        d.stationId is string && d.stationId != r.stationId && stationIsOpen(d.stationId) &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.transferredAt == request.time &&
+        d.transferredFrom == r.stationId &&
+        d.previousTicketNo == r.ticketNo &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
+        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
+    }
+
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
         resource.data.status in ['waiting', 'skipped'] &&
@@ -173,7 +257,8 @@ service cloud.firestore {
     match /tickets/{ticketId} {
       allow read: if signedIn();
       allow create: if isAdmin() || isEnforcerNewTicket() || (signedIn() && isValidNewTicket());
-      allow update: if isAdmin() || isEnforcerEdit() || (signedIn() && isOwnerCancelling());
+      allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
+        (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }
 
@@ -309,13 +394,13 @@ service cloud.firestore {
     }
 
     // ---------- Admin notification inbox state ----------
-    // Which notifications an admin has read or deleted. One document per admin,
+    // Which notifications a staff member has read or deleted. One document per person,
     // keyed by their email, and only they can see or change it.
 
     match /staffNotifications/{staffEmail} {
-      allow read: if isAdmin() && staffEmail == userEmail();
+      allow read: if hasConsoleAccess() && staffEmail == userEmail();
 
-      allow create, update: if isAdmin() &&
+      allow create, update: if hasConsoleAccess() &&
         staffEmail == userEmail() &&
         request.resource.data.keys().hasOnly(['readAllBefore', 'readIds', 'deletedIds', 'updatedAt']) &&
         (!('readAllBefore' in request.resource.data) || request.resource.data.readAllBefore is timestamp) &&
