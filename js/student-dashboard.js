@@ -350,31 +350,130 @@ var STATION_ICON_SVG =
   '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>';
 
+/* ---------- Live board ---------- */
+
+var BOARD_PAGE_SIZE = 5;
+var boardStationId = "";
+var boardPage = 0;
+var boardShellKey = null;
+
+var BOARD_ARROW_SVG =
+  '<svg viewBox="0 0 40 16" width="34" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 8h37M31 1l7 7-7 7"/></svg>';
+
+function boardStations() {
+  return stations.filter(function (station) { return station.active !== false; });
+}
+
+function boardNowText() {
+  try {
+    var now = new Date();
+    var date = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", weekday: "short", day: "numeric", month: "long" }).format(now);
+    var time = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true }).format(now);
+    return date + " " + time.toLowerCase();
+  } catch (e) {
+    return "";
+  }
+}
+
+function setBoardStation(stationId) {
+  boardStationId = stationId;
+  boardPage = 0;
+  renderLiveBoard();
+}
+
+function pageBoard(step) {
+  boardPage += step;
+  renderLiveBoard();
+}
+
+function boardStat(label, value, extraClass) {
+  return '<div class="ud-stat' + (extraClass ? ' ' + extraClass : '') + '"><span>' + label + '</span><b>' + escapeHtml(value) + '</b></div>';
+}
+
 function renderLiveBoard() {
   var area = document.getElementById("boardArea");
   if (!area) return;
 
-  var cardsHtml = stations.map(function (station) {
-    var servingTicket = servingTicketOf(station);
-    var servingText = servingTicket ? servingTicket.ticketNo : "—";
-    var waitingCount = waitingTicketsOf(station.id).length;
+  var open = boardStations();
+  var mine = user ? myTicket() : null;
 
-    return '<div class="board-card">' +
-      '<div class="board-card-top">' +
-        '<span class="board-station-name">' + escapeHtml(station.name) + '</span>' +
-        '<span class="board-waiting-chip">' + (station.active === false ? 'Closed' : waitingCount + ' waiting') + '</span>' +
+  if (!open.some(function (station) { return station.id === boardStationId; })) {
+    var preferred = mine && open.some(function (station) { return station.id === mine.stationId; }) ? mine.stationId : "";
+    boardStationId = preferred || (open[0] ? open[0].id : "");
+    boardPage = 0;
+  }
+
+  // The header (with the station dropdown) is built once so a live update never closes an open dropdown.
+  var shellKey = open.map(function (station) { return station.id + ":" + station.name; }).join("|");
+  if (!document.getElementById("udBoardBody") || shellKey !== boardShellKey) {
+    boardShellKey = shellKey;
+    area.innerHTML =
+      '<div class="ud-board-head">' +
+        '<div>' +
+          '<h2 class="ud-greeting" id="udGreeting"></h2>' +
+          '<p class="ud-greeting-sub">Let\'s get you in line.</p>' +
+        '</div>' +
+        (open.length ?
+          '<div class="ud-station-select"><select id="udBoardStation" aria-label="Station" onchange="setBoardStation(this.value)">' +
+            open.map(function (station) { return '<option value="' + escapeHtml(station.id) + '">' + escapeHtml(station.name) + '</option>'; }).join("") +
+          '</select></div>' : '') +
       '</div>' +
-      '<div class="board-serving-row">' +
-        '<span class="board-serving-label">Now Serving</span>' +
-        '<span class="board-serving-number">' + escapeHtml(servingText) + '</span>' +
-      '</div>' +
+      '<div id="udBoardBody"></div>';
+  }
+
+  var select = document.getElementById("udBoardStation");
+  if (select && select.value !== boardStationId) select.value = boardStationId;
+
+  var firstName = user && user.name ? user.name.trim().split(/\s+/)[0] : "";
+  setText("udGreeting", "Good Day, " + (firstName || "User"));
+
+  var body = document.getElementById("udBoardBody");
+  var station = open.find(function (s) { return s.id === boardStationId; });
+  if (!station) {
+    body.innerHTML = '<p class="empty-hint">No stations are open right now.</p>';
+    return;
+  }
+
+  var serving = servingTicketOf(station);
+  var line = waitingTicketsOf(station.id);
+  var served = tickets.filter(function (item) {
+    return item.stationId === station.id && item.status === "completed" && isTodayTicket(item);
+  }).length;
+
+  var pages = Math.max(1, Math.ceil(line.length / BOARD_PAGE_SIZE));
+  boardPage = Math.min(Math.max(boardPage, 0), pages - 1);
+  var from = boardPage * BOARD_PAGE_SIZE;
+
+  var rowsHtml = line.slice(from, from + BOARD_PAGE_SIZE).map(function (item, i) {
+    var isMine = !!mine && item.id === mine.id;
+    return '<div class="ud-q-row' + (isMine ? ' is-mine' : '') + '">' +
+      '<span class="ud-q-ticket">' + escapeHtml(item.ticketNo) + (isMine ? '<em>You</em>' : '') + '</span>' +
+      '<span class="ud-q-arrow">' + BOARD_ARROW_SVG + '</span>' +
+      '<span class="ud-q-no">' + (from + i + 1) + '</span>' +
     '</div>';
   }).join("");
 
-  area.innerHTML =
-    '<span class="live-pill"><span class="live-dot-pulse"></span>Live</span>' +
-    '<p class="board-caption">Updates instantly as tickets move — no refresh needed.</p>' +
-    (cardsHtml || '<p class="empty-hint">No stations available yet.</p>');
+  body.innerHTML =
+    '<div class="ud-stats">' +
+      '<div class="ud-stat ud-stat-queue">' +
+        '<div class="ud-now"><span><i class="ud-lbl-long">Currently</i><i class="ud-lbl-short">Now</i> Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
+        '<div class="ud-next"><span>Next in Line</span><b>' + escapeHtml(line[0] ? line[0].ticketNo : "—") + '</b></div>' +
+        '<div class="ud-next ud-third"><span>Waiting</span><b>' + escapeHtml(line[1] ? line[1].ticketNo : "—") + '</b></div>' +
+      '</div>' +
+      boardStat("Total Waiting", String(line.length)) +
+      boardStat("Served Today", String(served)) +
+    '</div>' +
+    '<div class="ud-q-top"><h3>Queues</h3><span class="ud-q-date"><i class="live-dot-pulse"></i>' + escapeHtml(boardNowText()) + '</span></div>' +
+    '<div class="ud-q-table">' +
+      '<div class="ud-q-th"><span>Ticket No.</span><span>Queue No.</span></div>' +
+      (rowsHtml || '<p class="ud-q-empty">No one is waiting at this station.</p>') +
+    '</div>' +
+    (pages > 1 ?
+      '<div class="ud-pager">' +
+        '<button type="button" onclick="pageBoard(-1)" aria-label="Previous page"' + (boardPage === 0 ? ' disabled' : '') + '>‹</button>' +
+        '<span>' + (boardPage + 1) + ' / ' + pages + '</span>' +
+        '<button type="button" onclick="pageBoard(1)" aria-label="Next page"' + (boardPage >= pages - 1 ? ' disabled' : '') + '>›</button>' +
+      '</div>' : '');
 }
 
 function renderHeader() {
