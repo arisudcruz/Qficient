@@ -136,30 +136,207 @@ function enforcerStatusClass(status) {
   return status === "cancelled" || status === "voided" ? "void" : (status || "waiting");
 }
 
-function enforcerListRowsHtml() {
-  var list = tickets.filter(function (ticket) {
-    return ticket.manual === true && isTodayTicket(ticket) && (!enforcerFilter || ticket.stationId === enforcerFilter);
+// Ticket ids ticked in the queue list. Only tickets still waiting in a queue can be ticked.
+var enforcerSelection = {};
+
+function isEnforcerSelectable(ticket) {
+  return ticket.status === "waiting" || ticket.status === "skipped";
+}
+
+// The whole queue for today: everyone being served, waiting or skipped, grouped by station in queue order.
+function getEnforcerListTickets() {
+  var stationOrder = {};
+  getSortedStations().forEach(function (station, index) { stationOrder[station.id] = index; });
+
+  return tickets.filter(function (ticket) {
+    return (ticket.status === "serving" || ticket.status === "waiting" || ticket.status === "skipped") &&
+      isTodayTicket(ticket) && (!enforcerFilter || ticket.stationId === enforcerFilter);
   }).sort(function (a, b) {
-    return timestampToMs(b.createdAt, Date.now()) - timestampToMs(a.createdAt, Date.now());
+    var byStation = (stationOrder[a.stationId] || 0) - (stationOrder[b.stationId] || 0);
+    if (byStation) return byStation;
+
+    var aServing = a.status === "serving" ? 0 : 1;
+    var bServing = b.status === "serving" ? 0 : 1;
+    return aServing - bServing || compareQueueOrder(a, b);
   });
+}
+
+function getSelectedEnforcerTickets() {
+  return getEnforcerListTickets().filter(function (ticket) {
+    return enforcerSelection[ticket.id] && isEnforcerSelectable(ticket);
+  });
+}
+
+// Small tags next to the name: who created it (manual), the student type when not Regular, and priority.
+function enforcerTagsHtml(ticket) {
+  var tags = "";
+
+  if (ticket.manual === true) tags += ' <span class="type-tag manual-tag">Manual</span>';
+  if (ticket.studentType === "transferee" || ticket.studentType === "guest") {
+    tags += ' <span class="type-tag queue-row-' + ticket.studentType + '">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
+  }
+  if (ticket.prioritizedAt && ticket.status === "waiting") tags += ' <span class="type-tag priority-tag">\u2605 Priority</span>';
+
+  return tags;
+}
+
+function enforcerListRowsHtml() {
+  var list = getEnforcerListTickets();
 
   if (!list.length) {
-    return '<tr><td colspan="5" class="empty-row">No manual tickets created today.</td></tr>';
+    return '<tr><td colspan="6" class="empty-row">No tickets in the queue right now.</td></tr>';
   }
 
   return list.map(function (ticket) {
-    return '<tr><td class="settings-strong">' + escapeAdminText(ticket.ticketNo) + '</td>' +
-      '<td>' + escapeAdminText(ticket.ownerName) + '</td>' +
+    var selectable = isEnforcerSelectable(ticket);
+    var selected = selectable && !!enforcerSelection[ticket.id];
+    var id = escapeAdminText(ticket.id);
+
+    return '<tr class="queue-row' + (selectable ? '' : ' not-selectable') + (selected ? ' selected' : '') + '"' +
+      (selectable ? ' data-ticket="' + id + '" onclick="toggleEnforcerSelection(\'' + id + '\', event)"' : '') + '>' +
+      '<td class="queue-select-cell"><input type="checkbox" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' +
+        (selectable ? '' : ' disabled') + (selected ? ' checked' : '') + '></td>' +
+      '<td class="settings-strong">' + escapeAdminText(ticket.ticketNo) + '</td>' +
+      '<td>' + escapeAdminText(ticket.ownerName) + enforcerTagsHtml(ticket) + '</td>' +
       '<td>' + escapeAdminText(ticket.purpose) + '</td>' +
       '<td>' + escapeAdminText(getStationName(ticket.stationId)) + '</td>' +
       '<td><span class="status-badge compact ' + enforcerStatusClass(ticket.status) + '">' + escapeAdminText(formatAdminStatus(ticket.status)) + '</span></td></tr>';
   }).join("");
 }
 
+function updateEnforcerSelectionUI() {
+  var selectableIds = {};
+  getEnforcerListTickets().forEach(function (ticket) {
+    if (isEnforcerSelectable(ticket)) selectableIds[ticket.id] = true;
+  });
+
+  // Forget tickets that are no longer waiting (called, removed, cancelled).
+  Object.keys(enforcerSelection).forEach(function (id) {
+    if (!selectableIds[id]) delete enforcerSelection[id];
+  });
+
+  var selectedCount = 0;
+  document.querySelectorAll("#enforcerListBody .queue-row[data-ticket]").forEach(function (row) {
+    var selected = !!enforcerSelection[row.getAttribute("data-ticket")];
+    row.classList.toggle("selected", selected);
+    row.querySelector(".queue-select-box").checked = selected;
+    if (selected) selectedCount++;
+  });
+
+  var total = Object.keys(selectableIds).length;
+  var selectAll = document.getElementById("enforcerSelectAll");
+  if (selectAll) {
+    selectAll.disabled = total === 0;
+    selectAll.checked = total > 0 && selectedCount === total;
+    selectAll.indeterminate = selectedCount > 0 && selectedCount < total;
+  }
+
+  var actionBtn = document.getElementById("enforcerActionBtn");
+  if (actionBtn) {
+    actionBtn.style.display = selectedCount ? "" : "none";
+    actionBtn.textContent = "Action (" + selectedCount + ")";
+  }
+}
+
+function toggleEnforcerSelection(ticketId, event) {
+  if (event && event.target.closest("button")) return;
+
+  if (enforcerSelection[ticketId]) delete enforcerSelection[ticketId];
+  else enforcerSelection[ticketId] = true;
+  updateEnforcerSelectionUI();
+}
+
+function toggleEnforcerSelectAll(checkbox) {
+  enforcerSelection = {};
+  if (checkbox.checked) {
+    getEnforcerListTickets().forEach(function (ticket) {
+      if (isEnforcerSelectable(ticket)) enforcerSelection[ticket.id] = true;
+    });
+  }
+  updateEnforcerSelectionUI();
+}
+
+// Enforcers manage the tickets they created, but they cannot call or skip anyone: only Prioritize, Recall and Remove.
+function openEnforcerActionsModal() {
+  var selected = getSelectedEnforcerTickets();
+  if (!selected.length) return;
+
+  var waitingCount = selected.filter(function (ticket) { return ticket.status === "waiting"; }).length;
+  var numbers = selected.map(function (ticket) { return escapeAdminText(ticket.ticketNo); }).join(", ");
+
+  showFormModal("Queue Actions",
+    '<p class="modal-help">' + selected.length + ' ticket' + (selected.length === 1 ? '' : 's') + ' selected: ' + numbers + '</p>' +
+    '<div class="queue-actions-grid">' +
+      queueActionButtonHtml('\u2B06 Prioritize', "confirmEnforcerAction('prioritize')", waitingCount === 0, "Only waiting tickets can be prioritized") +
+      queueActionButtonHtml('\u21BA Recall', "confirmEnforcerAction('recall')", false, "") +
+      queueActionButtonHtml('\uD83D\uDDD1 Remove', "confirmEnforcerAction('remove')", false, "") +
+    '</div>');
+}
+
+function confirmEnforcerAction(kind) {
+  var selected = getSelectedEnforcerTickets();
+  if (!selected.length) {
+    closeFormModal();
+    return;
+  }
+
+  var count = selected.length;
+  var noun = count === 1 ? "ticket " + selected[0].ticketNo : count + " tickets";
+  var ids = selected.map(function (ticket) { return ticket.id; });
+  var options;
+
+  if (kind === "prioritize") {
+    var waitingIds = selected.filter(function (ticket) { return ticket.status === "waiting"; }).map(function (ticket) { return ticket.id; });
+    if (!waitingIds.length) return;
+    options = {
+      title: "Prioritize " + (waitingIds.length === 1 ? "this ticket" : waitingIds.length + " tickets") + "?",
+      message: "They move to the front of their station's queue, ahead of everyone who is not prioritized." +
+        (waitingIds.length < count ? " Skipped tickets in your selection are left as they are." : ""),
+      confirmLabel: "Prioritize",
+      tone: "primary",
+      run: function () { return prioritizeTickets(waitingIds); }
+    };
+  } else if (kind === "recall") {
+    options = {
+      title: "Recall " + noun + "?",
+      message: "Students using the app are notified to go to the counter. Walk-ins have no device registered, so they are not alerted.",
+      confirmLabel: "Recall",
+      tone: "primary",
+      run: function () { return recallTickets(ids); }
+    };
+  } else {
+    options = {
+      title: "Remove " + noun + "?",
+      message: "This immediately voids the selected " + (count === 1 ? "ticket" : "tickets") + ". This cannot be undone.",
+      confirmLabel: "Remove",
+      tone: "danger",
+      run: function () { return removeTickets(ids); }
+    };
+  }
+
+  showConfirmModal({
+    title: options.title,
+    message: options.message,
+    confirmLabel: options.confirmLabel,
+    tone: options.tone,
+    onConfirm: function () {
+      options.run().then(function (done) {
+        if (!done) return;
+        closeFormModal();
+        enforcerSelection = {};
+        updateEnforcerSelectionUI();
+      });
+    }
+  });
+}
+
 // Updates only the list, so typing in the form is never interrupted by live changes.
 function refreshEnforcerList() {
   var body = document.getElementById("enforcerListBody");
-  if (body) body.innerHTML = enforcerListRowsHtml();
+  if (!body) return;
+
+  body.innerHTML = enforcerListRowsHtml();
+  updateEnforcerSelectionUI();
 }
 
 function renderEnforcer() {
@@ -192,7 +369,7 @@ function renderEnforcer() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Queue Enforcer</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
     '</div>' +
 
     '<div class="enforcer-title-row">' +
@@ -221,11 +398,15 @@ function renderEnforcer() {
         '</section>' +
 
         '<section class="panel settings-panel">' +
-          '<div class="panel-header"><h2>Manual Queue Lists</h2></div>' +
+          '<div class="panel-header"><h2>Queue List</h2>' +
+            '<div class="queued-tools"><button type="button" id="enforcerActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openEnforcerActionsModal()">Action</button></div></div>' +
           '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr>' +
+            '<th class="queue-select-cell"><input type="checkbox" id="enforcerSelectAll" aria-label="Select all waiting tickets" onclick="toggleEnforcerSelectAll(this)"></th>' +
             '<th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th></tr></thead>' +
             '<tbody id="enforcerListBody">' + enforcerListRowsHtml() + '</tbody></table></div>' +
         '</section>' +
       '</div>' +
     '</div>';
+
+  updateEnforcerSelectionUI();
 }

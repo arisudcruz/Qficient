@@ -8,6 +8,7 @@ function goTo(pageId) {
     pages[i].classList.remove("show");
   }
   document.getElementById(pageId).classList.add("show");
+  document.body.setAttribute("data-page", pageId);
 }
 
 document.addEventListener("keydown", function (event) {

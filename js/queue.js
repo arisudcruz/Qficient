@@ -71,6 +71,25 @@ function myTicket() {
   return null;
 }
 
+// Who may act on which station. Admins on any; Queue Management staff only on their own; an enforcer never
+// serves, but tidies the queue (prioritize, recall, remove) at every station. These mirror firestore.rules.
+function canServeStation(stationId) {
+  return adminRole === "admin" || (!!adminRole && adminRole === stationId);
+}
+
+function canTidyStation(stationId) {
+  return canServeStation(stationId) || adminRole === "enforcer";
+}
+
+function stationOfTicket(ticketId) {
+  var ticket = tickets.find(function (t) { return t.id === ticketId; });
+  return ticket ? ticket.stationId : null;
+}
+
+function refuseStation() {
+  say("You can only manage your own station.");
+}
+
 function formatCountdown(ms) {
   var totalSeconds = Math.max(0, Math.ceil(ms / 1000));
   var minutes = Math.floor(totalSeconds / 60);
@@ -196,6 +215,8 @@ function advanceStation(stationId) {
 }
 
 function callNextTicket(stationId) {
+  if (!canServeStation(stationId)) return refuseStation();
+
   var station = stations.find(function (s) { return s.id === stationId; });
   if (!station) return;
 
@@ -217,6 +238,8 @@ function callNextTicket(stationId) {
 }
 
 function skipCurrentTicket(stationId) {
+  if (!canServeStation(stationId)) return refuseStation();
+
   var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
     say("No ticket is currently being served.");
@@ -234,6 +257,8 @@ function skipCurrentTicket(stationId) {
 }
 
 function verifyCurrentTicket(stationId) {
+  if (!canServeStation(stationId)) return refuseStation();
+
   var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
     say("No ticket is currently being served.");
@@ -249,6 +274,8 @@ function verifyCurrentTicket(stationId) {
 }
 
 function removeCurrentTicket(stationId) {
+  if (!canServeStation(stationId)) return refuseStation();
+
   var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
     say("No ticket is currently being served.");
@@ -267,6 +294,11 @@ function removeCurrentTicket(stationId) {
 
 // Moves the ticket being served to another station as a fresh ticket at the back of that queue.
 function transferServingTicket(sourceStationId, destStationId, purpose) {
+  if (!canServeStation(sourceStationId)) {
+    refuseStation();
+    return Promise.resolve(null);
+  }
+
   var serving = servingTicketOf(stations.find(function (s) { return s.id === sourceStationId; }));
   var destStation = stations.find(function (s) { return s.id === destStationId; });
 
@@ -319,7 +351,10 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
         servingAt: remove,
         verifiedAt: remove,
         recalledAt: remove,
-        recallCount: remove
+        recallCount: remove,
+        // Back of the queue means back of the queue: priority from the old station must not carry over.
+        prioritizedAt: remove,
+        nextNotified: remove
       });
 
       return { ticketNo: ticketNo, stationName: dest.name };
@@ -337,6 +372,11 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
 // Staff create a ticket for someone who can't do it on their own device (Queue Enforcer).
 // The contact email is kept in an admin-only collection, not on the ticket that every signed-in user can read.
 function createManualTicket(details) {
+  if (adminRole !== "admin" && adminRole !== "enforcer") {
+    say("Only an administrator or a Queue Enforcer can create manual tickets.");
+    return Promise.resolve(null);
+  }
+
   var station = stations.find(function (s) { return s.id === details.stationId; });
 
   if (!station || station.active === false) {
@@ -351,7 +391,7 @@ function createManualTicket(details) {
   var stationRef = db.collection("stations").doc(station.id);
   var ticketRef = db.collection("tickets").doc();
   var contactRef = db.collection("ticketContacts").doc(ticketRef.id);
-  var createdBy = adminUser ? adminUser.email : "";
+  var createdBy = adminUser ? staffKey(adminUser.email) : "";
 
   return db.runTransaction(function (transaction) {
     return transaction.get(stationRef).then(function (doc) {
@@ -410,6 +450,11 @@ function batchUpdateTickets(ticketIds, data) {
 
 // Serves a chosen ticket now, ahead of the rest of the queue. A ticket that is still being served is completed first.
 function callSelectedTicket(stationId, ticketId) {
+  if (!canServeStation(stationId)) {
+    refuseStation();
+    return Promise.resolve(false);
+  }
+
   var station = stations.find(function (s) { return s.id === stationId; });
   var ticket = tickets.find(function (t) { return t.id === ticketId; });
 
@@ -438,13 +483,24 @@ function callSelectedTicket(stationId, ticketId) {
   return reportQueueAction(batch.commit(), "call that ticket");
 }
 
+// Bulk actions: every selected ticket must be at a station the person is allowed to tidy.
+function mayTidyTickets(ticketIds) {
+  var allowed = ticketIds.every(function (id) { return canTidyStation(stationOfTicket(id)); });
+  if (!allowed) refuseStation();
+  return allowed;
+}
+
 function prioritizeTickets(ticketIds) {
+  if (!mayTidyTickets(ticketIds)) return Promise.resolve(false);
+
   return reportQueueAction(batchUpdateTickets(ticketIds, {
     prioritizedAt: firebase.firestore.FieldValue.serverTimestamp()
   }), "prioritize the tickets");
 }
 
 function recallTickets(ticketIds) {
+  if (!mayTidyTickets(ticketIds)) return Promise.resolve(false);
+
   return reportQueueAction(batchUpdateTickets(ticketIds, {
     recalledAt: firebase.firestore.FieldValue.serverTimestamp(),
     recallCount: firebase.firestore.FieldValue.increment(1)
@@ -452,6 +508,8 @@ function recallTickets(ticketIds) {
 }
 
 function removeTickets(ticketIds) {
+  if (!mayTidyTickets(ticketIds)) return Promise.resolve(false);
+
   return reportQueueAction(batchUpdateTickets(ticketIds, {
     status: "void",
     voidedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -460,6 +518,7 @@ function removeTickets(ticketIds) {
 
 function recallTicket(ticketId) {
   if (!ticketId) return;
+  if (!canTidyStation(stationOfTicket(ticketId))) return refuseStation();
 
   db.collection("tickets").doc(ticketId).update({
     recalledAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -491,6 +550,7 @@ function getSkipPhase(ticket) {
 function lastCallTicket(ticketId) {
   var ticket = tickets.find(function (t) { return t.id === ticketId; });
   if (!ticket || ticket.status !== "skipped" || getSkipPhase(ticket).phase !== "expired") return;
+  if (!canServeStation(ticket.stationId)) return refuseStation();
 
   db.collection("tickets").doc(ticketId).update({
     lastCalled: true,
@@ -506,6 +566,7 @@ function checkAutoVoid() {
   var now = Date.now();
 
   tickets.forEach(function (ticket) {
+    if (!canServeStation(ticket.stationId)) return;
     if (ticket.status !== "skipped" || !ticket.lastCalled) return;
     if (!ticket.lastCallAt || typeof ticket.lastCallAt.toMillis !== "function") return;
 

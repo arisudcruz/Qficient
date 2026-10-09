@@ -1,10 +1,49 @@
 var ADMIN_EMAIL = "admin@qficient.com";
 
+// True when the page was opened from an invitation email. The invite page handles that sign-in itself, so
+// the normal admin sign-in checks stay out of the way until the invitation is accepted.
+var inviteFlowActive = firebase.auth().isSignInWithEmailLink(window.location.href);
+
 var adminUser = null;
+var adminRole = null; // "admin", "enforcer", or the id of the station a Queue Management account belongs to
+var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
 var staffUnsubscribe = null;
 
 function isAdminSignedIn() {
   return adminUser !== null;
+}
+
+function isFullAdmin() {
+  return adminUser !== null && adminRole === "admin";
+}
+
+// "admin" (no restrictions), "enforcer", or "station" (Queue Management staff of one station); null when signed out.
+function adminKind() {
+  if (!adminUser) return null;
+  if (adminRole === "admin") return "admin";
+  return adminRole === "enforcer" ? "enforcer" : "station";
+}
+
+function adminDisplayName() {
+  var kind = adminKind();
+  if (kind === "enforcer") return "Queue Enforcer";
+  if (kind === "station") return getStationName(adminRole) + " Staff";
+  return "QFicient Admin";
+}
+
+// Staff of one station only see that station's numbers and notifications. Admins and enforcers see them all.
+function canViewStationData(stationId) {
+  return adminKind() !== "station" || stationId === adminRole;
+}
+
+function isStationRole(role) {
+  if (!role || role === "standby" || role === "admin" || role === "enforcer") return Promise.resolve(false);
+
+  return db.collection("stations").doc(role).get().then(function (doc) {
+    return doc.exists;
+  }).catch(function () {
+    return false;
+  });
 }
 
 function isPasswordUser(firebaseUser) {
@@ -54,41 +93,61 @@ function resolveAdminAccess(firebaseUser) {
       if (doc.exists) {
         if (isBootstrapAdmin && doc.data().role !== "admin") {
           transaction.update(ref, { role: "admin", updatedAt: now });
-          return true;
+          return "admin";
         }
-        return doc.data().role === "admin";
+        return doc.data().role;
       }
 
       var role = isBootstrapAdmin ? "admin" : "standby";
       transaction.set(ref, { email: email, role: role, createdAt: now, updatedAt: now });
-      return role === "admin";
+      return role;
     });
   });
 }
 
 function deactivateAdminSession() {
+  if (adminUser) resetAdminPageState();
   adminUser = null;
+  adminRole = null;
+  setTicketsScope(1);
   stopStaffListener();
   stopServerStatusListener();
   stopNotificationsListener();
+  stopInvitesListener();
 }
 
 function activateAdminSession(firebaseUser) {
-  if (!isPasswordUser(firebaseUser)) {
+  if (inviteFlowActive || !isPasswordUser(firebaseUser)) {
     deactivateAdminSession();
     return Promise.resolve(false);
   }
 
-  return resolveAdminAccess(firebaseUser).then(function (allowed) {
-    if (allowed) {
-      adminUser = firebaseUser;
-      startStaffListener();
-      startServerStatusListener();
-      startNotificationsListener();
-    } else {
-      deactivateAdminSession();
-    }
-    return allowed;
+  return resolveAdminAccess(firebaseUser).then(function (role) {
+    var known = role === "admin" || role === "enforcer" ? Promise.resolve(true) : isStationRole(role);
+
+    return known.then(function (allowed) {
+      if (allowed) {
+        adminUser = firebaseUser;
+        adminRole = role;
+        adminDeniedRole = null;
+
+        // Every role gets the dashboard and the notification inbox, so each loads the longer ticket history.
+        setTicketsScope(ADMIN_HISTORY_DAYS);
+        startNotificationsListener();
+
+        // Staff, server status and invitations stay with full admins.
+        if (role === "admin") {
+          startStaffListener();
+          startServerStatusListener();
+          startInvitesListener();
+        }
+        applyAdminAccess();
+      } else {
+        adminDeniedRole = role;
+        deactivateAdminSession();
+      }
+      return allowed;
+    });
   }).catch(function (error) {
     deactivateAdminSession();
     throw error;
@@ -157,7 +216,9 @@ function adminLogin(event) {
         }
 
         passwordInput.value = "";
-        setAdminLoginError("This account is on standby. Ask an administrator to grant you access.");
+        setAdminLoginError(adminDeniedRole && adminDeniedRole !== "standby" ?
+          "This role doesn't have access to the admin console yet. Ask an administrator." :
+          "This account is on standby. Ask an administrator to grant you access.");
         return firebase.auth().signOut();
       });
     })

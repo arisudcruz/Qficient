@@ -1895,7 +1895,8 @@ body.dark .enforcer-field input {
 }
 
 .queue-select-box,
-#queueSelectAll {
+#queueSelectAll,
+#enforcerSelectAll {
   width: 16px;
   height: 16px;
   margin: 0;
@@ -2026,4 +2027,77 @@ body.dark .enforcer-field input {
   .enforcer-span-all {
     grid-column: auto;
   }
+}
+
+.queue-row.not-selectable {
+  cursor: default;
+}
+
+.queue-row.not-selectable .queue-select-box {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.manual-tag {
+  background: #E8EDF4;
+  color: #475569;
+}
+
+/* Settings > Invite Staff */
+.invite-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.invite-input,
+.invite-select {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1.5px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+  font-size: 0.85rem;
+}
+
+.invite-input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.invite-select {
+  flex: 0 0 190px;
+}
+
+body.dark .invite-input,
+body.dark .invite-select {
+  background: #fff;
+  color: #172033;
+}
+
+.invite-btn {
+  padding: 10px 24px;
+  border-radius: 10px;
+}
+
+@media (max-width: 640px) {
+  .invite-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invite-select {
+    flex-basis: auto;
+  }
+}
+
+.rules-readonly {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #EAF1FF;
+  color: #1D4FBF;
+  font-size: 0.78rem;
 }

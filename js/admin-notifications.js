@@ -70,7 +70,7 @@ function getNotifications() {
   return tickets.map(function (ticket) {
     return { id: ticket.id, ticket: ticket, ms: notifCreatedMs(ticket) };
   }).filter(function (item) {
-    return item.ms >= cutoff && !notifState.deletedIds[item.id];
+    return item.ms >= cutoff && !notifState.deletedIds[item.id] && canViewStationData(item.ticket.stationId);
   }).sort(function (a, b) {
     return b.ms - a.ms;
   });
@@ -215,7 +215,16 @@ function openNotification(id) {
 
   if (!isNotifRead(item)) markNotificationRead(id);
 
-  if (stations.some(function (station) { return station.id === item.ticket.stationId; })) {
+  // An enforcer has no Queue Management page: they land on the Queue Enforcer list for that station instead.
+  if (adminKind() === "enforcer") {
+    if (getEnforcerStations().some(function (station) { return station.id === item.ticket.stationId; })) {
+      enforcerFilter = item.ticket.stationId;
+    }
+    setAdminSection("enforcer");
+    return;
+  }
+
+  if (canServeStation(item.ticket.stationId) && stations.some(function (station) { return station.id === item.ticket.stationId; })) {
     activeQueueStation = item.ticket.stationId;
     resetQueueTransfer();
     queueSelection = {};
@@ -239,7 +248,7 @@ function renderNotifications() {
   var headerHtml =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Notifications</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
     '</div>';
 
   if (!notifState.loaded) {

@@ -73,6 +73,17 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
     await Promise.all(fixes.map(function (doc) { return doc.ref.update({ nowServingId: null }); }));
   }
 
+  // Device registrations that haven't been refreshed in a month belong to guests who never came back
+  // or browsers that were uninstalled. (An active student's page re-saves theirs on every visit.)
+  const staleTokens = await db.collection("deviceTokens")
+    .where("updatedAt", "<", Timestamp.fromMillis(nowMs - 30 * DAY_MS))
+    .get();
+  for (let i = 0; i < staleTokens.docs.length; i += 400) {
+    const batch = db.batch();
+    staleTokens.docs.slice(i, i + 400).forEach(function (doc) { batch.delete(doc.ref); });
+    await batch.commit();
+  }
+
   // Old de-duplication records are no longer needed after a few days.
   const cutoff = Timestamp.fromMillis(nowMs - 3 * DAY_MS);
   const oldEvents = await db.collection("pushEvents").where("at", "<", cutoff).get();

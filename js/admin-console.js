@@ -93,7 +93,7 @@ function getAdminFilters() {
 function getFilteredTickets(filters) {
   return (tickets || []).filter(function (ticket) {
     var createdAt = getTicketDate(ticket);
-    return createdAt && createdAt >= filters.start && createdAt <= filters.end;
+    return createdAt && createdAt >= filters.start && createdAt <= filters.end && canViewStationData(ticket.stationId);
   });
 }
 
@@ -103,7 +103,9 @@ function getStationName(stationId) {
 }
 
 function getTrafficData(filteredTickets) {
-  var traffic = (stations || []).map(function (station) {
+  var traffic = (stations || []).filter(function (station) {
+    return canViewStationData(station.id);
+  }).map(function (station) {
     return { id: station.id, name: station.name, value: 0 };
   });
 
@@ -193,7 +195,10 @@ function updateAdmin() {
 
   if (!rowsHtml) rowsHtml = '<tr><td colspan="6" class="empty-row">No queue transactions found for this filter.</td></tr>';
 
-  area.innerHTML = '<div class="dashboard-header"><div class="header-greeting">Hello Admin</div></div>' +
+  var greeting = adminKind() === "enforcer" ? "Hello Enforcer" :
+    adminKind() === "station" ? "Hello " + getStationName(adminRole) + " Staff" : "Hello Admin";
+
+  area.innerHTML = '<div class="dashboard-header"><div class="header-greeting">' + escapeAdminText(greeting) + '</div></div>' +
     '<section class="stats-grid">' + cardsHtml + '</section>' +
     '<section class="panel chart-panel"><div class="panel-header"><h2>Station Traffic Analysis</h2><span class="traffic-selection">' + escapeAdminText(adminTrafficStation === "all" ? "All stations" : getStationName(adminTrafficStation)) + '</span></div>' + trafficHtml + '</section>' +
     '<section class="panel table-panel"><div class="panel-header table-header"><h2>Queue Transactions</h2><span class="traffic-selection">' + escapeAdminText(dateLabel) + '</span></div><div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>';
@@ -217,7 +222,64 @@ var ADMIN_SECTION_AREAS = {
   settings: "adminSettingsArea"
 };
 
+// Which pages each kind of account can open. Admins have no restrictions. Everyone sees the Dashboard and
+// Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
+// (their own station only); both can read the Rules but never open Settings.
+var ADMIN_ROLE_SECTIONS = {
+  admin: ["dashboard", "queue", "enforcer", "notifications", "rules", "settings"],
+  enforcer: ["dashboard", "notifications", "enforcer", "rules"],
+  station: ["dashboard", "queue", "notifications", "rules"]
+};
+
+// Where each kind of account lands after signing in.
+var ADMIN_HOME_SECTION = { admin: "dashboard", enforcer: "enforcer", station: "queue" };
+
+// Forget what the previous person had open (tabs, filters, drafts) so the next person on this browser starts clean.
+function resetAdminPageState() {
+  rulesActiveTab = "general";
+  enforcerFilter = "";
+  enforcerSelection = {};
+  enforcerDraft = emptyEnforcerDraft("");
+  queueSelection = {};
+  resetQueueTransfer();
+  inviteDraft = { email: "", role: "" };
+  settingsSelectedRole = STANDBY_ROLE.id;
+  settingsRoleDrafts = {};
+  settingsTimeoutDraft = null;
+}
+
+function canOpenSection(section) {
+  var kind = adminKind();
+  return !kind || ADMIN_ROLE_SECTIONS[kind].indexOf(section) !== -1;
+}
+
+function applyAdminAccess() {
+  var kind = adminKind();
+
+  document.querySelectorAll("#pageAdmin .nav-item[data-section], #pageAdmin .tool-item[data-section]").forEach(function (item) {
+    item.style.display = canOpenSection(item.getAttribute("data-section")) ? "" : "none";
+  });
+
+  var toolLabel = document.querySelector("#pageAdmin .tool-label");
+  if (toolLabel) toolLabel.style.display = canOpenSection("rules") || canOpenSection("settings") ? "" : "none";
+
+  var badge = document.querySelector("#pageAdmin .user-badge");
+  var meta = document.querySelector("#pageAdmin .user-meta");
+  if (badge) badge.textContent = kind === "enforcer" ? "QE" : (kind === "station" ? getStationName(adminRole).slice(0, 2).toUpperCase() : "AU");
+  if (meta) meta.textContent = kind === "enforcer" ? "Queue Enforcer" : (kind === "station" ? getStationName(adminRole) + " Staff" : "Admin User");
+
+  if (kind === "station") {
+    activeQueueStation = adminRole;
+    resetQueueTransfer();
+    queueSelection = {};
+  }
+
+  if (kind && kind !== "admin") setAdminSection(ADMIN_HOME_SECTION[kind]);
+}
+
 function setAdminSection(section) {
+  if (!canOpenSection(section)) section = ADMIN_HOME_SECTION[adminKind()];
+
   Object.keys(ADMIN_SECTION_AREAS).forEach(function (key) {
     var area = document.getElementById(ADMIN_SECTION_AREAS[key]);
     if (area) area.style.display = key === section ? "" : "none";

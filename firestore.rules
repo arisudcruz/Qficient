@@ -17,6 +17,10 @@ service cloud.firestore {
       return signedIn() && provider() == 'password';
     }
 
+    function isVerifiedEmail() {
+      return request.auth.token.email_verified == true;
+    }
+
     function userEmail() {
       return request.auth.token.email.lower();
     }
@@ -34,6 +38,32 @@ service cloud.firestore {
     function isAdmin() {
       return isBootstrapAdmin() ||
         (isPasswordUser() && exists(staffPath()) && get(staffPath()).data.role == 'admin');
+    }
+
+    // A Queue Enforcer is a separate staff member who manages the queue but never serves it: they can
+    // create manual tickets and prioritize, recall or remove waiting ones. Their role is set by an admin.
+    function isEnforcer() {
+      return isPasswordUser() && exists(staffPath()) && get(staffPath()).data.role == 'enforcer';
+    }
+
+    // Queue Management staff: the staff record's role is the id of their one station. They run that
+    // station's queue (call, skip, recall, last call, verify, remove, prioritize, transfer out) and
+    // nothing else; every other station is off limits.
+    function isStationStaffOf(stationId) {
+      return isPasswordUser() && exists(staffPath()) &&
+        get(staffPath()).data.role == stationId &&
+        !(stationId in ['admin', 'enforcer', 'standby']);
+    }
+
+    // Anyone whose role lets them into the admin console: admins, enforcers and the staff of a real station.
+    function isStationStaff() {
+      return isPasswordUser() && exists(staffPath()) &&
+        !(get(staffPath()).data.role in ['admin', 'enforcer', 'standby']) &&
+        exists(/databases/$(database)/documents/stations/$(get(staffPath()).data.role));
+    }
+
+    function hasConsoleAccess() {
+      return isAdmin() || isEnforcer() || isStationStaff();
     }
 
     function changedKeys() {
@@ -64,10 +94,20 @@ service cloud.firestore {
         resource.data.get('countDay', '') != today();
     }
 
+    // The station's staff may move the "now serving" pointer, but only onto a ticket of that same station.
+    function isStationStaffPointer(stationId) {
+      return isStationStaffOf(stationId) &&
+        changedKeys().hasOnly(['nowServingId']) &&
+        (request.resource.data.nowServingId == null ||
+         (request.resource.data.nowServingId is string &&
+          get(/databases/$(database)/documents/tickets/$(request.resource.data.nowServingId)).data.stationId == stationId));
+    }
+
     match /stations/{stationId} {
       allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() ||
+        isStationStaffPointer(stationId) ||
         (signedIn() && (isCounterBump() || isDailyCounterReset()));
     }
 
@@ -114,6 +154,98 @@ service cloud.firestore {
         stationIsOpen(d.stationId);
     }
 
+    function isEnforcerNewTicket() {
+      let d = request.resource.data;
+      return isEnforcer() &&
+        d.keys().hasOnly(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentNumber', 'studentType',
+                          'purpose', 'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
+        d.keys().hasAll(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentType', 'purpose',
+                         'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
+        d.manual == true &&
+        d.createdBy == userEmail() &&
+        d.ownerId is string && d.ownerId.matches('manual:.+') &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.studentType in ['regular', 'transferee', 'guest'] &&
+        d.studentNumber == '' &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        d.stationId is string &&
+        d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        stationIsOpen(d.stationId);
+    }
+
+    // The only changes an enforcer may make to an existing ticket, and only while it is still waiting
+    // (or skipped): prioritize it, record a recall, or void it. Never call, skip or complete.
+    function isEnforcerEdit() {
+      return isEnforcer() &&
+        resource.data.status in ['waiting', 'skipped'] &&
+        ((resource.data.status == 'waiting' &&
+          changedKeys().hasOnly(['prioritizedAt']) &&
+          request.resource.data.prioritizedAt == request.time) ||
+         (changedKeys().hasOnly(['recalledAt', 'recallCount']) &&
+          request.resource.data.recalledAt == request.time &&
+          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1) ||
+         (changedKeys().hasOnly(['status', 'voidedAt']) &&
+          request.resource.data.status == 'void' &&
+          request.resource.data.voidedAt == request.time));
+    }
+
+    // A timestamp field that is being written must be the server time, or be removed.
+    function freshOrGone(field) {
+      return !changedKeys().hasAny([field]) ||
+        !(field in request.resource.data) ||
+        request.resource.data[field] == request.time;
+    }
+
+    function isAllowedStatusMove() {
+      let from = resource.data.status;
+      let to = request.resource.data.status;
+      return (from in ['waiting', 'skipped'] && to in ['serving', 'void']) ||
+        (from == 'serving' && to in ['completed', 'skipped', 'void']);
+    }
+
+    // Everything a station's staff do to a ticket of their own station, short of moving it elsewhere.
+    function isStationStaffEdit() {
+      return isStationStaffOf(resource.data.stationId) &&
+        changedKeys().hasOnly(['status', 'servingAt', 'completedAt', 'skippedAt', 'lastCalled', 'lastCallAt',
+                               'verified', 'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt',
+                               'voidedAt', 'autoVoided']) &&
+        (!changedKeys().hasAny(['status']) || isAllowedStatusMove()) &&
+        freshOrGone('servingAt') && freshOrGone('completedAt') && freshOrGone('skippedAt') &&
+        freshOrGone('lastCallAt') && freshOrGone('verifiedAt') && freshOrGone('recalledAt') &&
+        freshOrGone('prioritizedAt') && freshOrGone('voidedAt') &&
+        (!changedKeys().hasAny(['verified']) || request.resource.data.verified == true) &&
+        (!changedKeys().hasAny(['lastCalled']) || !('lastCalled' in request.resource.data) ||
+          request.resource.data.lastCalled == true) &&
+        (!changedKeys().hasAny(['autoVoided']) || request.resource.data.autoVoided == true) &&
+        (!changedKeys().hasAny(['recallCount']) ||
+          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1);
+    }
+
+    // Sending the ticket being served to another station, as a fresh waiting ticket at the back of that queue.
+    function isStationStaffTransfer() {
+      let r = resource.data;
+      let d = request.resource.data;
+      return isStationStaffOf(r.stationId) &&
+        r.status == 'serving' &&
+        changedKeys().hasOnly(['stationId', 'ticketNo', 'purpose', 'status', 'verified', 'createdAt',
+                               'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
+        d.stationId is string && d.stationId != r.stationId && stationIsOpen(d.stationId) &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.transferredAt == request.time &&
+        d.transferredFrom == r.stationId &&
+        d.previousTicketNo == r.ticketNo &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
+        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
+    }
+
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
         resource.data.status in ['waiting', 'skipped'] &&
@@ -124,8 +256,9 @@ service cloud.firestore {
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || (signedIn() && isValidNewTicket());
-      allow update: if isAdmin() || (signedIn() && isOwnerCancelling());
+      allow create: if isAdmin() || isEnforcerNewTicket() || (signedIn() && isValidNewTicket());
+      allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
+        (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }
 
@@ -141,7 +274,9 @@ service cloud.firestore {
         staffEmail == userEmail() &&
         request.resource.data.keys().hasOnly(['email', 'role', 'createdAt', 'updatedAt']) &&
         request.resource.data.email == staffEmail &&
-        request.resource.data.role == (isBootstrapAdmin() ? 'admin' : 'standby') &&
+        (request.resource.data.role == (isBootstrapAdmin() ? 'admin' : 'standby') ||
+         (isVerifiedEmail() && invitePending(staffEmail) &&
+          request.resource.data.role == get(invitePath(staffEmail)).data.role)) &&
         request.resource.data.createdAt == request.time &&
         request.resource.data.updatedAt == request.time;
 
@@ -154,7 +289,65 @@ service cloud.firestore {
         (staffEmail != 'admin@qficient.com' || request.resource.data.role == 'admin') &&
         (staffEmail != userEmail() || request.resource.data.role == 'admin');
 
+      allow update: if isPasswordUser() && isVerifiedEmail() &&
+        staffEmail == userEmail() &&
+        staffEmail != 'admin@qficient.com' &&
+        resource.data.role != 'admin' &&
+        invitePending(staffEmail) &&
+        changedKeys().hasOnly(['role', 'updatedAt']) &&
+        request.resource.data.role == get(invitePath(staffEmail)).data.role &&
+        request.resource.data.updatedAt == request.time;
+
       allow delete: if false;
+    }
+
+    // ---------- Staff invitations ----------
+    // An admin invites an email address to a role. The invitee proves they own the address by signing in
+    // with the emailed link (which verifies the email), then accepts: that is the only way the role is
+    // granted. Invites expire, and only the invited address can accept its own invite.
+
+    function invitePath(email) {
+      return /databases/$(database)/documents/invites/$(email);
+    }
+
+    function invitePending(email) {
+      return exists(invitePath(email)) &&
+        get(invitePath(email)).data.status == 'pending' &&
+        get(invitePath(email)).data.expiresAt > request.time;
+    }
+
+    function isInviteeOf(inviteEmail) {
+      return isPasswordUser() && isVerifiedEmail() && inviteEmail == userEmail();
+    }
+
+    function isValidInvite(inviteEmail) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['email', 'role', 'invitedBy', 'createdAt', 'expiresAt', 'status']) &&
+        inviteEmail == inviteEmail.lower() &&
+        d.email == inviteEmail &&
+        d.role is string && d.role.size() >= 1 && d.role.size() <= 64 && d.role != 'standby' &&
+        d.invitedBy == userEmail() &&
+        d.status == 'pending' &&
+        d.createdAt == request.time &&
+        d.expiresAt is timestamp &&
+        d.expiresAt > request.time &&
+        d.expiresAt <= request.time + duration.value(30, 'd');
+    }
+
+    match /invites/{inviteEmail} {
+      allow get: if isAdmin() || isInviteeOf(inviteEmail);
+      allow list: if isAdmin();
+
+      allow create, update: if isAdmin() && isValidInvite(inviteEmail);
+
+      allow update: if isInviteeOf(inviteEmail) &&
+        resource.data.status == 'pending' &&
+        resource.data.expiresAt > request.time &&
+        changedKeys().hasOnly(['status', 'acceptedAt']) &&
+        request.resource.data.status == 'accepted' &&
+        request.resource.data.acceptedAt == request.time;
+
+      allow delete: if isAdmin();
     }
 
     // ---------- Student profiles ----------
@@ -187,11 +380,12 @@ service cloud.firestore {
 
     // ---------- Contact details for manually created tickets ----------
     // Queue Enforcer keeps the walk-in's email here, not on the ticket that every
-    // signed-in user can read. Admins only; written once, never changed.
+    // signed-in user can read. Written once by an admin or enforcer, never changed,
+    // and readable by admins only.
 
     match /ticketContacts/{ticketId} {
       allow read: if isAdmin();
-      allow create: if isAdmin() &&
+      allow create: if (isAdmin() || isEnforcer()) &&
         request.resource.data.keys().hasOnly(['email', 'createdBy', 'createdAt']) &&
         request.resource.data.email is string &&
         request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254 &&
@@ -200,13 +394,13 @@ service cloud.firestore {
     }
 
     // ---------- Admin notification inbox state ----------
-    // Which notifications an admin has read or deleted. One document per admin,
+    // Which notifications a staff member has read or deleted. One document per person,
     // keyed by their email, and only they can see or change it.
 
     match /staffNotifications/{staffEmail} {
-      allow read: if isAdmin() && staffEmail == userEmail();
+      allow read: if hasConsoleAccess() && staffEmail == userEmail();
 
-      allow create, update: if isAdmin() &&
+      allow create, update: if hasConsoleAccess() &&
         staffEmail == userEmail() &&
         request.resource.data.keys().hasOnly(['readAllBefore', 'readIds', 'deletedIds', 'updatedAt']) &&
         (!('readAllBefore' in request.resource.data) || request.resource.data.readAllBefore is timestamp) &&

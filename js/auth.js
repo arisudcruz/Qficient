@@ -90,7 +90,9 @@ function studentLogout() {
   var isGuest = !!user && user.type === "guest";
 
   var finish = function () {
-    firebase.auth().signOut().then(function () {
+    forgetThisDevice(user && user.id).then(function () {
+      return firebase.auth().signOut();
+    }).then(function () {
       user = null;
       clearGuestProfile();
       updateDashboard();
@@ -137,12 +139,18 @@ function login() {
 
   startingSession = true;
 
+  // Someone else may have been using this browser. Their device registration goes first; it is not awaited,
+  // because the sign-in popup has to open straight from the click.
+  var previous = firebase.auth().currentUser;
+  if (previous && !isPasswordUser(previous)) forgetThisDevice(previous.uid);
+
   firebase.auth().signInWithPopup(provider)
     .then(function (result) {
       return enterStudentSession(result.user);
     })
     .catch(function (error) {
       say("Microsoft sign-in failed: " + error.message);
+      refreshNotificationToggle();
     })
     .then(function () {
       startingSession = false;
@@ -205,7 +213,12 @@ function startGuestSession() {
   button.disabled = true;
   startingSession = true;
 
-  firebase.auth().signOut()
+  var previousUser = firebase.auth().currentUser;
+
+  forgetThisDevice(previousUser && !isPasswordUser(previousUser) ? previousUser.uid : null)
+    .then(function () {
+      return firebase.auth().signOut();
+    })
     .then(function () {
       return firebase.auth().signInAnonymously();
     })
