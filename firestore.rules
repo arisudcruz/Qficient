@@ -71,9 +71,10 @@ service cloud.firestore {
     }
 
     // ---------- Stations ----------
-    // Public to read (students pick a station). Only admins manage them. A
-    // student's join transaction may bump the ticket counter by exactly one, or
-    // restart it at 1 for the first join of a new day (Philippine time, UTC+8).
+    // Public to read (students pick a station). Only admins manage them. Console staff creating a ticket
+    // by hand or transferring one may bump the ticket counter by exactly one, or restart it at 1 for the
+    // first ticket of a new day (Philippine time, UTC+8). Students never write here: the joinQueue
+    // function does it for them.
 
     function today() {
       let t = request.time + duration.value(8, 'h');
@@ -108,7 +109,7 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin() ||
         isStationStaffPointer(stationId) ||
-        (signedIn() && (isCounterBump() || isDailyCounterReset()));
+        (hasConsoleAccess() && (isCounterBump() || isDailyCounterReset()));
     }
 
     // ---------- System settings ----------
@@ -133,25 +134,6 @@ service cloud.firestore {
     function stationIsOpen(stationId) {
       let path = /databases/$(database)/documents/stations/$(stationId);
       return exists(path) && get(path).data.get('active', true) != false;
-    }
-
-    function isValidNewTicket() {
-      let d = request.resource.data;
-      return d.keys().hasOnly(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentNumber',
-                               'studentType', 'purpose', 'status', 'verified', 'createdAt']) &&
-        d.keys().hasAll(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'purpose',
-                         'status', 'verified', 'createdAt']) &&
-        d.ownerId == request.auth.uid &&
-        d.status == 'waiting' &&
-        d.verified == false &&
-        d.createdAt == request.time &&
-        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
-        d.stationId is string &&
-        d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
-        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
-        (!('studentNumber' in d) || (d.studentNumber is string && d.studentNumber.size() <= 20)) &&
-        (!('studentType' in d) || d.studentType in ['', 'regular', 'transferee', 'guest']) &&
-        stationIsOpen(d.stationId);
     }
 
     function isEnforcerNewTicket() {
@@ -256,7 +238,8 @@ service cloud.firestore {
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      allow create: if isAdmin() || isEnforcerNewTicket() || (signedIn() && isValidNewTicket());
+      // Students and guests join through the joinQueue Cloud Function, which creates their ticket on the server.
+      allow create: if isAdmin() || isEnforcerNewTicket();
       allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
         (signedIn() && isOwnerCancelling());
       allow delete: if false;
