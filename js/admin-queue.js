@@ -261,6 +261,8 @@ function getServingTicket(stationId) {
 }
 
 function confirmCallNext(stationId) {
+  if (!getNextWaitingTicket(stationId)) return;
+
   var serving = getServingTicket(stationId);
 
   showConfirmModal({
@@ -416,6 +418,7 @@ function renderQueueManagement() {
   }).join("");
 
   var queueListTickets = getQueueListTickets();
+  var hasWaiting = !!getNextWaitingTicket(activeQueueStation);
 
   var rowsHtml = queueListTickets.map(function (ticket) {
     var statusCell;
@@ -473,7 +476,7 @@ function renderQueueManagement() {
         '</div>' +
         '<div class="serving-actions">' +
           '<button type="button" class="queue-action-btn queue-action-complete"' + (serving ? '' : ' disabled') + ' onclick="confirmComplete(\'' + activeQueueStation + '\')">✓ End Transaction</button>' +
-          '<button type="button" class="queue-action-btn" onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
+          '<button type="button" class="queue-action-btn"' + (hasWaiting ? '' : ' disabled title="No one is waiting to be called"') + ' onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRecall(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏭ Skip</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRemove(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
