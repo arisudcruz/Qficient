@@ -670,19 +670,19 @@
   cursor: not-allowed;
 }
 
-.queue-action-verify {
+.queue-action-complete {
   grid-column: 1 / -1;
   background: #16a34a;
 }
 
-.queue-action-verify:hover {
+.queue-action-complete:hover {
   background: #15803d;
 }
 
-.queue-action-verify:disabled {
+.queue-action-complete:disabled {
   background: #dcfce7;
   color: #16a34a;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .skip-cell {

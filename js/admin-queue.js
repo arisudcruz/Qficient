@@ -274,16 +274,16 @@ function confirmCallNext(stationId) {
   });
 }
 
-function confirmVerify(stationId) {
+function confirmComplete(stationId) {
   var serving = getServingTicket(stationId);
-  if (!serving || serving.verified) return;
+  if (!serving) return;
 
   showConfirmModal({
-    title: "Verify ticket " + serving.ticketNo + "?",
-    message: "This marks " + serving.ownerName + "'s ticket as verified.",
-    confirmLabel: "Verify",
+    title: "End the transaction for " + serving.ticketNo + "?",
+    message: "This marks " + serving.ownerName + "'s ticket as completed and clears the serving window. Use Call Next to serve the next person.",
+    confirmLabel: "End Transaction",
     tone: "primary",
-    onConfirm: function () { verifyCurrentTicket(stationId); }
+    onConfirm: function () { completeCurrentTicket(stationId); }
   });
 }
 
@@ -340,7 +340,7 @@ function confirmLastCall(ticketId) {
 }
 
 function tickQueueCountdowns() {
-  var now = Date.now();
+  var now = serverNow();
   var needsRender = false;
 
   document.querySelectorAll(".void-countdown[data-base-ms]").forEach(function (el) {
@@ -349,6 +349,11 @@ function tickQueueCountdowns() {
 
     if (phase === "initial" && remainingMs <= 0) {
       needsRender = true;
+      return;
+    }
+
+    if (phase === "final" && remainingMs <= 0) {
+      el.textContent = "Expired, voiding now";
       return;
     }
 
@@ -422,7 +427,7 @@ function renderQueueManagement() {
       if (skip.phase === "initial") {
         countdownHtml = '<span class="void-countdown" data-phase="initial" data-base-ms="' + skip.baseMs + '">Respond within ' + formatCountdown(skip.remainingMs) + '</span>';
       } else if (skip.phase === "final") {
-        countdownHtml = '<span class="void-countdown" data-phase="final" data-base-ms="' + skip.baseMs + '">Last chance, voids in ' + formatCountdown(skip.remainingMs) + '</span>';
+        countdownHtml = '<span class="void-countdown" data-phase="final" data-base-ms="' + skip.baseMs + '">' + (skip.remainingMs > 0 ? 'Last chance, voids in ' + formatCountdown(skip.remainingMs) : 'Expired, voiding now') + '</span>';
       } else {
         countdownHtml = '<span class="void-countdown">Time is up</span>';
         lastCallHtml = '<button type="button" class="last-call-btn" onclick="confirmLastCall(\'' + ticket.id + '\')">Last Call</button>';
@@ -454,9 +459,6 @@ function renderQueueManagement() {
 
   if (!rowsHtml) rowsHtml = '<tr><td colspan="4" class="empty-row">No tickets currently queued for this station.</td></tr>';
 
-  var verifyDisabled = !serving || serving.verified;
-  var verifyLabel = serving && serving.verified ? "✓ Verified" : "✓ Verify";
-
   area.innerHTML =
     '<div class="dashboard-header"><div class="header-greeting">Queue Management</div></div>' +
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
@@ -470,7 +472,7 @@ function renderQueueManagement() {
           servingHtml +
         '</div>' +
         '<div class="serving-actions">' +
-          '<button type="button" class="queue-action-btn queue-action-verify"' + (verifyDisabled ? ' disabled' : '') + ' onclick="confirmVerify(\'' + activeQueueStation + '\')">' + verifyLabel + '</button>' +
+          '<button type="button" class="queue-action-btn queue-action-complete"' + (serving ? '' : ' disabled') + ' onclick="confirmComplete(\'' + activeQueueStation + '\')">✓ End Transaction</button>' +
           '<button type="button" class="queue-action-btn" onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRecall(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏭ Skip</button>' +
