@@ -43,6 +43,37 @@ function countStationTicketsToday(stationId) {
   }).length;
 }
 
+// Countdowns are measured from times the server wrote, so they must use the server's clock, not this device's
+// (a phone or PC that is a minute off would otherwise show, and act on, the wrong time). The offset comes from
+// the Date header of our own site, corrected for the round trip and for any time spent in a cache.
+var serverOffsetMs = 0;
+
+function serverNow() {
+  return Date.now() + serverOffsetMs;
+}
+
+function syncServerClock() {
+  var sentAt = Date.now();
+
+  return fetch(window.location.pathname || "/", { method: "HEAD", cache: "no-store" }).then(function (response) {
+    var receivedAt = Date.now();
+    var header = response.headers.get("Date");
+    var serverMs = header ? Date.parse(header) : NaN;
+    if (isNaN(serverMs)) return;
+
+    var age = Number(response.headers.get("Age")) || 0;
+    // The header is whole seconds, so the true time is about half a second later.
+    var offset = serverMs + age * 1000 + 500 - (sentAt + (receivedAt - sentAt) / 2);
+    serverOffsetMs = Math.abs(offset) < 1500 ? 0 : Math.round(offset);
+  }).catch(function () {});
+}
+
+syncServerClock();
+setInterval(syncServerClock, 10 * 60 * 1000);
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "visible") syncServerClock();
+});
+
 function getCancelCooldownRemaining() {
   if (!user) return 0;
 
@@ -55,7 +86,7 @@ function getCancelCooldownRemaining() {
 
   if (!lastCancelMs) return 0;
 
-  var remaining = CANCEL_COOLDOWN_MS - (Date.now() - lastCancelMs);
+  var remaining = CANCEL_COOLDOWN_MS - (serverNow() - lastCancelMs);
   return remaining > 0 ? remaining : 0;
 }
 
@@ -236,7 +267,9 @@ function skipCurrentTicket(stationId) {
   });
 }
 
-function verifyCurrentTicket(stationId) {
+// Finishes the transaction at the counter: the ticket is marked completed and the serving window is cleared,
+// so nobody is being served until the next call.
+function completeCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
   var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
@@ -245,11 +278,15 @@ function verifyCurrentTicket(stationId) {
     return;
   }
 
-  db.collection("tickets").doc(serving.id).update({
-    verified: true,
-    verifiedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(function (err) {
-    say("Could not verify ticket: " + err.message);
+  var batch = db.batch();
+  batch.update(db.collection("tickets").doc(serving.id), {
+    status: "completed",
+    completedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  batch.update(db.collection("stations").doc(stationId), { nowServingId: null });
+
+  batch.commit().catch(function (err) {
+    say("Could not end the transaction: " + err.message);
   });
 }
 
@@ -515,7 +552,7 @@ function timestampToMs(timestamp, fallbackMs) {
 }
 
 function getSkipPhase(ticket) {
-  var now = Date.now();
+  var now = serverNow();
 
   if (ticket.lastCalled) {
     var lastCallBase = timestampToMs(ticket.lastCallAt, now);
@@ -542,20 +579,32 @@ function lastCallTicket(ticketId) {
   });
 }
 
+// Tickets already sent off to be voided, so the once-a-second check doesn't send the same void again
+// while the first one is still on its way.
+var autoVoidRequested = {};
+var AUTO_VOID_RETRY_MS = 15 * 1000;
+
 function checkAutoVoid() {
-  var now = Date.now();
+  var now = serverNow();
 
   tickets.forEach(function (ticket) {
     if (!canServeStation(ticket.stationId)) return;
     if (ticket.status !== "skipped" || !ticket.lastCalled) return;
     if (!ticket.lastCallAt || typeof ticket.lastCallAt.toMillis !== "function") return;
 
-    if (now - ticket.lastCallAt.toMillis() >= AUTO_VOID_WINDOW_MS) {
-      db.collection("tickets").doc(ticket.id).update({
-        status: "void",
-        voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        autoVoided: true
-      });
-    }
+    if (now - ticket.lastCallAt.toMillis() < AUTO_VOID_WINDOW_MS) return;
+
+    var key = ticket.id + ":" + ticket.lastCallAt.toMillis();
+    if (autoVoidRequested[key] && Date.now() - autoVoidRequested[key] < AUTO_VOID_RETRY_MS) return;
+    autoVoidRequested[key] = Date.now();
+
+    db.collection("tickets").doc(ticket.id).update({
+      status: "void",
+      voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      autoVoided: true
+    }).catch(function (err) {
+      // Usually the server voided it first; try again later in case it really failed.
+      console.error("Auto-void of " + ticket.ticketNo + " did not go through: " + err.message);
+    });
   });
 }

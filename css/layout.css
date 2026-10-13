@@ -670,19 +670,19 @@
   cursor: not-allowed;
 }
 
-.queue-action-verify {
+.queue-action-complete {
   grid-column: 1 / -1;
   background: #16a34a;
 }
 
-.queue-action-verify:hover {
+.queue-action-complete:hover {
   background: #15803d;
 }
 
-.queue-action-verify:disabled {
+.queue-action-complete:disabled {
   background: #dcfce7;
   color: #16a34a;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .skip-cell {
@@ -1318,6 +1318,9 @@ body.dark .modal-input[readonly] {
 }
 
 .settings-icon-blue { border-color: #004B93; color: #004B93; }
+.settings-icon-red { border-color: #E5484D; color: #E5484D; }
+
+.settings-icon-btn + .settings-icon-btn { margin-left: 6px; }
 
 .settings-select {
   min-width: 120px;
@@ -2041,56 +2044,6 @@ body.dark .enforcer-field input {
 .manual-tag {
   background: #E8EDF4;
   color: #475569;
-}
-
-/* Settings > Invite Staff */
-.invite-form {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 16px;
-}
-
-.invite-input,
-.invite-select {
-  margin: 0;
-  padding: 10px 14px;
-  border: 1.5px solid #dbe3ee;
-  border-radius: 12px;
-  background: #fff;
-  color: #172033;
-  font-size: 0.85rem;
-}
-
-.invite-input {
-  flex: 1 1 260px;
-  min-width: 0;
-}
-
-.invite-select {
-  flex: 0 0 190px;
-}
-
-body.dark .invite-input,
-body.dark .invite-select {
-  background: #fff;
-  color: #172033;
-}
-
-.invite-btn {
-  padding: 10px 24px;
-  border-radius: 10px;
-}
-
-@media (max-width: 640px) {
-  .invite-form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .invite-select {
-    flex-basis: auto;
-  }
 }
 
 .rules-readonly {

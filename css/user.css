@@ -518,7 +518,6 @@ body.dark .ud-generate:disabled { background: #2C4468; color: #8DA1C2; }
   box-shadow: var(--app-shadow);
 }
 
-.ud-ticket.verified { border-color: #22C55E; }
 
 .ud-ticket-head {
   padding: 18px 16px 20px;

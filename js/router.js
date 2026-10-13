@@ -35,7 +35,7 @@ function currentAdminSection() {
   return "dashboard";
 }
 
-// The hash that matches what is on screen right now; null for screens that have no address (the invite flow).
+// The hash that matches what is on screen right now; null for screens that have no address.
 function routeHashForScreen() {
   switch (shownPageId()) {
     case "pageHome": return "#/";
@@ -66,7 +66,7 @@ function replaceHash(hash) {
 // Writes the hash for the current screen. A normal call adds a history entry, so Back returns to the
 // previous screen; replace = true swaps the entry instead (for changes the app makes on its own).
 function syncRoute(replace) {
-  if (routeLock || pendingRoute || inviteFlowActive) return;
+  if (routeLock || pendingRoute) return;
 
   var hash = routeHashForScreen();
   if (!hash || sameHash(window.location.hash, hash)) return;
@@ -126,7 +126,7 @@ function settlePendingRoute() {
 
 // Called by goTo() after it shows a screen. A waiting link for that screen is finished here.
 function routerAfterGoTo(pageId) {
-  if (routeLock || inviteFlowActive) return;
+  if (routeLock) return;
 
   if (pendingRoute && ROUTE_PAGE_IDS[pendingRoute.name] === pageId) {
     var route = pendingRoute;
@@ -145,8 +145,6 @@ function routerAfterGoTo(pageId) {
 }
 
 function applyRoute(isFirstLoad) {
-  if (inviteFlowActive) return;
-
   var route = parseRoute(window.location.hash);
   var signedStudent = !!user;
   var signedStaff = typeof isAdminSignedIn === "function" && isAdminSignedIn();
@@ -193,7 +191,7 @@ function applyRoute(isFirstLoad) {
 }
 
 window.addEventListener("hashchange", function () {
-  if (routeLock || inviteFlowActive) return;
+  if (routeLock) return;
 
   // The change came from syncRoute(): the screen already matches.
   if (sameHash(window.location.hash, routeHashForScreen())) return;

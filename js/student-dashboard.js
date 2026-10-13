@@ -66,7 +66,7 @@ function checkTicketAlerts(ticket) {
   var recallMs = timestampToMs(ticket.recalledAt, 0);
   var lastCallMs = timestampToMs(ticket.lastCallAt, 0);
   var firstSight = alertBaseline.ticketId !== ticket.id;
-  var now = Date.now();
+  var now = serverNow();
 
   if (firstSight) alertBaseline = { ticketId: ticket.id, recallMs: 0, lastCallMs: 0 };
 
@@ -102,7 +102,7 @@ function ticketCountdownText(phase, remainingMs) {
   if (phase === "final") {
     return remainingMs > 0 ?
       "🚨 Last call! Return to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
-      "🚨 Your last chance has ended. Your ticket is being voided.";
+      "⌛ Your ticket has expired. It will be removed from the queue shortly.";
   }
   return "⚠️ Please return to the counter. " + formatCountdown(remainingMs) + " left.";
 }
@@ -112,7 +112,7 @@ function tickTicketCountdown() {
   if (!el) return;
 
   var phase = el.getAttribute("data-phase");
-  var remaining = AUTO_VOID_WINDOW_MS - (Date.now() - Number(el.getAttribute("data-base-ms")));
+  var remaining = AUTO_VOID_WINDOW_MS - (serverNow() - Number(el.getAttribute("data-base-ms")));
 
   if (phase === "initial" && remaining <= 0) {
     clearInterval(skipCountdownIntervalId);
@@ -627,7 +627,7 @@ function renderTicketCard(ticket) {
   }
 
   document.getElementById("ticketArea").innerHTML =
-    '<div class="ud-ticket' + (typeLabel ? ' ticket-type-' + ticket.studentType : '') + (ticket.verified ? ' verified' : '') + '">' +
+    '<div class="ud-ticket' + (typeLabel ? ' ticket-type-' + ticket.studentType : '') + '">' +
       '<div class="ud-ticket-head">' +
         '<p class="ud-ticket-station">' + escapeHtml(ticketStation ? ticketStation.name : "") + '</p>' +
         '<p class="ud-ticket-no">' + escapeHtml(ticket.ticketNo) + '</p>' +

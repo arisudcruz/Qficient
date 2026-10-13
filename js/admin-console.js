@@ -150,7 +150,7 @@ function updateAdmin() {
 
   var stats = [
     { label: "Total Queued", value: filteredTickets.length, change: dateLabel, tone: "amber", icon: "↗" },
-    { label: "Completed", value: filteredTickets.filter(function (ticket) { return ticket.status === "completed" || ticket.verified; }).length, change: dateLabel, tone: "blue", icon: "↗" },
+    { label: "Completed", value: filteredTickets.filter(function (ticket) { return ticket.status === "completed"; }).length, change: dateLabel, tone: "blue", icon: "↗" },
     { label: "Waiting", value: filteredTickets.filter(function (ticket) { return ticket.status === "waiting"; }).length, change: dateLabel, tone: "green", icon: "↗" },
     { label: "Cancelled", value: filteredTickets.filter(function (ticket) { return ticket.status === "cancelled"; }).length, change: dateLabel, tone: "navy", icon: "↗" }
   ];
@@ -242,8 +242,7 @@ function resetAdminPageState() {
   enforcerDraft = emptyEnforcerDraft("");
   queueSelection = {};
   resetQueueTransfer();
-  inviteDraft = { email: "", role: "" };
-  settingsSelectedRole = STANDBY_ROLE.id;
+  settingsSelectedRole = "admin";
   settingsRoleDrafts = {};
   settingsTimeoutDraft = null;
 }
