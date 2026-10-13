@@ -4,8 +4,7 @@ var viewFiles = [
   "views/guest.html",
   "views/dashboard.html",
   "views/admin-login.html",
-  "views/admin.html",
-  "views/invite.html"
+  "views/admin.html"
 ];
 
 var appScripts = [
@@ -21,11 +20,9 @@ var appScripts = [
   "js/admin-notifications.js",
   "js/admin-rules.js",
   "js/admin-status.js",
-  "js/admin-invites.js",
   "js/firebase.js",
   "js/admin-auth.js",
   "js/notifications.js",
-  "js/invite.js",
   "js/router.js"
 ];
 

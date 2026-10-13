@@ -242,8 +242,7 @@ function resetAdminPageState() {
   enforcerDraft = emptyEnforcerDraft("");
   queueSelection = {};
   resetQueueTransfer();
-  inviteDraft = { email: "", role: "" };
-  settingsSelectedRole = STANDBY_ROLE.id;
+  settingsSelectedRole = "admin";
   settingsRoleDrafts = {};
   settingsTimeoutDraft = null;
 }

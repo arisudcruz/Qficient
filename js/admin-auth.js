@@ -1,9 +1,5 @@
 var ADMIN_EMAIL = "admin@qficient.com";
 
-// True when the page was opened from an invitation email. The invite page handles that sign-in itself, so
-// the normal admin sign-in checks stay out of the way until the invitation is accepted.
-var inviteFlowActive = firebase.auth().isSignInWithEmailLink(window.location.href);
-
 var adminUser = null;
 var adminRole = null; // "admin", "enforcer", or the id of the station a Queue Management account belongs to
 var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
@@ -98,9 +94,11 @@ function resolveAdminAccess(firebaseUser) {
         return doc.data().role;
       }
 
-      var role = isBootstrapAdmin ? "admin" : "standby";
-      transaction.set(ref, { email: email, role: role, createdAt: now, updatedAt: now });
-      return role;
+      // Only the built-in admin account may create its own record. Everyone else needs an admin to give them a role.
+      if (!isBootstrapAdmin) return null;
+
+      transaction.set(ref, { email: email, role: "admin", createdAt: now, updatedAt: now });
+      return "admin";
     });
   });
 }
@@ -113,11 +111,10 @@ function deactivateAdminSession() {
   stopStaffListener();
   stopServerStatusListener();
   stopNotificationsListener();
-  stopInvitesListener();
 }
 
 function activateAdminSession(firebaseUser) {
-  if (inviteFlowActive || !isPasswordUser(firebaseUser)) {
+  if (!isPasswordUser(firebaseUser)) {
     deactivateAdminSession();
     return Promise.resolve(false);
   }
@@ -135,11 +132,10 @@ function activateAdminSession(firebaseUser) {
         setTicketsScope(ADMIN_HISTORY_DAYS);
         startNotificationsListener();
 
-        // Staff, server status and invitations stay with full admins.
+        // The staff list and server status stay with full admins.
         if (role === "admin") {
           startStaffListener();
           startServerStatusListener();
-          startInvitesListener();
         }
         applyAdminAccess();
       } else {
@@ -218,7 +214,7 @@ function adminLogin(event) {
         passwordInput.value = "";
         setAdminLoginError(adminDeniedRole && adminDeniedRole !== "standby" ?
           "This role doesn't have access to the admin console yet. Ask an administrator." :
-          "This account is on standby. Ask an administrator to grant you access.");
+          "This account has no role yet. Ask an administrator to assign one.");
         return firebase.auth().signOut();
       });
     })

@@ -4,11 +4,14 @@ var SYSTEM_ROLES = [
   { id: "admin", name: "Admin" },
   { id: "enforcer", name: "Queue Enforcer" }
 ];
-var STANDBY_ROLE = { id: "standby", name: "Standby" };
+// "standby" is no longer a role, but old records may still carry it, so no station may take that id or name.
 var RESERVED_ROLE_IDS = ["admin", "enforcer", "standby"];
 var RESERVED_ROLE_NAMES = ["admin", "queue enforcer", "standby"];
 
-var settingsSelectedRole = "standby";
+// Shown only when an account has no usable role (an old standby record, or a station that was deleted).
+var NO_ROLE = { id: "none", name: "No Role" };
+
+var settingsSelectedRole = "admin";
 var settingsRoleDrafts = {};
 var settingsTimeoutDraft = null;
 var settingsSignature = "";
@@ -23,19 +26,25 @@ function getAllRoles() {
   var stationRoles = getSortedStations().map(function (s) {
     return { id: s.id, name: s.name };
   });
-  return SYSTEM_ROLES.concat(stationRoles, [STANDBY_ROLE]);
+  return SYSTEM_ROLES.concat(stationRoles);
 }
 
 function accountRole(account) {
   var known = getAllRoles().some(function (r) { return r.id === account.role; });
-  return known ? account.role : STANDBY_ROLE.id;
+  return known ? account.role : NO_ROLE.id;
+}
+
+// The roles listed in the Roles table: the real ones, plus "No Role" while some account has none.
+function getListedRoles() {
+  var roles = getAllRoles();
+  if (staffAccounts.some(function (account) { return accountRole(account) === NO_ROLE.id; })) roles = roles.concat([NO_ROLE]);
+  return roles;
 }
 
 function computeSettingsSignature() {
   return JSON.stringify([
     stations.map(function (s) { return [s.id, s.name, s.active !== false, s.maxQueue || null]; }),
-    staffAccounts.map(function (a) { return [a.id, a.role]; }),
-    staffInvites.map(function (i) { return [i.id, i.role, i.status, inviteExpiresMs(i)]; }),
+    staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes
   ]);
 }
@@ -348,17 +357,13 @@ function confirmDeleteStation(stationId) {
     onConfirm: function () {
       var batch = db.batch();
       batch.delete(db.collection("stations").doc(stationId));
+      // Staff of a deleted station have nothing left to manage, so their access is removed with it.
       staffAccounts.forEach(function (account) {
-        if (account.role === stationId) {
-          batch.update(db.collection("staff").doc(account.id), {
-            role: STANDBY_ROLE.id,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        }
+        if (account.role === stationId) batch.delete(db.collection("staff").doc(account.id));
       });
 
       batch.commit().then(function () {
-        if (settingsSelectedRole === stationId) settingsSelectedRole = STANDBY_ROLE.id;
+        if (settingsSelectedRole === stationId) settingsSelectedRole = "admin";
         closeFormModal();
         say("Station deleted.");
       }).catch(function (error) {
@@ -428,17 +433,273 @@ function confirmSaveMemberRoles() {
   });
 }
 
+/* Staff accounts. The admin makes the login here (Email/Password in Firebase Authentication) and chooses the role;
+   until a role is saved for an email, signing in with it is refused. */
+
+var STAFF_PASSWORD_MIN = 8;
+var staffFormBusy = false;
+
+// A second Firebase app that only creates and updates other people's logins, so the admin's own session is
+// never replaced by the account that was just made.
+function staffAuthReady() {
+  var existing = firebase.apps.find(function (app) { return app.name === "staff-admin"; });
+  var app = existing || firebase.initializeApp(firebaseConfig, "staff-admin");
+  var auth = app.auth();
+  var ready = existing ? Promise.resolve() : auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(function () {});
+
+  return ready.then(function () { return auth; });
+}
+
+function staffAuthMessage(error) {
+  switch (error && error.code) {
+    case "staff/email-taken":
+      return "That email already has a login with a different password. Enter that login's password, or use another email.";
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/weak-password":
+      return "That password is too weak. Use at least " + STAFF_PASSWORD_MIN + " characters.";
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "The current password is wrong.";
+    case "auth/user-not-found":
+      return "No login exists for this email yet.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please wait a few minutes and try again.";
+    case "auth/network-request-failed":
+      return "Network error. Check your connection and try again.";
+    case "auth/operation-not-allowed":
+      return "Email/Password sign-in is not turned on for this project in Firebase Authentication.";
+    default:
+      return (error && error.message) || "Something went wrong. Please try again.";
+  }
+}
+
+function setStaffFormBusy(busy) {
+  staffFormBusy = busy;
+  document.querySelectorAll("#formModal .settings-btn").forEach(function (button) { button.disabled = busy; });
+}
+
+function staffDisplayName(account) {
+  return account.name || String(account.email || "").split("@")[0];
+}
+
+function passwordProblem(password, confirm, label) {
+  if (!password) return "Enter a " + label + ".";
+  if (password.length < STAFF_PASSWORD_MIN) return "The " + label + " must be at least " + STAFF_PASSWORD_MIN + " characters.";
+  if (password !== confirm) return "The passwords do not match.";
+  return "";
+}
+
+/* Add */
+
+function openAddStaffModal() {
+  var roleOptions = '<option value="">Select Role</option>' + getAllRoles().map(function (role) {
+    return '<option value="' + escapeAdminText(role.id) + '">' + escapeAdminText(role.name) + '</option>';
+  }).join("");
+
+  showFormModal("Add New Staff",
+    '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Staff Information</h3>' +
+      '<div class="modal-field"><label for="newStaffName">Name</label>' +
+        '<input type="text" id="newStaffName" class="modal-input" placeholder="Full name" maxlength="80" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="newStaffEmail">Email</label>' +
+        '<input type="email" id="newStaffEmail" class="modal-input" placeholder="name@example.com" maxlength="254" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="newStaffPassword">Password</label>' +
+        '<input type="password" id="newStaffPassword" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
+      '<div class="modal-field"><label for="newStaffConfirm">Confirm Password</label>' +
+        '<input type="password" id="newStaffConfirm" class="modal-input" placeholder="Repeat the password" autocomplete="new-password"></div>' +
+    '</div>' +
+    '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Roles</h3>' +
+      '<div class="modal-field"><label for="newStaffRole">Role</label>' +
+        '<select id="newStaffRole" class="modal-input">' + roleOptions + '</select></div>' +
+      '<div class="settings-actions modal-actions-end">' +
+        '<button type="button" class="settings-btn settings-btn-blue" onclick="clearAddStaffForm()">Clear All</button>' +
+        '<button type="button" class="settings-btn settings-btn-primary" onclick="saveNewStaff()">Add Staff</button>' +
+      '</div>' +
+    '</div>');
+}
+
+function clearAddStaffForm() {
+  ["newStaffName", "newStaffEmail", "newStaffPassword", "newStaffConfirm", "newStaffRole"].forEach(function (id) {
+    document.getElementById(id).value = "";
+  });
+}
+
+function saveNewStaff() {
+  if (staffFormBusy) return;
+
+  var name = document.getElementById("newStaffName").value.trim().replace(/\s+/g, " ");
+  var email = staffKey(document.getElementById("newStaffEmail").value);
+  var password = document.getElementById("newStaffPassword").value;
+  var confirm = document.getElementById("newStaffConfirm").value;
+  var role = document.getElementById("newStaffRole").value;
+
+  var problem = "";
+  if (!/\p{L}/u.test(name)) problem = "Enter the staff member's name.";
+  else if (!email || email.length > 254 || !EMAIL_PATTERN.test(email)) problem = "Enter a valid email address.";
+  else if (staffAccounts.some(function (account) { return account.id === email; })) problem = "That email already belongs to a staff member.";
+  else if (passwordProblem(password, confirm, "password")) problem = passwordProblem(password, confirm, "password");
+  else if (!role) problem = "Please choose a role.";
+
+  if (problem) {
+    say(problem);
+    return;
+  }
+
+  setStaffFormBusy(true);
+
+  staffAuthReady().then(function (auth) {
+    // The login may already exist (for example after access was removed). That is fine only if the
+    // admin knows its password, so nobody can be given a role on an email they do not control.
+    return auth.createUserWithEmailAndPassword(email, password).catch(function (error) {
+      if (!error || error.code !== "auth/email-already-in-use") throw error;
+      return auth.signInWithEmailAndPassword(email, password).catch(function () {
+        var taken = new Error("email taken");
+        taken.code = "staff/email-taken";
+        throw taken;
+      });
+    }).then(function () {
+      return auth.signOut();
+    });
+  }).then(function () {
+    var now = firebase.firestore.FieldValue.serverTimestamp();
+    return db.collection("staff").doc(email).set({ email: email, name: name, role: role, createdAt: now, updatedAt: now });
+  }).then(function () {
+    closeFormModal();
+    settingsSelectedRole = role;
+    settingsRoleDrafts = {};
+    renderSettings();
+    say("Staff added. They can sign in with that email and password.");
+  }).catch(function (error) {
+    say("Could not add staff: " + staffAuthMessage(error));
+  }).then(function () {
+    setStaffFormBusy(false);
+  });
+}
+
+/* Edit */
+
+function openEditStaffModal(email) {
+  var account = staffAccounts.find(function (item) { return item.id === email; });
+  if (!account) return;
+
+  var id = escapeAdminText(account.id);
+
+  showFormModal("Edit Staff Information",
+    '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Staff Information</h3>' +
+      '<div class="modal-field"><label for="editStaffName">Name</label>' +
+        '<input type="text" id="editStaffName" class="modal-input" maxlength="80" value="' + escapeAdminText(staffDisplayName(account)) + '" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="editStaffEmail">Email</label>' +
+        '<input type="email" id="editStaffEmail" class="modal-input" value="' + escapeAdminText(account.email) + '" readonly></div>' +
+      '<p class="modal-help">To change the password, fill in all three password boxes. Leave them empty to keep it.</p>' +
+      '<div class="modal-field"><label for="editStaffCurrent">Current Password</label>' +
+        '<input type="password" id="editStaffCurrent" class="modal-input" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="editStaffNew">New Password</label>' +
+        '<input type="password" id="editStaffNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
+      '<div class="modal-field"><label for="editStaffConfirm">Confirm New Password</label>' +
+        '<input type="password" id="editStaffConfirm" class="modal-input" autocomplete="new-password"></div>' +
+      '<div class="settings-actions modal-actions-end">' +
+        '<button type="button" class="settings-btn settings-btn-blue" onclick="clearEditStaffForm()">Clear All</button>' +
+        '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStaffEdit(\'' + id + '\')">Save Changes</button>' +
+      '</div>' +
+    '</div>');
+}
+
+function clearEditStaffForm() {
+  ["editStaffName", "editStaffCurrent", "editStaffNew", "editStaffConfirm"].forEach(function (id) {
+    document.getElementById(id).value = "";
+  });
+}
+
+function saveStaffEdit(email) {
+  if (staffFormBusy) return;
+
+  var account = staffAccounts.find(function (item) { return item.id === email; });
+  if (!account) return;
+
+  var name = document.getElementById("editStaffName").value.trim().replace(/\s+/g, " ");
+  var current = document.getElementById("editStaffCurrent").value;
+  var next = document.getElementById("editStaffNew").value;
+  var confirm = document.getElementById("editStaffConfirm").value;
+  var changingPassword = !!(current || next || confirm);
+
+  var problem = "";
+  if (!/\p{L}/u.test(name)) problem = "Enter the staff member's name.";
+  else if (changingPassword && !current) problem = "Enter the current password to change it.";
+  else if (changingPassword && passwordProblem(next, confirm, "new password")) problem = passwordProblem(next, confirm, "new password");
+  else if (changingPassword && next === current) problem = "The new password must be different from the current one.";
+
+  if (problem) {
+    say(problem);
+    return;
+  }
+
+  var nameChanged = name !== staffDisplayName(account);
+  if (!changingPassword && !nameChanged) {
+    closeFormModal();
+    return;
+  }
+
+  setStaffFormBusy(true);
+
+  var passwordStep = changingPassword ?
+    staffAuthReady().then(function (auth) {
+      return auth.signInWithEmailAndPassword(account.email, current).then(function (credential) {
+        return credential.user.updatePassword(next);
+      }).then(function () {
+        return auth.signOut();
+      });
+    }) :
+    Promise.resolve();
+
+  passwordStep.then(function () {
+    if (!nameChanged) return null;
+    return db.collection("staff").doc(email).update({ name: name, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  }).then(function () {
+    closeFormModal();
+    renderSettings();
+    say(changingPassword ? "Staff updated. The new password works from the next sign-in." : "Staff updated.");
+  }).catch(function (error) {
+    say("Could not save the changes: " + staffAuthMessage(error));
+  }).then(function () {
+    setStaffFormBusy(false);
+  });
+}
+
+/* Delete */
+
+function confirmDeleteStaff(email) {
+  var account = staffAccounts.find(function (item) { return item.id === email; });
+  if (!account || isProtectedAccount(account.email)) return;
+
+  showConfirmModal({
+    title: "Delete Staff?",
+    message: staffDisplayName(account) + " (" + account.email + ") loses access to the admin console right away. The login itself is kept, so you can add them again with the same password later.",
+    confirmLabel: "Delete Staff",
+    tone: "danger",
+    onConfirm: function () {
+      db.collection("staff").doc(email).delete().then(function () {
+        say("Staff deleted.");
+      }).catch(function (error) {
+        say("Could not delete staff: " + error.message);
+      });
+    }
+  });
+}
+
 function renderSettings() {
   var area = document.getElementById("adminSettingsArea");
   if (!area) return;
 
   settingsSignature = computeSettingsSignature();
 
-  var roles = getAllRoles();
+  var roles = getListedRoles();
   var selected = roles.find(function (r) { return r.id === settingsSelectedRole; });
   if (!selected) {
-    selected = STANDBY_ROLE;
-    settingsSelectedRole = STANDBY_ROLE.id;
+    selected = roles[0];
+    settingsSelectedRole = selected.id;
   }
 
   var timeoutValue = settingsTimeoutDraft !== null ? settingsTimeoutDraft : String(systemSettings.autoVoidMinutes);
@@ -479,7 +740,8 @@ function renderSettings() {
   }).sort(function (a, b) { return String(a.email).localeCompare(String(b.email)); });
 
   var roleOptions = function (current) {
-    return roles.map(function (role) {
+    var placeholder = current === NO_ROLE.id ? '<option value="' + NO_ROLE.id + '" selected disabled>' + NO_ROLE.name + '</option>' : '';
+    return placeholder + getAllRoles().map(function (role) {
       return '<option value="' + escapeAdminText(role.id) + '"' + (role.id === current ? ' selected' : '') + '>' + escapeAdminText(role.name) + '</option>';
     }).join("");
   };
@@ -495,6 +757,24 @@ function renderSettings() {
       }).join("") +
     '</tbody></table></div>' :
     '<div class="settings-empty"><div class="settings-empty-icon">⚠</div><p>Nothing to Show Here</p></div>';
+
+  var staffRowsHtml = staffAccounts.slice().sort(function (a, b) {
+    return staffDisplayName(a).localeCompare(staffDisplayName(b));
+  }).map(function (account) {
+    var id = escapeAdminText(account.id);
+    var roleName = (roles.find(function (r) { return r.id === accountRole(account); }) || NO_ROLE).name;
+    var locked = isProtectedAccount(account.email);
+
+    return '<tr><td class="settings-strong">' + escapeAdminText(staffDisplayName(account)) + '</td>' +
+      '<td>' + escapeAdminText(account.email) + '</td>' +
+      '<td>' + escapeAdminText(roleName) + '</td>' +
+      '<td><div class="settings-actions">' +
+        '<button type="button" class="settings-icon-btn settings-icon-blue" title="Edit staff" onclick="openEditStaffModal(\'' + id + '\')">✎</button>' +
+        (locked ? '' : '<button type="button" class="settings-icon-btn settings-icon-red" title="Delete staff" onclick="confirmDeleteStaff(\'' + id + '\')">🗑</button>') +
+      '</div></td></tr>';
+  }).join("");
+
+  if (!staffRowsHtml) staffRowsHtml = '<tr><td colspan="4" class="empty-row">No staff yet.</td></tr>';
 
   var membersDirty = pendingRoleChanges().length > 0;
 
@@ -540,5 +820,10 @@ function renderSettings() {
       '</section>' +
     '</div>' +
 
-    inviteSectionHtml();
+    '<section class="panel settings-panel">' +
+      '<div class="panel-header"><h2>Staffs</h2>' +
+        '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStaffModal()">+ Add New Staff</button></div>' +
+      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead>' +
+        '<tbody>' + staffRowsHtml + '</tbody></table></div>' +
+    '</section>';
 }
