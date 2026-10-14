@@ -114,7 +114,7 @@ function confirmCreateManualTicket() {
     confirmLabel: "Create Ticket",
     tone: "danger",
     onConfirm: function () {
-      createManualTicket({
+      return createManualTicket({
         firstName: d.firstName.trim().replace(/\s+/g, " "),
         lastName: d.lastName.trim().replace(/\s+/g, " "),
         studentType: d.studentType,
@@ -194,7 +194,7 @@ function enforcerListRowsHtml() {
 
     return '<tr class="queue-row' + (selectable ? '' : ' not-selectable') + (selected ? ' selected' : '') + '"' +
       (selectable ? ' data-ticket="' + id + '" onclick="toggleEnforcerSelection(\'' + id + '\', event)"' : '') + '>' +
-      '<td class="queue-select-cell"><input type="checkbox" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' +
+      '<td class="queue-select-cell"><input type="radio" name="enforcerSelect" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' +
         (selectable ? '' : ' disabled') + (selected ? ' checked' : '') + '></td>' +
       '<td class="settings-strong">' + escapeAdminText(ticket.ticketNo) + '</td>' +
       '<td>' + escapeAdminText(ticket.ownerName) + enforcerTagsHtml(ticket) + '</td>' +
@@ -234,27 +234,18 @@ function updateEnforcerSelectionUI() {
   var actionBtn = document.getElementById("enforcerActionBtn");
   if (actionBtn) {
     actionBtn.style.display = selectedCount ? "" : "none";
-    actionBtn.textContent = "Action (" + selectedCount + ")";
+    actionBtn.textContent = "Action";
   }
 }
 
 function toggleEnforcerSelection(ticketId, event) {
   if (event && event.target.closest("button")) return;
 
-  if (enforcerSelection[ticketId]) delete enforcerSelection[ticketId];
-  else enforcerSelection[ticketId] = true;
+  // One ticket at a time, like Queue Management.
+  enforcerSelection = enforcerSelection[ticketId] ? {} : (function () { var only = {}; only[ticketId] = true; return only; })();
   updateEnforcerSelectionUI();
 }
 
-function toggleEnforcerSelectAll(checkbox) {
-  enforcerSelection = {};
-  if (checkbox.checked) {
-    getEnforcerListTickets().forEach(function (ticket) {
-      if (isEnforcerSelectable(ticket)) enforcerSelection[ticket.id] = true;
-    });
-  }
-  updateEnforcerSelectionUI();
-}
 
 // Enforcers manage the tickets they created, but they cannot call or skip anyone: only Prioritize, Recall and Remove.
 function openEnforcerActionsModal() {
@@ -291,7 +282,7 @@ function confirmEnforcerAction(kind) {
     options = {
       title: "Prioritize " + (waitingIds.length === 1 ? "this ticket" : waitingIds.length + " tickets") + "?",
       message: "They move to the front of their station's queue, ahead of everyone who is not prioritized." +
-        (waitingIds.length < count ? " Skipped tickets in your selection are left as they are." : ""),
+        (waitingIds.length < count ? " Tickets on hold in your selection are left as they are." : ""),
       confirmLabel: "Prioritize",
       tone: "primary",
       run: function () { return prioritizeTickets(waitingIds); }
@@ -306,7 +297,7 @@ function confirmEnforcerAction(kind) {
     };
   } else {
     options = {
-      title: "Remove " + noun + "?",
+      title: "Are you sure you want to remove " + noun + "?",
       message: "This immediately voids the selected " + (count === 1 ? "ticket" : "tickets") + ". This cannot be undone.",
       confirmLabel: "Remove",
       tone: "danger",
@@ -369,7 +360,7 @@ function renderEnforcer() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Queue Enforcer</div>' +
-      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      adminHeaderRightHtml() +
     '</div>' +
 
     '<div class="enforcer-title-row">' +
@@ -401,7 +392,7 @@ function renderEnforcer() {
           '<div class="panel-header"><h2>Queue List</h2>' +
             '<div class="queued-tools"><button type="button" id="enforcerActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openEnforcerActionsModal()">Action</button></div></div>' +
           '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr>' +
-            '<th class="queue-select-cell"><input type="checkbox" id="enforcerSelectAll" aria-label="Select all waiting tickets" onclick="toggleEnforcerSelectAll(this)"></th>' +
+            '<th class="queue-select-cell"><span class="visually-hidden">Select</span></th>' +
             '<th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th></tr></thead>' +
             '<tbody id="enforcerListBody">' + enforcerListRowsHtml() + '</tbody></table></div>' +
         '</section>' +

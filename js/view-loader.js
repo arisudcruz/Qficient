@@ -1,6 +1,5 @@
 var viewFiles = [
   "views/home.html",
-  "views/guest.html",
   "views/dashboard.html",
   "views/admin-login.html",
   "views/admin.html",

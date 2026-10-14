@@ -180,9 +180,7 @@ function setAdminLoginError(text) {
 }
 
 function setAdminLoginBusy(busy) {
-  var button = document.getElementById("adminLoginSubmit");
-  button.disabled = busy;
-  button.textContent = busy ? "Signing in..." : "Sign in";
+  setButtonLoading(document.getElementById("adminLoginSubmit"), busy);
 }
 
 function adminLogin(event) {

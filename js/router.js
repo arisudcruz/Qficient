@@ -2,7 +2,6 @@
 //
 //   #/                         home
 //   #/login                    home with the Microsoft Sign In card open
-//   #/guest                    guest form (no longer linked from home; it moves to the Queue Enforcer later)
 //   #/dashboard                student/guest station list
 //   #/dashboard/board          live board
 //   #/dashboard/<station id>   a station's join page (or your ticket)
@@ -12,7 +11,7 @@
 //
 // The screen is still switched by goTo(); this file only keeps the hash in step with it (syncRoute) and
 // turns a hash back into a screen (applyRoute).
-var ROUTE_PAGE_IDS = { guest: "pageGuest", dashboard: "pageDashboard", admin: "pageAdmin", tv: "pageTvBoard" };
+var ROUTE_PAGE_IDS = { dashboard: "pageDashboard", admin: "pageAdmin", tv: "pageTvBoard" };
 
 var routeLock = false;     // true while the router itself is switching screens, so it doesn't write the hash back
 var pendingRoute = null;   // a link to a signed-in screen, waiting for the saved session to be restored
@@ -41,7 +40,6 @@ function currentAdminSection() {
 function routeHashForScreen() {
   switch (shownPageId()) {
     case "pageHome": return "#/";
-    case "pageGuest": return "#/guest";
     case "pageAdminLogin": return "#/admin";
     case "pageTvBoard": return "#/tv";
     case "pageAdmin": return "#/admin/" + currentAdminSection();
@@ -181,8 +179,6 @@ function applyRoute(isFirstLoad) {
     } else if (route.name === "login") {
       goTo("pageHome");
       openSignInCard();
-    } else if (route.name === "guest") {
-      goTo("pageGuest");
     } else {
       goTo("pageHome");
     }

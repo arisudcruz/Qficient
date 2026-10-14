@@ -138,6 +138,8 @@ function login() {
   });
 
   startingSession = true;
+  var signInButton = document.getElementById("lpSignInBtn");
+  setButtonLoading(signInButton, true);
 
   // Someone else may have been using this browser. Their device registration goes first; it is not awaited,
   // because the sign-in popup has to open straight from the click.
@@ -156,89 +158,17 @@ function login() {
     })
     .then(function () {
       startingSession = false;
+      setButtonLoading(signInButton, false);
     });
 }
 
 
-function guestSignInErrorMessage(code) {
-  switch (code) {
-    case "auth/operation-not-allowed":
-      return "Could not start guest access: anonymous sign-in isn't enabled for this project yet.";
-    case "auth/network-request-failed":
-      return "Could not start guest access. Check your connection and try again.";
-    default:
-      return "Could not start guest access. Please try again.";
-  }
-}
-
 var EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/;
 
-function setGuestFieldError(inputId, message) {
-  var input = document.getElementById(inputId);
-  document.getElementById(inputId + "Error").textContent = message;
-  input.classList.toggle("invalid", message !== "");
-  input.setAttribute("aria-invalid", message !== "" ? "true" : "false");
-}
-
+// Also used by the Queue Enforcer's walk-in form.
 function guestEmailProblem(email) {
   if (!email) return "Enter your email address.";
   if (email.length > 254 || !EMAIL_PATTERN.test(email)) return "Enter a valid email address.";
   return "";
 }
 
-function startGuestSession() {
-  var firstName = document.getElementById("guestFirstName").value.trim().replace(/\s+/g, " ");
-  var lastName = document.getElementById("guestLastName").value.trim().replace(/\s+/g, " ");
-  var email = document.getElementById("guestEmail").value.trim();
-
-  var problems = [
-    ["guestFirstName", /\p{L}/u.test(firstName) ? "" : "Enter your first name."],
-    ["guestLastName", /\p{L}/u.test(lastName) ? "" : "Enter your last name."],
-    ["guestEmail", guestEmailProblem(email)]
-  ];
-
-  var firstInvalid = null;
-  problems.forEach(function (problem) {
-    setGuestFieldError(problem[0], problem[1]);
-    if (problem[1] && !firstInvalid) firstInvalid = problem[0];
-  });
-
-  if (firstInvalid) {
-    document.getElementById(firstInvalid).focus();
-    return;
-  }
-
-  var name = firstName + " " + lastName;
-  var button = document.getElementById("guestContinueBtn");
-  button.disabled = true;
-  startingSession = true;
-
-  var previousUser = firebase.auth().currentUser;
-
-  forgetThisDevice(previousUser && !isPasswordUser(previousUser) ? previousUser.uid : null)
-    .then(function () {
-      return firebase.auth().signOut();
-    })
-    .then(function () {
-      return firebase.auth().signInAnonymously();
-    })
-    .then(function (credential) {
-      user = {
-        type: "guest",
-        id: credential.user.uid,
-        name: name,
-        email: email
-      };
-
-      saveGuestProfile({ uid: user.id, name: name, email: email });
-      updateDashboard();
-      goTo("pageDashboard");
-    })
-    .catch(function (error) {
-      say(guestSignInErrorMessage(error.code));
-    })
-    .then(function () {
-      startingSession = false;
-      button.disabled = false;
-    });
-}

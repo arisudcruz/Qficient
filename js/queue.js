@@ -159,7 +159,7 @@ function joinQueue(stationId, purpose) {
 
   // The server creates the ticket (and enforces one live ticket per person and the join limits), so the
   // browser can't skip those checks by writing to the database directly.
-  firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
+  return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
     stationId: stationId,
     purpose: purpose,
     guestName: user.type === "guest" ? user.name : ""
@@ -185,7 +185,7 @@ function cancelTicket() {
     return;
   }
 
-  db.collection("tickets").doc(ticket.id).update({
+  return db.collection("tickets").doc(ticket.id).update({
     status: "cancelled",
     cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(function (err) {
@@ -257,13 +257,13 @@ function skipCurrentTicket(stationId) {
     return;
   }
 
-  db.collection("tickets").doc(serving.id).update({
+  return db.collection("tickets").doc(serving.id).update({
     status: "skipped",
     skippedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
     advanceStation(stationId);
   }).catch(function (err) {
-    say("Could not skip ticket: " + err.message);
+    say("Could not put the ticket on hold: " + err.message);
   });
 }
 
@@ -285,7 +285,7 @@ function completeCurrentTicket(stationId) {
   });
   batch.update(db.collection("stations").doc(stationId), { nowServingId: null });
 
-  batch.commit().catch(function (err) {
+  return batch.commit().catch(function (err) {
     say("Could not end the transaction: " + err.message);
   });
 }
@@ -299,7 +299,7 @@ function removeCurrentTicket(stationId) {
     return;
   }
 
-  db.collection("tickets").doc(serving.id).update({
+  return db.collection("tickets").doc(serving.id).update({
     status: "void",
     voidedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {

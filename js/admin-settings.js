@@ -95,7 +95,7 @@ function confirmSaveConfiguration() {
     confirmLabel: "Save Changes",
     tone: "danger",
     onConfirm: function () {
-      db.collection("settings").doc("system").set({
+      return db.collection("settings").doc("system").set({
         autoVoidMinutes: minutes,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true }).then(function () {
@@ -221,7 +221,7 @@ function confirmCreateStation() {
     confirmLabel: "Create Station",
     tone: "danger",
     onConfirm: function () {
-      db.collection("stations").doc(id).set({
+      return db.collection("stations").doc(id).set({
         name: name,
         count: 0,
         nowServingId: null,
@@ -350,7 +350,7 @@ function confirmDeleteStation(stationId) {
   }
 
   showConfirmModal({
-    title: "Delete Station?",
+    title: "Are you sure you want to delete this station?",
     message: "This role will be permanently removed from the system. Users assigned to this role may lose their associated access and permissions.",
     confirmLabel: "Delete Station",
     tone: "danger",
@@ -362,7 +362,7 @@ function confirmDeleteStation(stationId) {
         if (account.role === stationId) batch.delete(db.collection("staff").doc(account.id));
       });
 
-      batch.commit().then(function () {
+      return batch.commit().then(function () {
         if (settingsSelectedRole === stationId) settingsSelectedRole = "admin";
         closeFormModal();
         say("Station deleted.");
@@ -422,7 +422,7 @@ function confirmSaveMemberRoles() {
         });
       });
 
-      batch.commit().then(function () {
+      return batch.commit().then(function () {
         settingsRoleDrafts = {};
         renderSettings();
         say("Roles updated.");
@@ -477,6 +477,7 @@ function staffAuthMessage(error) {
 function setStaffFormBusy(busy) {
   staffFormBusy = busy;
   document.querySelectorAll("#formModal .settings-btn").forEach(function (button) { button.disabled = busy; });
+  setButtonLoading(document.querySelector("#formModal .settings-btn-primary"), busy);
 }
 
 function staffDisplayName(account) {
@@ -675,12 +676,12 @@ function confirmDeleteStaff(email) {
   if (!account || isProtectedAccount(account.email)) return;
 
   showConfirmModal({
-    title: "Delete Staff?",
+    title: "Are you sure you want to delete this staff member?",
     message: staffDisplayName(account) + " (" + account.email + ") loses access to the admin console right away. The login itself is kept, so you can add them again with the same password later.",
     confirmLabel: "Delete Staff",
     tone: "danger",
     onConfirm: function () {
-      db.collection("staff").doc(email).delete().then(function () {
+      return db.collection("staff").doc(email).delete().then(function () {
         say("Staff deleted.");
       }).catch(function (error) {
         say("Could not delete staff: " + error.message);
@@ -781,7 +782,7 @@ function renderSettings() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">System Settings</div>' +
-      '<div class="settings-header-user"><span>QFicient Admin</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      adminHeaderRightHtml() +
     '</div>' +
 
     '<div class="settings-config-head">' +
@@ -796,7 +797,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Queue Rules &amp; Timeouts</h2></div>' +
       '<label class="settings-field-label" for="settingsTimeout">Auto-Void Timeout Minute</label>' +
-      '<p class="settings-help">*Controls the number of minutes a skipped queue entry has to return to the counter. Once it runs out, staff can send a last call that gives the entry the same amount of time again. If the last call also runs out, the system automatically marks the queue entry as void.</p>' +
+      '<p class="settings-help">*Controls the number of minutes a queue entry on hold has to return to the counter. Once it runs out, staff can send a last call that gives the entry the same amount of time again. If the last call also runs out, the system automatically marks the queue entry as void.</p>' +
       '<input type="number" id="settingsTimeout" class="settings-input" min="1" max="1440" step="1" value="' + escapeAdminText(timeoutValue) + '" oninput="onTimeoutInput(this.value)">' +
     '</section>' +
 

@@ -2054,3 +2054,97 @@ body.dark .enforcer-field input {
   color: #1D4FBF;
   font-size: 0.78rem;
 }
+
+/* A button that is working: its label hides behind a spinner. */
+button.is-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+button.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 1.05em;
+  height: 1.05em;
+  margin: auto;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+.settings-btn-blue.is-loading::after,
+.confirm-modal-btn-cancel.is-loading::after,
+.ud-cancel.is-loading::after {
+  border-color: rgba(0, 84, 166, 0.25);
+  border-top-color: #0054A6;
+}
+
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* Admin header: bell, name and Logout at the top right of every page */
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-bell {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1.5px solid #004B93;
+  border-radius: 50%;
+  background: #fff;
+  color: #004B93;
+}
+
+.admin-bell:hover { background: #EAF1FF; }
+.admin-bell.active { background: #004B93; color: #fff; }
+
+.admin-bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #E5484D;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.admin-header-divider {
+  width: 1px;
+  height: 24px;
+  background: #cbd5e1;
+}
+
+.admin-header-name {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.transfer-toggle-row.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

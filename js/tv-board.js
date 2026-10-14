@@ -23,7 +23,7 @@ function renderLiveBoardLauncher() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Live Board</div>' +
-      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      adminHeaderRightHtml() +
     '</div>' +
     '<div class="lb-launch">' +
       '<p>Click to view the live queue status and see which numbers are currently being served.</p>' +

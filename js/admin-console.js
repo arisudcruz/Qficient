@@ -19,8 +19,8 @@ function showConfirmModal(options) {
       '<h2 class="confirm-modal-title">' + escapeAdminText(options.title) + '</h2>' +
       '<p class="confirm-modal-message">' + escapeAdminText(options.message) + '</p>' +
       '<div class="confirm-modal-actions">' +
-        '<button type="button" class="confirm-modal-btn confirm-modal-btn-cancel">Cancel</button>' +
-        '<button type="button" class="confirm-modal-btn ' + toneClass + '">' + escapeAdminText(options.confirmLabel) + '</button>' +
+        '<button type="button" class="confirm-modal-btn confirm-modal-btn-cancel">No</button>' +
+        '<button type="button" class="confirm-modal-btn ' + toneClass + '">Yes, ' + escapeAdminText(options.confirmLabel) + '</button>' +
       '</div>' +
     '</div>';
 
@@ -28,9 +28,17 @@ function showConfirmModal(options) {
 
   overlay.querySelector(".confirm-modal-close").addEventListener("click", closeConfirmModal);
   overlay.querySelector(".confirm-modal-btn-cancel").addEventListener("click", closeConfirmModal);
-  overlay.querySelector("." + toneClass).addEventListener("click", function () {
-    closeConfirmModal();
-    options.onConfirm();
+  var confirmButton = overlay.querySelector("." + toneClass);
+  confirmButton.addEventListener("click", function () {
+    var result = options.onConfirm();
+    // When the action returns its save, keep the dialog open with a spinner until it finishes.
+    if (result && typeof result.then === "function") {
+      setButtonLoading(confirmButton, true);
+      overlay.querySelector(".confirm-modal-btn-cancel").disabled = true;
+      result.then(closeConfirmModal, closeConfirmModal);
+    } else {
+      closeConfirmModal();
+    }
   });
   overlay.addEventListener("click", function (event) {
     if (event.target === overlay) closeConfirmModal();
@@ -41,6 +49,21 @@ function showConfirmModal(options) {
       document.removeEventListener("keydown", handleEscape);
     }
   });
+}
+
+// The right side of every admin page header: notification bell, who is signed in, and Logout.
+function adminHeaderRightHtml() {
+  var onInbox = typeof currentAdminSection === "function" && currentAdminSection() === "notifications";
+
+  return '<div class="admin-header-right">' +
+    '<button type="button" class="admin-bell' + (onInbox ? ' active' : '') + '" title="Notifications" aria-label="Notifications" onclick="setAdminSection(\'notifications\')">' +
+      '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>' +
+      '<span class="admin-bell-badge" data-notif-badge hidden></span>' +
+    '</button>' +
+    '<span class="admin-header-divider" aria-hidden="true"></span>' +
+    '<span class="admin-header-name">' + escapeAdminText(adminDisplayName()) + '</span>' +
+    '<button type="button" class="settings-logout" onclick="adminLogout()">Logout</button>' +
+  '</div>';
 }
 
 function escapeAdminText(value) {
@@ -128,6 +151,7 @@ function formatAdminTime(ticket) {
 }
 
 function formatAdminStatus(status) {
+  if (status === "skipped") return "On Hold";
   return (status || "waiting").replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
 }
 
@@ -199,7 +223,7 @@ function updateAdmin() {
   var greeting = adminKind() === "enforcer" ? "Hello Enforcer" :
     adminKind() === "station" ? "Hello " + getStationName(adminRole) + " Staff" : "Hello Admin";
 
-  area.innerHTML = '<div class="dashboard-header"><div class="header-greeting">' + escapeAdminText(greeting) + '</div></div>' +
+  area.innerHTML = '<div class="dashboard-header"><div class="header-greeting">' + escapeAdminText(greeting) + '</div>' + adminHeaderRightHtml() + '</div>' +
     '<section class="stats-grid">' + cardsHtml + '</section>' +
     '<section class="panel chart-panel"><div class="panel-header"><h2>Station Traffic Analysis</h2><span class="traffic-selection">' + escapeAdminText(adminTrafficStation === "all" ? "All stations" : getStationName(adminTrafficStation)) + '</span></div>' + trafficHtml + '</section>' +
     '<section class="panel table-panel"><div class="panel-header table-header"><h2>Queue Transactions</h2><span class="traffic-selection">' + escapeAdminText(dateLabel) + '</span></div><div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>';

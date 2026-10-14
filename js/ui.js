@@ -3,6 +3,15 @@ function toggleTheme() {
   document.getElementById("themeToggle").textContent = isDark ? "☀️" : "🌙";
 }
 
+// Shows a spinner on a button while its work is in progress, and keeps it from being pressed twice.
+function setButtonLoading(button, loading) {
+  if (!button) return;
+  button.disabled = !!loading;
+  button.classList.toggle("is-loading", !!loading);
+  if (loading) button.setAttribute("aria-busy", "true");
+  else button.removeAttribute("aria-busy");
+}
+
 function say(text) {
   if (typeof Swal !== "undefined") {
     var lowerText = text.toLowerCase();

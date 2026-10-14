@@ -98,13 +98,34 @@ function notifDetail(ticket) {
   return detail + " · " + getStationName(ticket.stationId);
 }
 
-function updateNotificationBadge(count) {
-  var badge = document.getElementById("notifBadge");
-  if (!badge) return;
+var notifUnreadCount = 0;
 
-  badge.style.display = count > 0 ? "" : "none";
-  badge.textContent = count > 99 ? "99+" : String(count);
+function updateNotificationBadge(count) {
+  notifUnreadCount = count;
+  var text = count > 99 ? "99+" : String(count);
+
+  var badge = document.getElementById("notifBadge");
+  if (badge) {
+    badge.style.display = count > 0 ? "" : "none";
+    badge.textContent = text;
+  }
+
+  document.querySelectorAll("[data-notif-badge]").forEach(function (el) {
+    el.hidden = count <= 0;
+    el.textContent = text;
+  });
 }
+
+// Pages redraw their header often; give each new bell the current count.
+new MutationObserver(function () {
+  document.querySelectorAll("[data-notif-badge]").forEach(function (el) {
+    var text = notifUnreadCount > 99 ? "99+" : String(notifUnreadCount);
+    if (el.textContent !== text || el.hidden !== (notifUnreadCount <= 0)) {
+      el.hidden = notifUnreadCount <= 0;
+      el.textContent = text;
+    }
+  });
+}).observe(document.body, { childList: true, subtree: true });
 
 // Called whenever tickets or the notification state change.
 function refreshNotifications() {
@@ -176,14 +197,14 @@ function confirmDeleteNotification(id) {
   renderNotifications();
 
   showConfirmModal({
-    title: "Delete this notification?",
+    title: "Are you sure you want to delete this notification?",
     message: "It is removed from your list only. The ticket and other staff are not affected.",
     confirmLabel: "Delete",
     tone: "danger",
     onConfirm: function () {
       var patch = { deletedIds: {} };
       patch.deletedIds[id] = true;
-      saveNotifications(patch);
+      return saveNotifications(patch);
     }
   });
 }
@@ -248,7 +269,7 @@ function renderNotifications() {
   var headerHtml =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">Notifications</div>' +
-      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      adminHeaderRightHtml() +
     '</div>';
 
   if (!notifState.loaded) {

@@ -172,7 +172,7 @@ function renderRules() {
   area.innerHTML =
     '<div class="dashboard-header">' +
       '<div class="header-greeting">System Rules</div>' +
-      '<div class="settings-header-user"><span>' + escapeAdminText(adminDisplayName()) + '</span><button type="button" class="settings-logout" onclick="adminLogout()">Logout</button></div>' +
+      adminHeaderRightHtml() +
     '</div>' +
 
     (canEditRules() ? '' : '<p class="rules-readonly">You can read these rules, but only an administrator can change them.</p>') +
