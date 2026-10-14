@@ -9,6 +9,7 @@ function goTo(pageId) {
   }
   document.getElementById(pageId).classList.add("show");
   document.body.setAttribute("data-page", pageId);
+  if (pageId !== "pageHome" && typeof closeSignInCard === "function") closeSignInCard();
   if (typeof routerAfterGoTo === "function") routerAfterGoTo(pageId);
 }
 

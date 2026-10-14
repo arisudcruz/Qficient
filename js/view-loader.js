@@ -1,6 +1,5 @@
 var viewFiles = [
   "views/home.html",
-  "views/login.html",
   "views/guest.html",
   "views/dashboard.html",
   "views/admin-login.html",
@@ -23,6 +22,7 @@ var appScripts = [
   "js/firebase.js",
   "js/admin-auth.js",
   "js/notifications.js",
+  "js/landing.js",
   "js/router.js"
 ];
 

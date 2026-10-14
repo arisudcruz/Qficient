@@ -1,32 +1,59 @@
-<div class="page app-page show" id="pageHome">
-  <div class="app-hero">
-    <div class="hero-top">
-      <img class="hero-logo" src="/assets/qfficient-badge.png" alt="QFicient logo">
-      <span class="hero-brand">QFicient</span>
-    </div>
-    <h1 class="hero-title">Skip the line.<br>Not the service.</h1>
-    <p class="hero-sub">One ticket, real-time status, no more re-lining for every window.</p>
+<div class="page lp-page show" id="pageHome">
+  <div class="lp-shell">
+    <section class="lp-left">
+      <div class="lp-brand">
+        <img src="/assets/qfficient-badge.png" alt="" width="34" height="34">
+        <span>QFicient</span>
+      </div>
+
+      <div class="lp-copy">
+        <span class="lp-pill">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3Zm-6.8 9.3V16c0 1.9 3 4 6.8 4s6.8-2.1 6.8-4v-3.7L12 16l-6.8-3.7Z"/></svg>
+          Smart Campus Service
+        </span>
+
+        <h1 class="lp-title">Making Every <em>Queue Efficient.</em></h1>
+
+        <p class="lp-sub">A faster and more convenient way to access university services. Get your queue number, track your position, and wait for your turn with ease.</p>
+
+        <button type="button" class="lp-cta" onclick="openSignInCard()" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z"/></svg>
+          Access Queue With Microsoft Account
+        </button>
+      </div>
+
+      <ul class="lp-features" aria-label="What you can do">
+        <li>
+          <span class="lp-feature-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6Z"/><path d="M14 5v2M14 11v2M14 17v2"/></svg>
+          </span>
+          <span>Get A<br>Number</span>
+        </li>
+        <li>
+          <span class="lp-feature-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+          </span>
+          <span>Track Your<br>Queue</span>
+        </li>
+        <li>
+          <span class="lp-feature-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </span>
+          <span>Save<br>Time</span>
+        </li>
+      </ul>
+    </section>
+
+    <div class="lp-photo" role="img" aria-label="STI Academic Center building"></div>
   </div>
 
-  <div class="app-body">
-    <p class="section-label">Get started as</p>
-
-    <button type="button" class="role-card" onclick="goTo('pageLogin')">
-      <span class="role-icon role-icon-student">🎓</span>
-      <span class="role-copy">
-        <span class="role-title">Student</span>
-        <span class="role-desc">Log in and join a queue.</span>
-      </span>
-      <span class="role-chevron">›</span>
-    </button>
-
-    <button type="button" class="role-card" onclick="goTo('pageGuest')">
-      <span class="role-icon role-icon-guest">🧾</span>
-      <span class="role-copy">
-        <span class="role-title">Guest / New Applicant</span>
-        <span class="role-desc">No account needed — join a queue as a guest.</span>
-      </span>
-      <span class="role-chevron">›</span>
+  <div class="lp-signin-backdrop" id="lpSignInBackdrop" hidden onclick="closeSignInCard()"></div>
+  <div class="lp-signin" id="lpSignIn" role="dialog" aria-modal="true" aria-labelledby="lpSignInTitle" hidden>
+    <h2 id="lpSignInTitle">Sign In to Continue</h2>
+    <p>Use your STI Microsoft 365 account to join a queue.</p>
+    <button type="button" class="lp-signin-btn" id="lpSignInBtn" onclick="login()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>
+      Sign In with Microsoft 365
     </button>
   </div>
 </div>
