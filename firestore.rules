@@ -17,10 +17,6 @@ service cloud.firestore {
       return signedIn() && provider() == 'password';
     }
 
-    function isVerifiedEmail() {
-      return request.auth.token.email_verified == true;
-    }
-
     function userEmail() {
       return request.auth.token.email.lower();
     }

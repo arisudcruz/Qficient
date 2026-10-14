@@ -3,6 +3,15 @@ function toggleTheme() {
   document.getElementById("themeToggle").textContent = isDark ? "☀️" : "🌙";
 }
 
+// Shows a spinner on a button while its work is in progress, and keeps it from being pressed twice.
+function setButtonLoading(button, loading) {
+  if (!button) return;
+  button.disabled = !!loading;
+  button.classList.toggle("is-loading", !!loading);
+  if (loading) button.setAttribute("aria-busy", "true");
+  else button.removeAttribute("aria-busy");
+}
+
 function say(text) {
   if (typeof Swal !== "undefined") {
     var lowerText = text.toLowerCase();
@@ -12,13 +21,12 @@ function say(text) {
     var isWarning = lowerText.indexOf("please") !== -1 ||
       lowerText.indexOf("already") !== -1;
 
-    Swal.fire({
+    return Swal.fire({
       icon: isError ? "error" : (isWarning ? "warning" : "success"),
       title: isError ? "Something went wrong" : (isWarning ? "Please check" : "Done"),
       text: text,
       confirmButtonColor: "#1D2E5B"
     });
-    return;
   }
 
   var box = document.getElementById("message");
@@ -27,4 +35,5 @@ function say(text) {
   setTimeout(function () {
     box.style.display = "none";
   }, 3500);
+  return Promise.resolve();
 }

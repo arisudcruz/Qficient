@@ -159,7 +159,7 @@ function joinQueue(stationId, purpose) {
 
   // The server creates the ticket (and enforces one live ticket per person and the join limits), so the
   // browser can't skip those checks by writing to the database directly.
-  firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
+  return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
     stationId: stationId,
     purpose: purpose,
     guestName: user.type === "guest" ? user.name : ""
@@ -167,7 +167,7 @@ function joinQueue(stationId, purpose) {
     var result = response.data || {};
     // Hold the lock briefly so the new ticket reaches the snapshot before another join is allowed.
     setTimeout(function () { joiningQueue = false; }, 1500);
-    say("Ticket " + result.ticketNo + " created for " + result.stationName + "!");
+    return Promise.resolve(say("Ticket " + result.ticketNo + " created for " + result.stationName + "!")).then(function () { return true; });
   }).catch(function (err) {
     joiningQueue = false;
     var code = String(err && err.code || "").replace("functions/", "");
@@ -185,7 +185,7 @@ function cancelTicket() {
     return;
   }
 
-  db.collection("tickets").doc(ticket.id).update({
+  return db.collection("tickets").doc(ticket.id).update({
     status: "cancelled",
     cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(function (err) {
@@ -257,13 +257,13 @@ function skipCurrentTicket(stationId) {
     return;
   }
 
-  db.collection("tickets").doc(serving.id).update({
+  return db.collection("tickets").doc(serving.id).update({
     status: "skipped",
     skippedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
     advanceStation(stationId);
   }).catch(function (err) {
-    say("Could not skip ticket: " + err.message);
+    say("Could not put the ticket on hold: " + err.message);
   });
 }
 
@@ -285,7 +285,7 @@ function completeCurrentTicket(stationId) {
   });
   batch.update(db.collection("stations").doc(stationId), { nowServingId: null });
 
-  batch.commit().catch(function (err) {
+  return batch.commit().catch(function (err) {
     say("Could not end the transaction: " + err.message);
   });
 }
@@ -299,7 +299,7 @@ function removeCurrentTicket(stationId) {
     return;
   }
 
-  db.collection("tickets").doc(serving.id).update({
+  return db.collection("tickets").doc(serving.id).update({
     status: "void",
     voidedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
@@ -598,10 +598,26 @@ function checkAutoVoid() {
     if (autoVoidRequested[key] && Date.now() - autoVoidRequested[key] < AUTO_VOID_RETRY_MS) return;
     autoVoidRequested[key] = Date.now();
 
-    db.collection("tickets").doc(ticket.id).update({
-      status: "void",
-      voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      autoVoided: true
+    // Re-read the ticket first: staff may have called it again in the same moment, and a ticket that is
+    // being served must never be voided by a stale copy.
+    var ref = db.collection("tickets").doc(ticket.id);
+    var lastCallMs = ticket.lastCallAt.toMillis();
+
+    db.runTransaction(function (transaction) {
+      return transaction.get(ref).then(function (doc) {
+        var current = doc.exists ? doc.data() : null;
+        var currentLastCall = current && current.lastCallAt && typeof current.lastCallAt.toMillis === "function" ? current.lastCallAt.toMillis() : 0;
+
+        if (!current || current.status !== "skipped" || !current.lastCalled || currentLastCall !== lastCallMs) return false;
+        if (serverNow() - currentLastCall < AUTO_VOID_WINDOW_MS) return false;
+
+        transaction.update(ref, {
+          status: "void",
+          voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          autoVoided: true
+        });
+        return true;
+      });
     }).catch(function (err) {
       // Usually the server voided it first; try again later in case it really failed.
       console.error("Auto-void of " + ticket.ticketNo + " did not go through: " + err.message);

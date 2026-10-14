@@ -1,16 +1,17 @@
 // Hash routes: the address bar follows the screen, and the browser's back, forward and refresh follow it back.
 //
 //   #/                         home
-//   #/login   #/guest          sign-in screens
+//   #/login                    home with the Microsoft Sign In card open
 //   #/dashboard                student/guest station list
 //   #/dashboard/board          live board
 //   #/dashboard/<station id>   a station's join page (or your ticket)
 //   #/admin                    admin sign-in
-//   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, rules, settings
+//   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, liveboard, rules, settings
+//   #/tv                       full-screen Live Board for a TV (needs a staff sign-in)
 //
 // The screen is still switched by goTo(); this file only keeps the hash in step with it (syncRoute) and
 // turns a hash back into a screen (applyRoute).
-var ROUTE_PAGE_IDS = { login: "pageLogin", guest: "pageGuest", dashboard: "pageDashboard", admin: "pageAdmin" };
+var ROUTE_PAGE_IDS = { dashboard: "pageDashboard", admin: "pageAdmin", tv: "pageTvBoard" };
 
 var routeLock = false;     // true while the router itself is switching screens, so it doesn't write the hash back
 var pendingRoute = null;   // a link to a signed-in screen, waiting for the saved session to be restored
@@ -39,9 +40,8 @@ function currentAdminSection() {
 function routeHashForScreen() {
   switch (shownPageId()) {
     case "pageHome": return "#/";
-    case "pageLogin": return "#/login";
-    case "pageGuest": return "#/guest";
     case "pageAdminLogin": return "#/admin";
+    case "pageTvBoard": return "#/tv";
     case "pageAdmin": return "#/admin/" + currentAdminSection();
     case "pageDashboard": {
       var board = document.getElementById("dashboardTabBoard");
@@ -119,7 +119,7 @@ function settlePendingRoute() {
   clearPendingRoute();
 
   withRouteLock(function () {
-    goTo(route.name === "admin" ? "pageAdminLogin" : "pageHome");
+    goTo(route.name === "admin" || route.name === "tv" ? "pageAdminLogin" : "pageHome");
   });
   replaceHash(routeHashForScreen() || "#/");
 }
@@ -161,6 +161,10 @@ function applyRoute(isFirstLoad) {
       } else {
         goTo("pageHome");
       }
+    } else if (route.name === "tv") {
+      if (signedStaff) goTo("pageTvBoard");
+      else if (isFirstLoad) pendingRoute = route;
+      else goTo("pageAdminLogin");
     } else if (route.name === "admin") {
       if (signedStaff) {
         goTo("pageAdmin");
@@ -173,9 +177,8 @@ function applyRoute(isFirstLoad) {
     } else if (signedStudent) {
       goTo("pageDashboard");      // a signed-in student has no use for the sign-in screens
     } else if (route.name === "login") {
-      goTo("pageLogin");
-    } else if (route.name === "guest") {
-      goTo("pageGuest");
+      goTo("pageHome");
+      openSignInCard();
     } else {
       goTo("pageHome");
     }

@@ -2054,3 +2054,161 @@ body.dark .enforcer-field input {
   color: #1D4FBF;
   font-size: 0.78rem;
 }
+
+/* A button that is working: its label hides behind a spinner. */
+button.is-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+button.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 1.05em;
+  height: 1.05em;
+  margin: auto;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+.settings-btn-blue.is-loading::after,
+.confirm-modal-btn-cancel.is-loading::after,
+.ud-cancel.is-loading::after {
+  border-color: rgba(0, 84, 166, 0.25);
+  border-top-color: #0054A6;
+}
+
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* Admin header: bell, name and Logout at the top right of every page */
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-bell {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1.5px solid #004B93;
+  border-radius: 50%;
+  background: #fff;
+  color: #004B93;
+}
+
+.admin-bell:hover { background: #EAF1FF; }
+.admin-bell.active { background: #004B93; color: #fff; }
+
+.admin-bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #E5484D;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.admin-header-divider {
+  width: 1px;
+  height: 24px;
+  background: #cbd5e1;
+}
+
+.admin-header-name {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.transfer-toggle-row.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Reports ---------- */
+
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.report-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748B);
+}
+
+.report-filters input,
+.report-filters select {
+  width: auto;
+  min-width: 150px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.report-filters-spacer { flex: 1 1 auto; }
+
+.report-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin: 0 0 22px;
+}
+
+.report-cards .stat-card { min-height: 0; }
+.report-cards .stat-value { font-size: 2.2rem; margin: 6px 0 0; }
+
+.report-table th,
+.report-table td { white-space: nowrap; }
+
+.report-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid #cbd5e1;
+}
+
+.report-caption {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #64748B;
+}
+
+.report-note {
+  margin: 6px 2px 24px;
+  font-size: 0.78rem;
+  color: #64748B;
+}

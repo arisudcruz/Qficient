@@ -14,6 +14,10 @@ function getFcmMessaging() {
   if (!fcmMessaging && isFcmSupported()) {
     fcmMessaging = firebase.messaging();
     fcmMessaging.onMessage(function (payload) {
+      // With the dashboard open and in view, it has already announced this change itself (with sound).
+      if (user && document.visibilityState === "visible") return;
+      if (typeof playChime === "function") playChime(true);
+      if (typeof buzz === "function") buzz(true);
       if (typeof Toastify === "undefined") return;
       var data = payload.data || {};
       var title = data.title || (payload.notification && payload.notification.title) || "QFicient";

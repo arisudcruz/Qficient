@@ -83,6 +83,9 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("tickets").doc("t1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
   check("serving: owner is told it's their turn", await until(hasPush("t1:serving")));
   check("next: the following ticket is told they're next", await until(hasPush("t2:next:cashier")));
+  check("soon: the ticket 2nd in line is told it's almost up", await until(hasPush("t3:soon:CA-003")));
+  const soon = (await pushesFor("t3:soon:CA-003"))[0];
+  check("soon: message says 2nd in line", soon && /2nd in line/.test(soon.title), soon && soon.title);
   const serving = (await pushesFor("t1:serving"))[0];
   check("serving: message names the station and ticket", serving && /CA-001/.test(serving.body) && /Cashier/.test(serving.body), serving && serving.body);
   check("serving: the push goes to the owner's device token", serving && serving.token === "tok-u1");
@@ -102,6 +105,7 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("tickets").doc("t2").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
   check("serving: second ticket is told it's their turn", await until(hasPush("t2:serving")));
   check("next: third ticket is told they're next", await until(hasPush("t3:next:cashier")));
+  check("soon: a ticket is reminded only once", (await pushesFor("t3:soon:CA-003")).length === 1);
 
   // Last call, then the scheduled sweep voids it.
   await db.collection("tickets").doc("t1").update({ lastCalled: true, lastCallAt: FieldValue.serverTimestamp() });

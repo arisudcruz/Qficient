@@ -1,10 +1,9 @@
 var viewFiles = [
   "views/home.html",
-  "views/login.html",
-  "views/guest.html",
   "views/dashboard.html",
   "views/admin-login.html",
-  "views/admin.html"
+  "views/admin.html",
+  "views/tv-board.html"
 ];
 
 var appScripts = [
@@ -13,16 +12,20 @@ var appScripts = [
   "js/auth.js",
   "js/queue.js",
   "js/student-dashboard.js",
+  "js/alerts.js",
   "js/admin-console.js",
   "js/admin-queue.js",
   "js/admin-settings.js",
   "js/admin-enforcer.js",
   "js/admin-notifications.js",
   "js/admin-rules.js",
+  "js/admin-reports.js",
   "js/admin-status.js",
   "js/firebase.js",
   "js/admin-auth.js",
   "js/notifications.js",
+  "js/landing.js",
+  "js/tv-board.js",
   "js/router.js"
 ];
 

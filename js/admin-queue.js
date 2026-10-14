@@ -74,25 +74,20 @@ function updateQueueSelectionUI() {
   var actionBtn = document.getElementById("queueActionBtn");
   if (actionBtn) {
     actionBtn.style.display = selectedCount ? "" : "none";
-    actionBtn.textContent = "Action (" + selectedCount + ")";
+    actionBtn.textContent = "Action";
   }
 }
 
 function toggleQueueSelection(ticketId, event) {
   if (event && event.target.closest("button")) return;
 
-  if (queueSelection[ticketId]) delete queueSelection[ticketId];
-  else queueSelection[ticketId] = true;
+  // One ticket at a time: picking another row moves the selection; picking the same row clears it.
+  var wasSelected = !!queueSelection[ticketId];
+  queueSelection = {};
+  if (!wasSelected) queueSelection[ticketId] = true;
   updateQueueSelectionUI();
 }
 
-function toggleQueueSelectAll(checkbox) {
-  queueSelection = {};
-  if (checkbox.checked) {
-    getQueueListTickets().forEach(function (t) { queueSelection[t.id] = true; });
-  }
-  updateQueueSelectionUI();
-}
 
 function queueActionButtonHtml(label, onclick, disabled, title) {
   return '<button type="button" class="queue-action-btn"' + (disabled ? ' disabled' : '') +
@@ -107,14 +102,13 @@ function openQueueActionsModal() {
   var numbers = selected.map(function (t) { return escapeAdminText(t.ticketNo); }).join(", ");
 
   showFormModal("Queue Actions",
-    '<p class="modal-help">' + selected.length + ' ticket' + (selected.length === 1 ? '' : 's') + ' selected: ' + numbers + '</p>' +
+    '<p class="modal-help">Selected ticket: ' + numbers + '</p>' +
     '<div class="queue-actions-grid">' +
       queueActionButtonHtml('📞 Call Next', "confirmSelectedAction('call')", selected.length > 1, "Call Next works on one ticket at a time") +
       queueActionButtonHtml('⬆ Prioritize', "confirmSelectedAction('prioritize')", waitingCount === 0, "Only waiting tickets can be prioritized") +
       queueActionButtonHtml('↺ Recall', "confirmSelectedAction('recall')", false, "") +
       queueActionButtonHtml('🗑 Remove', "confirmSelectedAction('remove')", false, "") +
-    '</div>' +
-    (selected.length > 1 ? '<p class="modal-help queue-actions-note">Call Next is only available when a single ticket is selected.</p>' : ''));
+    '</div>');
 }
 
 function confirmSelectedAction(kind) {
@@ -147,7 +141,7 @@ function confirmSelectedAction(kind) {
     options = {
       title: "Prioritize " + (waitingIds.length === 1 ? "this ticket" : waitingIds.length + " tickets") + "?",
       message: "They move to the front of the queue, ahead of everyone who isn't prioritized." +
-        (waitingIds.length < count ? " Skipped tickets in your selection are left as they are." : ""),
+        (waitingIds.length < count ? " Tickets on hold in your selection are left as they are." : ""),
       confirmLabel: "Prioritize",
       tone: "primary",
       run: function () { return prioritizeTickets(waitingIds); }
@@ -162,7 +156,7 @@ function confirmSelectedAction(kind) {
     };
   } else {
     options = {
-      title: "Remove " + noun + "?",
+      title: "Are you sure you want to remove " + noun + "?",
       message: "This immediately voids the selected " + (count === 1 ? "ticket" : "tickets") + ". This can't be undone.",
       confirmLabel: "Remove",
       tone: "danger",
@@ -176,7 +170,7 @@ function confirmSelectedAction(kind) {
     confirmLabel: options.confirmLabel,
     tone: options.tone,
     onConfirm: function () {
-      options.run().then(function (done) {
+      return options.run().then(function (done) {
         if (!done) return;
         closeFormModal();
         queueSelection = {};
@@ -247,7 +241,7 @@ function confirmTransfer(stationId) {
     confirmLabel: "Transfer",
     tone: "primary",
     onConfirm: function () {
-      transferServingTicket(stationId, dest.id, queueTransfer.purpose).then(function (result) {
+      return transferServingTicket(stationId, dest.id, queueTransfer.purpose).then(function (result) {
         if (!result) return;
         resetQueueTransfer();
         renderQueueManagement();
@@ -281,11 +275,11 @@ function confirmComplete(stationId) {
   if (!serving) return;
 
   showConfirmModal({
-    title: "End the transaction for " + serving.ticketNo + "?",
+    title: "Are you sure you want to end the transaction for " + serving.ticketNo + "?",
     message: "This marks " + serving.ownerName + "'s ticket as completed and clears the serving window. Use Call Next to serve the next person.",
     confirmLabel: "End Transaction",
     tone: "primary",
-    onConfirm: function () { completeCurrentTicket(stationId); }
+    onConfirm: function () { return completeCurrentTicket(stationId); }
   });
 }
 
@@ -294,11 +288,11 @@ function confirmSkip(stationId) {
   if (!serving) return;
 
   showConfirmModal({
-    title: "Skip ticket " + serving.ticketNo + "?",
+    title: "Are you sure you want to put ticket " + serving.ticketNo + " on hold?",
     message: "They'll have " + formatVoidWindow() + " to return to the counter. After that you can give them a last call before the ticket is voided.",
-    confirmLabel: "Skip",
+    confirmLabel: "Put On Hold",
     tone: "danger",
-    onConfirm: function () { skipCurrentTicket(stationId); }
+    onConfirm: function () { return skipCurrentTicket(stationId); }
   });
 }
 
@@ -307,11 +301,11 @@ function confirmRemove(stationId) {
   if (!serving) return;
 
   showConfirmModal({
-    title: "Remove ticket " + serving.ticketNo + "?",
+    title: "Are you sure you want to remove ticket " + serving.ticketNo + "?",
     message: "This immediately voids the ticket. This can't be undone.",
     confirmLabel: "Remove",
     tone: "danger",
-    onConfirm: function () { removeCurrentTicket(stationId); }
+    onConfirm: function () { return removeCurrentTicket(stationId); }
   });
 }
 
@@ -417,6 +411,8 @@ function renderQueueManagement() {
     return '<option value="' + escapeAdminText(s.id) + '"' + (s.id === queueTransfer.stationId ? ' selected' : '') + '>' + escapeAdminText(s.name) + '</option>';
   }).join("");
 
+  if (!serving) queueTransfer.open = false;
+
   var queueListTickets = getQueueListTickets();
   var hasWaiting = !!getNextWaitingTicket(activeQueueStation);
 
@@ -438,7 +434,7 @@ function renderQueueManagement() {
 
       statusCell =
         '<div class="skip-cell">' +
-          '<span class="status-badge skip">Skipped</span>' +
+          '<span class="status-badge skip">On Hold</span>' +
           countdownHtml +
           '<button type="button" class="recall-inline-btn" onclick="confirmRecall(\'' + ticket.id + '\')">Recall</button>' +
           lastCallHtml +
@@ -454,7 +450,7 @@ function renderQueueManagement() {
     var id = escapeAdminText(ticket.id);
 
     return '<tr class="queue-row' + typeClass + (queueSelection[ticket.id] ? ' selected' : '') + '" data-ticket="' + id + '" onclick="toggleQueueSelection(\'' + id + '\', event)">' +
-      '<td class="queue-select-cell"><input type="checkbox" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' + (queueSelection[ticket.id] ? ' checked' : '') + '></td>' +
+      '<td class="queue-select-cell"><input type="radio" name="queueSelect" class="queue-select-box" aria-label="Select ticket ' + escapeAdminText(ticket.ticketNo) + '"' + (queueSelection[ticket.id] ? ' checked' : '') + '></td>' +
       '<td class="queue-row-no">' + escapeAdminText(ticket.ticketNo) + '</td>' +
       '<td>' + escapeAdminText(ticket.ownerName) + typeTag + priorityTag + '</td>' +
       '<td>' + statusCell + '</td></tr>';
@@ -463,7 +459,7 @@ function renderQueueManagement() {
   if (!rowsHtml) rowsHtml = '<tr><td colspan="4" class="empty-row">No tickets currently queued for this station.</td></tr>';
 
   area.innerHTML =
-    '<div class="dashboard-header"><div class="header-greeting">Queue Management</div></div>' +
+    '<div class="dashboard-header"><div class="header-greeting">Queue Management</div>' + adminHeaderRightHtml() + '</div>' +
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
     '<div class="queue-mgmt-grid">' +
       '<section class="panel serving-panel">' +
@@ -478,11 +474,11 @@ function renderQueueManagement() {
           '<button type="button" class="queue-action-btn queue-action-complete"' + (serving ? '' : ' disabled') + ' onclick="confirmComplete(\'' + activeQueueStation + '\')">✓ End Transaction</button>' +
           '<button type="button" class="queue-action-btn"' + (hasWaiting ? '' : ' disabled title="No one is waiting to be called"') + ' onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRecall(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
-          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏭ Skip</button>' +
+          '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏸ On Hold</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRemove(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
         '</div>' +
-        '<label class="transfer-toggle-row">' +
-          '<span class="switch"><input type="checkbox" id="queueTransferToggle"' + (queueTransfer.open ? ' checked' : '') + ' onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
+        '<label class="transfer-toggle-row' + (serving ? '' : ' is-disabled') + '"' + (serving ? '' : ' title="Transfer is available while a ticket is being served"') + '>' +
+          '<span class="switch"><input type="checkbox" id="queueTransferToggle"' + (queueTransfer.open ? ' checked' : '') + (serving ? '' : ' disabled') + ' onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
           '<span>Transfer Ticket</span>' +
         '</label>' +
         '<div class="transfer-section" id="queueTransferSection" style="' + (queueTransfer.open ? '' : 'display: none') + '">' +
@@ -498,7 +494,7 @@ function renderQueueManagement() {
           '<div class="queued-tools"><span class="traffic-selection">' + queueListTickets.length + ' in Queue</span>' +
           '<button type="button" id="queueActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openQueueActionsModal()">Action</button></div></div>' +
         '<div class="table-wrap"><table class="queue-table"><thead><tr>' +
-          '<th class="queue-select-cell"><input type="checkbox" id="queueSelectAll" aria-label="Select all tickets" onclick="toggleQueueSelectAll(this)"></th>' +
+          '<th class="queue-select-cell"><span class="visually-hidden">Select</span></th>' +
           '<th>Queue No.</th><th>Student</th><th>Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
       '</section>' +
     '</div>';

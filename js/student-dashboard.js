@@ -79,23 +79,26 @@ function checkTicketAlerts(ticket) {
 
 var skipCountdownIntervalId = null;
 
-function showStudentToast(text) {
+var TOAST_COLORS = { alert: "#E5484D", info: "#0054A6", good: "#1F9D55" };
+
+function showStudentToast(text, tone) {
   if (typeof Toastify === "undefined") return;
   Toastify({
     text: text,
-    duration: 8000,
+    duration: 9000,
     gravity: "top",
     position: "center",
-    style: { background: "#E5484D" }
+    close: true,
+    style: { background: TOAST_COLORS[tone] || TOAST_COLORS.alert }
   }).showToast();
 }
 
 function notifyRecall() {
-  showStudentToast("⏰ Please go to the counter. You're being called.");
+  studentAlert("⏰ Please go to the counter. You're being called.", "alert", true);
 }
 
 function notifyLastCall() {
-  showStudentToast("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.");
+  studentAlert("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true);
 }
 
 function ticketCountdownText(phase, remainingMs) {
@@ -350,7 +353,28 @@ function generateTicket() {
     return;
   }
 
-  joinQueue(dashStationId, purpose);
+  var button = document.querySelector("#udJoinCard .ud-generate");
+  var pending = joinQueue(dashStationId, purpose);
+  if (pending) {
+    setButtonLoading(button, true);
+    pending.then(function (created) {
+      setButtonLoading(button, false);
+      if (created) offerBackgroundAlerts();
+    });
+  }
+}
+
+function confirmCancelTicket() {
+  var ticket = myTicket();
+  if (!ticket) return;
+
+  showConfirmModal({
+    title: "Are you sure you want to cancel your queue?",
+    message: "Ticket " + ticket.ticketNo + " will leave the line. You'll have to wait a moment before you can join again.",
+    confirmLabel: "Cancel Queue",
+    tone: "danger",
+    onConfirm: function () { return cancelTicket(); }
+  });
 }
 
 /* ---------- Rendering ---------- */
@@ -594,7 +618,7 @@ function renderTicketCard(ticket) {
     statusText = "Now Serving";
   } else if (skip) {
     statusClass += " is-skipped";
-    statusText = "Skipped";
+    statusText = "On Hold";
     alertHtml = skip.phase === "expired" ?
       '<p class="ud-ticket-alert">⏳ Your time is up. Please go to the counter now. Staff may give you a last call.</p>' :
       '<p class="ud-ticket-alert" id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + escapeHtml(ticketCountdownText(skip.phase, skip.remainingMs)) + '</p>';
@@ -609,7 +633,7 @@ function renderTicketCard(ticket) {
     posBig = "NOW";
     posLabel = "Your turn";
   } else if (skip) {
-    posBig = "Skipped";
+    posBig = "On Hold";
     posLabel = "Go to counter";
   } else {
     posBig = place === -1 ? "—" : ordinalLabel(place + 1);
@@ -649,7 +673,7 @@ function renderTicketCard(ticket) {
         '<div class="ud-pos-box"><b>' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</b><span>Now serving</span></div>' +
       '</div>' +
     '</div>' +
-    (ticket.status === "serving" ? '' : '<button type="button" class="ud-cancel" onclick="cancelTicket()">Cancel Queue</button>');
+    (ticket.status === "serving" ? '' : '<button type="button" class="ud-cancel" onclick="confirmCancelTicket()">Cancel Queue</button>');
 }
 
 function resetDashboardState() {
@@ -660,6 +684,7 @@ function resetDashboardState() {
   joinDraft = { stationId: "", purpose: "", other: "" };
   lastStationsHtml = null;
   lastJoinCardKey = null;
+  resetTicketWatch();
 }
 
 // Runs after every change; a screen change the app made by itself (a ticket ending, say) updates the
@@ -693,7 +718,12 @@ function renderDashboard() {
   }
 
   // Recall and last-call alerts fire wherever the student happens to be looking.
-  if (ticket) checkTicketAlerts(ticket);
+  if (ticket) {
+    checkTicketAlerts(ticket);
+    watchTicketEvents(ticket);
+  } else {
+    ticketEnded();
+  }
 
   // Someone with a live ticket (including after a refresh) lands on that station's page; once the ticket
   // ends they go back to the station list.

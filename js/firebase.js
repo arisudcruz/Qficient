@@ -20,6 +20,7 @@ db.collection("stations").onSnapshot(function (snapshot) {
   });
   updateDashboard();
   updateAdmin();
+  if (typeof renderTvBoard === "function") renderTvBoard();
   renderQueueManagement();
   refreshSettings();
   refreshEnforcerList();
@@ -37,6 +38,7 @@ db.collection("settings").doc("system").onSnapshot(function (doc) {
 });
 
 var ticketsUnsubscribe = null;
+var ticketsLoaded = false; // true once the first list of tickets has arrived
 
 // Students, guests and enforcers only ever use today's tickets, so that is all they download. Admins keep
 // a longer window for the dashboard, analytics and the notification inbox.
@@ -79,8 +81,10 @@ function startTicketsListener() {
     tickets = snapshot.docs.map(function (doc) {
       return Object.assign({ id: doc.id }, doc.data());
     });
+    ticketsLoaded = true;
     updateDashboard();
     updateAdmin();
+    if (typeof renderTvBoard === "function") renderTvBoard();
     renderQueueManagement();
     refreshNotifications();
     refreshEnforcerList();

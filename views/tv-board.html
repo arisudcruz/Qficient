@@ -1,0 +1,18 @@
+<div class="page tv-page" id="pageTvBoard">
+  <header class="tv-head">
+    <div class="tv-brand">
+      <img src="/assets/qfficient-badge.png" alt="" width="40" height="40">
+      <span>QFicient</span>
+    </div>
+    <div class="tv-head-right">
+      <button type="button" class="tv-fullscreen" onclick="toggleTvFullscreen()" title="Full screen" aria-label="Full screen">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+      <span class="tv-clock" id="tvClock"></span>
+    </div>
+  </header>
+
+  <main class="tv-main" id="tvBoard" aria-live="polite"></main>
+
+  <footer class="tv-foot">Making Every Queue Efficient.</footer>
+</div>

@@ -15,13 +15,18 @@ module.exports = {
   }),
 
   skipped: (t, station, voidMinutes) => ({
-    title: "You were skipped",
+    title: "Your ticket is on hold",
     body: "Return to " + station + " within " + minutes(voidMinutes) + " to keep ticket " + t.ticketNo + "."
   }),
 
   lastCall: (t, station, voidMinutes) => ({
     title: "Last call",
     body: "Return to " + station + " within " + minutes(voidMinutes) + " or ticket " + t.ticketNo + " will be voided."
+  }),
+
+  soon: (t, station, place) => ({
+    title: "You're " + (place === 2 ? "2nd" : "3rd") + " in line",
+    body: "Ticket " + t.ticketNo + " at " + station + " is almost up. Please stay nearby."
   }),
 
   next: (t, station) => ({

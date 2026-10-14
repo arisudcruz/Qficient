@@ -66,7 +66,7 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     return notifyUser(ownerId, message, tag);
   }
 
-  // Tells the first waiting student of a station that they are next, once per station, while someone is being served.
+  // While someone is being served: tells the 2nd and 3rd in line they're almost up, and the 1st that they're next.
   async function notifyNextInLine(stationId, stationName, nowMs) {
     const base = db.collection("tickets")
       .where("stationId", "==", stationId)
@@ -76,11 +76,30 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
       base.where("status", "==", "serving").limit(1).get(),
       base.where("status", "==", "waiting").get()
     ]);
+    // Nobody is being served, so the queue isn't moving: no reminders yet.
     if (serving.empty || waiting.empty) return false;
 
-    const first = waiting.docs
+    const line = waiting.docs
       .map(function (doc) { return Object.assign({ id: doc.id, ref: doc.ref }, doc.data()); })
-      .sort(compareQueueOrder)[0];
+      .sort(compareQueueOrder);
+
+    // 2nd and 3rd in line get one "almost your turn" reminder per ticket number (a transfer gives a new number,
+    // so they are reminded again in the new queue).
+    for (let i = 1; i < Math.min(3, line.length); i++) {
+      const ticket = line[i];
+      if (ticket.soonNotified === ticket.ticketNo) continue;
+
+      const claimedSoon = await db.runTransaction(async function (transaction) {
+        const snap = await transaction.get(ticket.ref);
+        const data = snap.data();
+        if (!snap.exists || data.status !== "waiting" || data.soonNotified === data.ticketNo) return false;
+        transaction.update(ticket.ref, { soonNotified: data.ticketNo });
+        return true;
+      });
+      if (claimedSoon) await notifyUser(ticket.ownerId, messages.soon(ticket, stationName, i + 1), ticket.id + ":soon:" + ticket.ticketNo);
+    }
+
+    const first = line[0];
 
     const claimed = await db.runTransaction(async function (transaction) {
       const snap = await transaction.get(first.ref);
