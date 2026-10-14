@@ -18,11 +18,18 @@ messaging.onBackgroundMessage(function (payload) {
   if (payload.notification) return;
 
   var data = payload.data || {};
+  var tag = data.tag || "";
+  // "Go to the counter now" messages stay on screen until tapped and buzz longer.
+  var urgent = /:(serving|recall|lastCall|skipped)$/.test(tag);
   var options = {
     body: data.body || "",
     icon: "/assets/qfficient-badge.png",
-    tag: data.tag || undefined,
-    renotify: !!data.tag
+    badge: "/assets/qfficient-badge.png",
+    tag: tag || undefined,
+    renotify: !!tag,
+    silent: false,
+    requireInteraction: urgent,
+    vibrate: urgent ? [300, 120, 300, 120, 500] : [200, 100, 200]
   };
   self.registration.showNotification(data.title || "QFicient", options);
 });

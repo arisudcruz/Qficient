@@ -167,7 +167,7 @@ function joinQueue(stationId, purpose) {
     var result = response.data || {};
     // Hold the lock briefly so the new ticket reaches the snapshot before another join is allowed.
     setTimeout(function () { joiningQueue = false; }, 1500);
-    say("Ticket " + result.ticketNo + " created for " + result.stationName + "!");
+    return Promise.resolve(say("Ticket " + result.ticketNo + " created for " + result.stationName + "!")).then(function () { return true; });
   }).catch(function (err) {
     joiningQueue = false;
     var code = String(err && err.code || "").replace("functions/", "");

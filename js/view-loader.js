@@ -12,6 +12,7 @@ var appScripts = [
   "js/auth.js",
   "js/queue.js",
   "js/student-dashboard.js",
+  "js/alerts.js",
   "js/admin-console.js",
   "js/admin-queue.js",
   "js/admin-settings.js",

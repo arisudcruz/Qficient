@@ -79,23 +79,26 @@ function checkTicketAlerts(ticket) {
 
 var skipCountdownIntervalId = null;
 
-function showStudentToast(text) {
+var TOAST_COLORS = { alert: "#E5484D", info: "#0054A6", good: "#1F9D55" };
+
+function showStudentToast(text, tone) {
   if (typeof Toastify === "undefined") return;
   Toastify({
     text: text,
-    duration: 8000,
+    duration: 9000,
     gravity: "top",
     position: "center",
-    style: { background: "#E5484D" }
+    close: true,
+    style: { background: TOAST_COLORS[tone] || TOAST_COLORS.alert }
   }).showToast();
 }
 
 function notifyRecall() {
-  showStudentToast("⏰ Please go to the counter. You're being called.");
+  studentAlert("⏰ Please go to the counter. You're being called.", "alert", true);
 }
 
 function notifyLastCall() {
-  showStudentToast("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.");
+  studentAlert("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true);
 }
 
 function ticketCountdownText(phase, remainingMs) {
@@ -354,7 +357,10 @@ function generateTicket() {
   var pending = joinQueue(dashStationId, purpose);
   if (pending) {
     setButtonLoading(button, true);
-    pending.then(function () { setButtonLoading(button, false); });
+    pending.then(function (created) {
+      setButtonLoading(button, false);
+      if (created) offerBackgroundAlerts();
+    });
   }
 }
 
@@ -678,6 +684,7 @@ function resetDashboardState() {
   joinDraft = { stationId: "", purpose: "", other: "" };
   lastStationsHtml = null;
   lastJoinCardKey = null;
+  resetTicketWatch();
 }
 
 // Runs after every change; a screen change the app made by itself (a ticket ending, say) updates the
@@ -711,7 +718,12 @@ function renderDashboard() {
   }
 
   // Recall and last-call alerts fire wherever the student happens to be looking.
-  if (ticket) checkTicketAlerts(ticket);
+  if (ticket) {
+    checkTicketAlerts(ticket);
+    watchTicketEvents(ticket);
+  } else {
+    ticketEnded();
+  }
 
   // Someone with a live ticket (including after a refresh) lands on that station's page; once the ticket
   // ends they go back to the station list.
