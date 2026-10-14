@@ -598,10 +598,26 @@ function checkAutoVoid() {
     if (autoVoidRequested[key] && Date.now() - autoVoidRequested[key] < AUTO_VOID_RETRY_MS) return;
     autoVoidRequested[key] = Date.now();
 
-    db.collection("tickets").doc(ticket.id).update({
-      status: "void",
-      voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      autoVoided: true
+    // Re-read the ticket first: staff may have called it again in the same moment, and a ticket that is
+    // being served must never be voided by a stale copy.
+    var ref = db.collection("tickets").doc(ticket.id);
+    var lastCallMs = ticket.lastCallAt.toMillis();
+
+    db.runTransaction(function (transaction) {
+      return transaction.get(ref).then(function (doc) {
+        var current = doc.exists ? doc.data() : null;
+        var currentLastCall = current && current.lastCallAt && typeof current.lastCallAt.toMillis === "function" ? current.lastCallAt.toMillis() : 0;
+
+        if (!current || current.status !== "skipped" || !current.lastCalled || currentLastCall !== lastCallMs) return false;
+        if (serverNow() - currentLastCall < AUTO_VOID_WINDOW_MS) return false;
+
+        transaction.update(ref, {
+          status: "void",
+          voidedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          autoVoided: true
+        });
+        return true;
+      });
     }).catch(function (err) {
       // Usually the server voided it first; try again later in case it really failed.
       console.error("Auto-void of " + ticket.ticketNo + " did not go through: " + err.message);

@@ -52,16 +52,17 @@ function escapeAdminText(value) {
     .replace(/'/g, "&#039;");
 }
 
+// Dates on the dashboard are Philippine queue days (UTC+8), whatever timezone the staff computer is set to.
 function getAdminToday() {
-  var now = new Date();
-  var month = String(now.getMonth() + 1).padStart(2, "0");
-  var day = String(now.getDate()).padStart(2, "0");
-  return now.getFullYear() + "-" + month + "-" + day;
+  return queueDayKey(Date.now());
 }
 
 function getAdminDate(value, endOfDay) {
-  var date = new Date(value + (endOfDay ? "T23:59:59.999" : "T00:00:00"));
-  return Number.isNaN(date.getTime()) ? null : date;
+  var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+
+  var startMs = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) - QUEUE_TZ_OFFSET_MS;
+  return new Date(endOfDay ? startMs + DAY_MS - 1 : startMs);
 }
 
 function getTicketDate(ticket) {

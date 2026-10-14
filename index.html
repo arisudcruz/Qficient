@@ -5,16 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QFicient - STI College Malolos</title>
   <link rel="stylesheet" href="css/styles.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.css">
+  <!-- Outside libraries are pinned to exact files. The integrity hash makes the browser refuse a file that has
+       been changed, so a bad upstream release can't reach the site. When upgrading one, update its hash too. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.min.css" integrity="sha384-dCW5imOdApH6OwpFau8cZNKjqVbJYnCA5q+8YsMYP3XwXKsV6Jfz1u6MZLnXaBsS" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.css" integrity="sha384-GSJP6bR4yv1SbLGhL+ntxb4LDi6RC5j8eM8OAh5lwPYdvj9cflIWJiFZdAFr2gyP" crossorigin="anonymous">
 
-  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-functions-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" integrity="sha384-3dQMr5IYbX54CRsE04108MMs7jeEV/IWSMASoZPvju7G87xGB1a2oHweoRc6Fc4z" crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js" integrity="sha384-x/Sc6BbQTFJ8Xok/nKTwZ6hrjKCAPuoiUBD0gRRS0yNLtHZiq2MpDvGVEGBUQefs" crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" integrity="sha384-5I6kB//hXDU3+uF6P5whMNsiMpLfjPrRMnO628LkoLTV1F4roavOGYGkaES3TPAa" crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging-compat.js" integrity="sha384-Rab5/1ixag3DHS8jtiL3IP3GImyxY/N7O2o1pD3PCKHY8GjCAhWkZrMJ0+twTiv7" crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-functions-compat.js" integrity="sha384-FsV+1SaB9PddweNiWsoPaB3LpH4FUIrryuyEBN5Y1mCCBLF2POv8+zfZU5isYDXa" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js" integrity="sha384-nLoOnA/BDh8A/jxqtckg4DumuCGOBYUnNJLZdQz/zfYNp3wcjGSoWTAzgko06G/2" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.js" integrity="sha384-HV48j9xMNfX80v1dhiML90VeD4a38xrehnBK+dNSSe8P4fija/zP36u52q7TpB6O" crossorigin="anonymous"></script>
 </head>
 <body>
   <div id="message"></div>

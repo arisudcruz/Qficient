@@ -149,7 +149,9 @@ function login() {
       return enterStudentSession(result.user);
     })
     .catch(function (error) {
-      say("Microsoft sign-in failed: " + error.message);
+      // Closing the Microsoft window (or clicking twice) just means "not now".
+      var cancelled = error && (error.code === "auth/popup-closed-by-user" || error.code === "auth/cancelled-popup-request");
+      if (!cancelled) say("Microsoft sign-in failed: " + error.message);
       refreshNotificationToggle();
     })
     .then(function () {
