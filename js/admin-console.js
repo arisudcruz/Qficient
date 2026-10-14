@@ -218,6 +218,7 @@ var ADMIN_SECTION_AREAS = {
   queue: "adminQueueArea",
   enforcer: "adminEnforcerArea",
   notifications: "adminNotificationsArea",
+  liveboard: "adminLiveBoardArea",
   rules: "adminRulesArea",
   settings: "adminSettingsArea"
 };
@@ -226,9 +227,9 @@ var ADMIN_SECTION_AREAS = {
 // Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
 // (their own station only); both can read the Rules but never open Settings.
 var ADMIN_ROLE_SECTIONS = {
-  admin: ["dashboard", "queue", "enforcer", "notifications", "rules", "settings"],
-  enforcer: ["dashboard", "notifications", "enforcer", "rules"],
-  station: ["dashboard", "queue", "notifications", "rules"]
+  admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "rules", "settings"],
+  enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules"],
+  station: ["dashboard", "queue", "notifications", "liveboard", "rules"]
 };
 
 // Where each kind of account lands after signing in.
@@ -303,6 +304,8 @@ function setAdminSection(section) {
     renderEnforcer();
   } else if (section === "notifications") {
     renderNotifications();
+  } else if (section === "liveboard") {
+    renderLiveBoardLauncher();
   } else if (section === "rules") {
     renderRules();
   } else {

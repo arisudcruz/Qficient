@@ -3,7 +3,8 @@ var viewFiles = [
   "views/guest.html",
   "views/dashboard.html",
   "views/admin-login.html",
-  "views/admin.html"
+  "views/admin.html",
+  "views/tv-board.html"
 ];
 
 var appScripts = [
@@ -23,6 +24,7 @@ var appScripts = [
   "js/admin-auth.js",
   "js/notifications.js",
   "js/landing.js",
+  "js/tv-board.js",
   "js/router.js"
 ];
 

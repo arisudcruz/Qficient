@@ -1,0 +1,394 @@
+/* ============================================================
+   TV Live Board (#pageTvBoard): a full-screen display for a smart TV.
+   Sizes follow the screen height so it reads the same on a 1080p TV and a laptop.
+   ============================================================ */
+
+.page.tv-page {
+  --tv-blue: #0054A6;
+  --tv-blue-dark: #003C7A;
+  --tv-amber: #FFC20E;
+  --tv-text: #172033;
+  --tv-bg: #EEF5FF;
+
+  max-width: none;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--tv-bg);
+  color: var(--tv-text);
+}
+
+.page.tv-page.show {
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-page="pageTvBoard"] .themeToggle { display: none; }
+
+/* After a few seconds without the mouse moving, hide the pointer and the full-screen button. */
+.tv-page.tv-idle,
+.tv-page.tv-idle * { cursor: none; }
+.tv-page.tv-idle .tv-fullscreen { opacity: 0; pointer-events: none; }
+
+/* ---------- Header and footer ---------- */
+
+.tv-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.6vh 2.4vw;
+  background: var(--tv-blue);
+  color: #fff;
+  border-radius: 0 0 1.6vh 1.6vh;
+}
+
+.tv-brand {
+  display: flex;
+  align-items: center;
+  gap: 1.2vh;
+}
+
+.tv-brand img {
+  width: 5vh;
+  height: 5vh;
+  border-radius: 0.8vh;
+  background: #fff;
+  object-fit: contain;
+}
+
+.tv-brand span {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2.6vh;
+}
+
+.tv-head-right {
+  display: flex;
+  align-items: center;
+  gap: 1.6vw;
+}
+
+.tv-clock {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 5.2vh;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tv-fullscreen {
+  width: 4.6vh;
+  height: 4.6vh;
+  min-width: 34px;
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 1vh;
+  background: transparent;
+  color: #fff;
+  transition: opacity 0.3s;
+}
+
+.tv-foot {
+  flex: 0 0 auto;
+  padding: 1.6vh;
+  background: var(--tv-blue);
+  color: #fff;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2.1vh;
+}
+
+/* ---------- Board ---------- */
+
+.tv-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  gap: 2.2vh 1.6vw;
+  padding: 3vh 2vw;
+}
+
+.tv-empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 3.4vh;
+  color: #64748B;
+}
+
+/* One full column per main station */
+
+.tv-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tv-col-tab {
+  padding: 1vh 1vw 1.8vh;
+  margin-bottom: -1vh;
+  border-radius: 1.2vh 1.2vh 0 0;
+  background: var(--tv-blue);
+  color: #fff;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2.4vh;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-col-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 2vh 1.4vw;
+  background: #fff;
+  border-radius: 1.2vh;
+  box-shadow: 0 0.8vh 2.4vh rgba(0, 43, 100, 0.08);
+  overflow: hidden;
+}
+
+.tv-now {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6vh;
+  padding: 1.6vh 1vw 2vh;
+  border-radius: 1.2vh;
+  background: var(--tv-blue);
+  color: #fff;
+}
+
+.tv-now span {
+  font-size: 1.6vh;
+  opacity: 0.9;
+}
+
+.tv-now b {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 7.4vh;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tv-label {
+  margin: 2.2vh 0 1vh;
+  font-family: var(--font-display);
+  font-size: 1.6vh;
+  font-weight: 500;
+  color: var(--tv-text);
+}
+
+.tv-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.8vw;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 4.2vh;
+  line-height: 1.15;
+  color: var(--tv-blue);
+}
+
+.tv-row i {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.8em;
+  text-align: center;
+}
+
+.tv-row b { font-weight: 600; white-space: nowrap; }
+.tv-row b:last-child { text-align: right; }
+
+.tv-next {
+  padding: 1vh 1vw;
+  border-radius: 1vh;
+  background: var(--tv-amber);
+  color: #1B2740;
+}
+
+.tv-wait {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4vh;
+  margin: 0;
+  padding: 0.4vh 1vw;
+  list-style: none;
+}
+
+.tv-more {
+  margin-top: auto;
+  padding-top: 1vh;
+  font-size: 1.7vh;
+  color: #64748B;
+  text-align: center;
+}
+
+.tv-none {
+  margin: 0;
+  padding: 1vh 0;
+  font-size: 2vh;
+  color: #94A3B8;
+}
+
+/* The compact cards for any further stations */
+
+.tv-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2.2vh;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tv-mini {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.4vh;
+  padding: 1.8vh 1.2vw;
+  background: #fff;
+  border-radius: 1.2vh;
+  box-shadow: 0 0.8vh 2.4vh rgba(0, 43, 100, 0.08);
+}
+
+.tv-mini h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2.2vh;
+  color: var(--tv-blue);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-mini-row {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 0.8vw;
+  align-items: center;
+}
+
+.tv-mini-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vh;
+  min-width: 0;
+}
+
+.tv-mini-row span { font-size: 1.4vh; }
+
+.tv-mini-row b {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 4.2vh;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.tv-mini-next {
+  padding: 1vh 0.8vw;
+  border-radius: 1vh;
+  background: var(--tv-amber);
+  color: #1B2740;
+}
+
+.tv-mini-next b small {
+  margin-left: 0.4vw;
+  font-size: 0.6em;
+  color: var(--tv-blue);
+}
+
+.tv-side-pages {
+  text-align: center;
+  font-size: 1.5vh;
+  color: #64748B;
+}
+
+/* A short flash when a station calls a new number */
+
+.tv-flash { animation: tv-flash 1.8s ease-out; }
+
+@keyframes tv-flash {
+  0%, 30% { box-shadow: 0 0 0 0.6vh var(--tv-amber); transform: scale(1.03); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 194, 14, 0); transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-flash { animation: none; }
+}
+
+/* A phone held upright is not a TV; stack the stations and allow scrolling. */
+@media (max-width: 720px) and (orientation: portrait) {
+  .page.tv-page { height: auto; min-height: 100vh; overflow: visible; }
+  .tv-main { grid-template-columns: 1fr !important; }
+  .tv-col-body { min-height: 0; }
+}
+
+/* ---------- Admin console: Live Board page ---------- */
+
+.lb-launch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  min-height: calc(100vh - 200px);
+  padding: 24px;
+  text-align: center;
+}
+
+.lb-launch p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #172033;
+}
+
+body.dark .lb-launch p { color: #E6EDF8; }
+
+.lb-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 190px;
+  padding: 14px 28px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #00509C 0%, #002A5C 100%);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(0, 43, 100, 0.25);
+}
+
+.lb-launch-btn:hover { background: linear-gradient(180deg, #005BB0 0%, #00336E 100%); }
+
+.lb-launch .lb-launch-help {
+  max-width: 460px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #64748B;
+}

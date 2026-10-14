@@ -20,6 +20,7 @@ db.collection("stations").onSnapshot(function (snapshot) {
   });
   updateDashboard();
   updateAdmin();
+  if (typeof renderTvBoard === "function") renderTvBoard();
   renderQueueManagement();
   refreshSettings();
   refreshEnforcerList();
@@ -81,6 +82,7 @@ function startTicketsListener() {
     });
     updateDashboard();
     updateAdmin();
+    if (typeof renderTvBoard === "function") renderTvBoard();
     renderQueueManagement();
     refreshNotifications();
     refreshEnforcerList();

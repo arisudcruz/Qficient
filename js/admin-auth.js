@@ -244,11 +244,14 @@ function routeAfterAdminAuthChange() {
   var loginPage = document.getElementById("pageAdminLogin");
   var adminPage = document.getElementById("pageAdmin");
 
-  var waitingForAdminLink = typeof pendingRoute !== "undefined" && pendingRoute && pendingRoute.name === "admin";
+  var tvPage = document.getElementById("pageTvBoard");
+  var waiting = typeof pendingRoute !== "undefined" && pendingRoute ? pendingRoute.name : "";
 
-  if (adminUser && (loginPage.classList.contains("show") || waitingForAdminLink)) {
+  if (adminUser && waiting === "tv") {
+    goTo("pageTvBoard");
+  } else if (adminUser && (loginPage.classList.contains("show") || waiting === "admin")) {
     goTo("pageAdmin");
-  } else if (!adminUser && adminPage.classList.contains("show")) {
+  } else if (!adminUser && (adminPage.classList.contains("show") || (tvPage && tvPage.classList.contains("show")))) {
     goTo("pageAdminLogin");
   }
 }

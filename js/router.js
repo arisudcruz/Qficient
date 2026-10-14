@@ -7,11 +7,12 @@
 //   #/dashboard/board          live board
 //   #/dashboard/<station id>   a station's join page (or your ticket)
 //   #/admin                    admin sign-in
-//   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, rules, settings
+//   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, liveboard, rules, settings
+//   #/tv                       full-screen Live Board for a TV (needs a staff sign-in)
 //
 // The screen is still switched by goTo(); this file only keeps the hash in step with it (syncRoute) and
 // turns a hash back into a screen (applyRoute).
-var ROUTE_PAGE_IDS = { guest: "pageGuest", dashboard: "pageDashboard", admin: "pageAdmin" };
+var ROUTE_PAGE_IDS = { guest: "pageGuest", dashboard: "pageDashboard", admin: "pageAdmin", tv: "pageTvBoard" };
 
 var routeLock = false;     // true while the router itself is switching screens, so it doesn't write the hash back
 var pendingRoute = null;   // a link to a signed-in screen, waiting for the saved session to be restored
@@ -42,6 +43,7 @@ function routeHashForScreen() {
     case "pageHome": return "#/";
     case "pageGuest": return "#/guest";
     case "pageAdminLogin": return "#/admin";
+    case "pageTvBoard": return "#/tv";
     case "pageAdmin": return "#/admin/" + currentAdminSection();
     case "pageDashboard": {
       var board = document.getElementById("dashboardTabBoard");
@@ -119,7 +121,7 @@ function settlePendingRoute() {
   clearPendingRoute();
 
   withRouteLock(function () {
-    goTo(route.name === "admin" ? "pageAdminLogin" : "pageHome");
+    goTo(route.name === "admin" || route.name === "tv" ? "pageAdminLogin" : "pageHome");
   });
   replaceHash(routeHashForScreen() || "#/");
 }
@@ -161,6 +163,10 @@ function applyRoute(isFirstLoad) {
       } else {
         goTo("pageHome");
       }
+    } else if (route.name === "tv") {
+      if (signedStaff) goTo("pageTvBoard");
+      else if (isFirstLoad) pendingRoute = route;
+      else goTo("pageAdminLogin");
     } else if (route.name === "admin") {
       if (signedStaff) {
         goTo("pageAdmin");
