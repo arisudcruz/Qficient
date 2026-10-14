@@ -469,8 +469,23 @@ function staffAuthMessage(error) {
       return "Network error. Check your connection and try again.";
     case "auth/operation-not-allowed":
       return "Email/Password sign-in is not turned on for this project in Firebase Authentication.";
+    case "auth/admin-restricted-operation":
+      return "Creating accounts is switched off in Firebase. Turn on Authentication → Settings → User actions → \"Enable create (sign-up)\", then try again.";
+    case "auth/password-does-not-meet-requirements":
+      return "That password doesn't meet this project's password rules. Try a longer one with upper and lower case letters and a number.";
+    case "auth/quota-exceeded":
+      return "Firebase is limiting new accounts right now. Please try again later.";
+    case "auth/requires-recent-login":
+      return "Firebase needs a fresh sign-in for that login. Please try again.";
+    case "permission-denied":
+    case "firestore/permission-denied":
+      return "Your account isn't allowed to change staff. Only an administrator can.";
+    case "staff/record-failed":
+      return "The login was created, but its role could not be saved (" + (error.detail || "unknown error") + "). Press Add Staff again with the same email and password to finish.";
     default:
-      return (error && error.message) || "Something went wrong. Please try again.";
+      // Show Firebase's own text without its "Firebase: ... (auth/...)" wrapping.
+      var text = String((error && error.message) || "").replace(/^Firebase:\s*/, "").replace(/\s*\((auth|firestore)\/[a-z-]+\)\.?$/, "");
+      return text || "Something went wrong. Please try again.";
   }
 }
 
@@ -550,7 +565,7 @@ function saveNewStaff() {
 
   setStaffFormBusy(true);
 
-  staffAuthReady().then(function (auth) {
+  Promise.resolve().then(staffAuthReady).then(function (auth) {
     // The login may already exist (for example after access was removed). That is fine only if the
     // admin knows its password, so nobody can be given a role on an email they do not control.
     return auth.createUserWithEmailAndPassword(email, password).catch(function (error) {
@@ -565,7 +580,14 @@ function saveNewStaff() {
     });
   }).then(function () {
     var now = firebase.firestore.FieldValue.serverTimestamp();
-    return db.collection("staff").doc(email).set({ email: email, name: name, role: role, createdAt: now, updatedAt: now });
+    return db.collection("staff").doc(email).set({ email: email, name: name, role: role, createdAt: now, updatedAt: now })
+      .catch(function (error) {
+        console.error("Staff record for " + email + " was not saved:", error);
+        var failed = new Error("record failed");
+        failed.code = error && error.code === "permission-denied" ? "permission-denied" : "staff/record-failed";
+        failed.detail = error && error.message;
+        throw failed;
+      });
   }).then(function () {
     closeFormModal();
     settingsSelectedRole = role;
@@ -573,6 +595,7 @@ function saveNewStaff() {
     renderSettings();
     say("Staff added. They can sign in with that email and password.");
   }).catch(function (error) {
+    console.error("Add staff failed:", error);
     say("Could not add staff: " + staffAuthMessage(error));
   }).then(function () {
     setStaffFormBusy(false);
@@ -646,7 +669,7 @@ function saveStaffEdit(email) {
   setStaffFormBusy(true);
 
   var passwordStep = changingPassword ?
-    staffAuthReady().then(function (auth) {
+    Promise.resolve().then(staffAuthReady).then(function (auth) {
       return auth.signInWithEmailAndPassword(account.email, current).then(function (credential) {
         return credential.user.updatePassword(next);
       }).then(function () {
@@ -663,6 +686,7 @@ function saveStaffEdit(email) {
     renderSettings();
     say(changingPassword ? "Staff updated. The new password works from the next sign-in." : "Staff updated.");
   }).catch(function (error) {
+    console.error("Edit staff failed:", error);
     say("Could not save the changes: " + staffAuthMessage(error));
   }).then(function () {
     setStaffFormBusy(false);
