@@ -2148,3 +2148,67 @@ button.is-loading::after {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ---------- Reports ---------- */
+
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.report-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748B);
+}
+
+.report-filters input,
+.report-filters select {
+  width: auto;
+  min-width: 150px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.report-filters-spacer { flex: 1 1 auto; }
+
+.report-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin: 0 0 22px;
+}
+
+.report-cards .stat-card { min-height: 0; }
+.report-cards .stat-value { font-size: 2.2rem; margin: 6px 0 0; }
+
+.report-table th,
+.report-table td { white-space: nowrap; }
+
+.report-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid #cbd5e1;
+}
+
+.report-caption {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #64748B;
+}
+
+.report-note {
+  margin: 6px 2px 24px;
+  font-size: 0.78rem;
+  color: #64748B;
+}
