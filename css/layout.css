@@ -2228,3 +2228,11 @@ button.is-loading::after {
 }
 
 .purpose-edit-row .settings-icon-btn { flex: 0 0 auto; }
+
+/* The QFicient mark inside the sidebar and sign-in badges */
+.brand-badge img,
+.admin-login-badge img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+}
