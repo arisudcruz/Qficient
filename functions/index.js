@@ -5,6 +5,7 @@ const { setGlobalOptions } = require("firebase-functions/v2");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 
 const config = require("./config");
@@ -12,14 +13,25 @@ const { describeChange, onlyChanged, affectsQueueFront } = require("./lib/events
 const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
+const { createSmsSender } = require("./lib/sms");
+const messages = require("./lib/messages");
 
 initializeApp();
 const db = getFirestore();
 
 setGlobalOptions({ region: config.region, maxInstances: config.maxInstances });
 
+// The SMS key is only needed (and only asked for at deploy time) once a real provider is switched on.
+const smsApiKey = (config.sms && config.sms.provider !== "log") ? defineSecret("SMS_API_KEY") : null;
+
+const sms = createSmsSender({
+  db, FieldValue, config,
+  apiKey: function () { return smsApiKey ? smsApiKey.value() : ""; },
+  log: function (message) { logger.info(message); }
+});
+
 const pusher = createPusher({
-  db, FieldValue, Timestamp, config,
+  db, FieldValue, Timestamp, config, sms,
   messaging: getMessaging(),
   log: function (message) { logger.info(message); }
 });
@@ -37,7 +49,7 @@ async function voidMinutes() {
 
 // Runs whenever a ticket is created or changed: tells the student what happened and, when the front of a
 // queue may have changed, tells the next student in line.
-exports.onTicketWritten = onDocumentWritten("tickets/{ticketId}", async function (event) {
+exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{ticketId}" }, smsApiKey ? { secrets: [smsApiKey] } : {}), async function (event) {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after = event.data.after.exists ? event.data.after.data() : null;
   if (!after) return;
@@ -46,6 +58,13 @@ exports.onTicketWritten = onDocumentWritten("tickets/{ticketId}", async function
   if (before && onlyChanged(before, after, ["nextNotified", "soonNotified"])) return;
 
   const ticket = Object.assign({ id: event.params.ticketId }, after);
+
+  // A walk-in ticket made by the Queue Enforcer: text them their ticket number.
+  if (!before && after.manual && after.status === "waiting" && config.notify.manualCreated) {
+    const place = await pusher.placeInLine(after.stationId, ticket.id, Date.now());
+    const message = messages.manualCreated(ticket, await stationNameOf(after.stationId), place);
+    await pusher.pushOnce(event.id + ":created", ticket, message, ticket.id + ":created");
+  }
 
   if (before) {
     const names = {};
@@ -56,7 +75,7 @@ exports.onTicketWritten = onDocumentWritten("tickets/{ticketId}", async function
     }, config.notify);
 
     if (change) {
-      await pusher.pushOnce(event.id + ":" + change.type, ticket.ownerId, change.message, ticket.id + ":" + change.type);
+      await pusher.pushOnce(event.id + ":" + change.type, ticket, change.message, ticket.id + ":" + change.type);
     }
   }
 

@@ -15,6 +15,16 @@ module.exports = {
   // Safety cap so a bug can never run up a large bill.
   maxInstances: 5,
 
+  // Text messages for walk-in tickets made by the Queue Enforcer (they have no app to get push alerts).
+  //   provider "log":       test mode, nothing is sent; messages are saved in the smsLog collection (free)
+  //   provider "semaphore": real SMS through semaphore.co. First run
+  //                           firebase functions:secrets:set SMS_API_KEY
+  //                         paste the Semaphore API key, then deploy the functions.
+  sms: {
+    provider: "log",
+    senderName: ""   // a sender name approved in your Semaphore account; leave empty for the default
+  },
+
   // Limits on joining the queue (enforced by the joinQueue function, per account).
   joinMinIntervalMs: 3 * 1000,   // shortest gap between two joins
   cancelCooldownMs: 20 * 1000,   // wait after cancelling a ticket before joining again
@@ -28,6 +38,7 @@ module.exports = {
     lastCall: true,
     next: true,
     transferred: true,
-    voided: true
+    voided: true,
+    manualCreated: true   // the walk-in's ticket number, texted when the Queue Enforcer creates it
   }
 };
