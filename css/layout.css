@@ -2212,3 +2212,19 @@ button.is-loading::after {
   font-size: 0.78rem;
   color: #64748B;
 }
+
+/* Edit Station: purposes */
+.purpose-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.purpose-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.purpose-edit-row .settings-icon-btn { flex: 0 0 auto; }

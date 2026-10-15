@@ -257,6 +257,16 @@ function openEditStationModal(stationId) {
     '</div>' +
     '<hr class="modal-divider">' +
     '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Edit Purpose</h3>' +
+      '<p class="modal-help">The purposes students and the Queue Enforcer can pick for this station. "Others, please specify" is always offered at the end. Leave the list empty to use the default purposes.</p>' +
+      '<div class="purpose-edit-list" id="editStationPurposes">' + editPurposeRowsHtml(station) + '</div>' +
+      '<div class="settings-actions modal-actions-end">' +
+        '<button type="button" class="settings-btn settings-btn-blue" onclick="addEditPurposeRow()">+ Add Purpose</button>' +
+        '<button type="button" class="settings-btn settings-btn-primary" id="savePurposesBtn" onclick="saveStationPurposes(\'' + id + '\')">Save Changes</button>' +
+      '</div>' +
+    '</div>' +
+    '<hr class="modal-divider">' +
+    '<div class="modal-section">' +
       '<h3 class="modal-section-title">Maximum Service Queue</h3>' +
       '<p class="modal-help">Sets the maximum number of successful queue entries that can be processed within a single day. Once the configured limit is reached, the system prevents additional queue entries from being created for that day. Leave blank for no limit.</p>' +
       '<div class="modal-inline">' +
@@ -296,6 +306,95 @@ function saveStationName(stationId) {
     say("Station renamed.");
   }).catch(function (error) {
     say("Could not rename station: " + error.message);
+  });
+}
+
+/* Edit Purpose */
+
+var STATION_PURPOSE_MAX = 12;
+
+function editPurposeRowHtml(value) {
+  return '<div class="purpose-edit-row">' +
+    '<input type="text" class="modal-input purpose-edit-input" placeholder="Purpose" maxlength="60" value="' + escapeAdminText(value || "") + '">' +
+    '<button type="button" class="settings-icon-btn settings-icon-red" title="Remove this purpose" aria-label="Remove this purpose" onclick="removeEditPurposeRow(this)">✕</button>' +
+  '</div>';
+}
+
+function editPurposeRowsHtml(station) {
+  var purposes = Array.isArray(station.purposes) ? station.purposes : [];
+  return purposes.length ? purposes.map(editPurposeRowHtml).join("") : editPurposeRowHtml("");
+}
+
+function addEditPurposeRow() {
+  var list = document.getElementById("editStationPurposes");
+  if (!list) return;
+  if (list.querySelectorAll(".purpose-edit-row").length >= STATION_PURPOSE_MAX) {
+    say("A station can have up to " + STATION_PURPOSE_MAX + " purposes.");
+    return;
+  }
+  list.insertAdjacentHTML("beforeend", editPurposeRowHtml(""));
+  var inputs = list.querySelectorAll(".purpose-edit-input");
+  inputs[inputs.length - 1].focus();
+}
+
+function removeEditPurposeRow(button) {
+  var row = button.closest(".purpose-edit-row");
+  var list = document.getElementById("editStationPurposes");
+  if (!row || !list) return;
+  // Keep one empty box rather than an empty list, so there is always somewhere to type.
+  if (list.querySelectorAll(".purpose-edit-row").length === 1) row.querySelector("input").value = "";
+  else row.remove();
+}
+
+function saveStationPurposes(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station) return;
+
+  var purposes = [];
+  var seen = {};
+  document.querySelectorAll("#editStationPurposes .purpose-edit-input").forEach(function (input) {
+    var value = input.value.trim().replace(/\s+/g, " ");
+    var key = value.toLowerCase();
+    if (!value || seen[key]) return;
+    seen[key] = true;
+    purposes.push(value);
+  });
+
+  if (purposes.length > STATION_PURPOSE_MAX) {
+    say("A station can have up to " + STATION_PURPOSE_MAX + " purposes.");
+    return;
+  }
+
+  var before = Array.isArray(station.purposes) ? station.purposes : [];
+  if (JSON.stringify(before) === JSON.stringify(purposes)) {
+    say("There are no changes to save.");
+    return;
+  }
+
+  var save = function () {
+    var button = document.getElementById("savePurposesBtn");
+    setButtonLoading(button, true);
+    return db.collection("stations").doc(stationId).update({ purposes: purposes }).then(function () {
+      say(purposes.length ? "Purposes saved." : "Purposes cleared. This station now uses the default purposes.");
+    }).catch(function (error) {
+      say("Could not save the purposes: " + error.message);
+    }).then(function () {
+      setButtonLoading(document.getElementById("savePurposesBtn"), false);
+    });
+  };
+
+  var removed = before.filter(function (purpose) { return purposes.indexOf(purpose) === -1; });
+  if (!removed.length) {
+    save();
+    return;
+  }
+
+  showConfirmModal({
+    title: "Are you sure you want to remove " + (removed.length === 1 ? "this purpose" : "these purposes") + "?",
+    message: removed.join(", ") + " will no longer be offered at " + station.name + ". Tickets that already use " + (removed.length === 1 ? "it" : "them") + " are not changed.",
+    confirmLabel: "Save Changes",
+    tone: "danger",
+    onConfirm: save
   });
 }
 

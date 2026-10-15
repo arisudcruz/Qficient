@@ -252,7 +252,23 @@ function toggleThemeFromMenu() {
 
 function logoutFromMenu() {
   closeUserMenu();
-  studentLogout();
+
+  // An old guest session with a live ticket has its own warning (its ticket is cancelled on logout).
+  if (user && user.type === "guest" && myTicket()) {
+    studentLogout();
+    return;
+  }
+
+  var hasTicket = !!(user && myTicket());
+  showConfirmModal({
+    title: "Are you sure you want to log out?",
+    message: hasTicket ?
+      "Your ticket stays in the queue, but this device stops getting alerts for it until you sign back in." :
+      "You'll be signed out of QFicient on this device.",
+    confirmLabel: "Log Out",
+    tone: "danger",
+    onConfirm: function () { studentLogout(); }
+  });
 }
 
 document.addEventListener("click", function (event) {
