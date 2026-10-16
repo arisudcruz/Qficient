@@ -43,13 +43,37 @@ function getListedRoles() {
 
 function computeSettingsSignature() {
   return JSON.stringify([
-    stations.map(function (s) { return [s.id, s.name, s.active !== false, s.maxQueue || null]; }),
+    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes
   ]);
 }
 
+// Stations made before ticket codes existed get theirs saved the first time an admin opens the console, so the
+// code can't shift later when other stations are added or removed.
+var stationCodeBackfillKey = null;
+
+function backfillStationCodes() {
+  if (typeof adminKind !== "function" || adminKind() !== "admin" || !stations.length) return;
+
+  var missing = stations.filter(function (station) { return !station.code; });
+  var key = missing.map(function (station) { return station.id; }).join("|");
+  if (!missing.length || key === stationCodeBackfillKey) return;
+  stationCodeBackfillKey = key;
+
+  var codes = assignStationCodes(stations);
+  var batch = db.batch();
+  missing.forEach(function (station) {
+    batch.update(db.collection("stations").doc(station.id), { code: codes[station.id] });
+  });
+  batch.commit().catch(function (error) {
+    stationCodeBackfillKey = null;
+    console.error("Could not save station ticket codes: " + error.message);
+  });
+}
+
 function refreshSettings() {
+  backfillStationCodes();
   var area = document.getElementById("adminSettingsArea");
   if (!area || area.style.display === "none") return;
   if (computeSettingsSignature() === settingsSignature) return;
@@ -221,8 +245,13 @@ function confirmCreateStation() {
     confirmLabel: "Create Station",
     tone: "danger",
     onConfirm: function () {
+      var used = {};
+      var codes = assignStationCodes(stations);
+      Object.keys(codes).forEach(function (key) { used[codes[key].toUpperCase()] = true; });
+
       return db.collection("stations").doc(id).set({
         name: name,
+        code: nextStationCode(name, used),
         count: 0,
         nowServingId: null,
         active: true,
@@ -248,6 +277,8 @@ function openEditStationModal(stationId) {
     '<div class="modal-section">' +
       '<h3 class="modal-section-title">Edit Station Name</h3>' +
       '<div class="modal-field"><label>Current Name</label><input type="text" class="modal-input" value="' + escapeAdminText(station.name) + '" readonly></div>' +
+      '<div class="modal-field"><label>Ticket Code</label><input type="text" class="modal-input" value="' + escapeAdminText(stationCodeOf(station.id)) + '" readonly></div>' +
+      '<p class="modal-help">Tickets from this station are numbered ' + escapeAdminText(formatTicketNo(stationCodeOf(station.id), 1)) + ', ' + escapeAdminText(formatTicketNo(stationCodeOf(station.id), 2)) + '... The code stays the same if the station is renamed.</p>' +
       '<div class="modal-field"><label for="editStationName">New Name</label>' +
         '<input type="text" id="editStationName" class="modal-input" placeholder="New station name" maxlength="40"></div>' +
       '<div class="settings-actions modal-actions-end">' +
@@ -849,13 +880,14 @@ function renderSettings() {
       '<button type="button" class="settings-btn settings-btn-green" onclick="confirmToggleStation(\'' + id + '\')">Enable</button>';
 
     return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + '</td>' +
+      '<td>' + escapeAdminText(stationCodeOf(station.id)) + '</td>' +
       '<td>' + badge + '</td>' +
       '<td><div class="settings-actions">' +
         '<button type="button" class="settings-btn settings-btn-blue" onclick="openEditStationModal(\'' + id + '\')">Edit</button>' + toggleBtn +
       '</div></td></tr>';
   }).join("");
 
-  if (!stationRowsHtml) stationRowsHtml = '<tr><td colspan="3" class="empty-row">No service stations yet.</td></tr>';
+  if (!stationRowsHtml) stationRowsHtml = '<tr><td colspan="4" class="empty-row">No service stations yet.</td></tr>';
 
   var roleRowsHtml = roles.map(function (role) {
     var count = staffAccounts.filter(function (a) { return accountRole(a) === role.id; }).length;
@@ -936,7 +968,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Service Station</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStationModal()">+ Add New Station</button></div>' +
-      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Status</th><th>Action</th></tr></thead>' +
+      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Ticket Code</th><th>Status</th><th>Action</th></tr></thead>' +
         '<tbody>' + stationRowsHtml + '</tbody></table></div>' +
     '</section>' +
 

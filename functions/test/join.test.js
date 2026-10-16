@@ -52,7 +52,7 @@ async function station(id, extra) {
   // A normal student join.
   await db.collection("students").doc("s1").set({ studentType: "transferee" });
   let r = await attempt(student("s1"), { stationId: "cashier", purpose: "  Transcript   of Records " });
-  check("a student can join", r.ok && r.result.ticketNo === "CA-001", JSON.stringify(r));
+  check("a student can join", r.ok && r.result.ticketNo === "CA1-001", JSON.stringify(r));
   let t = (await db.collection("tickets").doc(r.result.ticketId).get()).data();
   check("name, student number, type and purpose come from the server's records", t.ownerName === "Dela Cruz, John Aris" && t.studentNumber === "02000" + "2000123456".replace(/\D/g, "") && t.studentType === "transferee" && t.purpose === "Transcript of Records" && t.status === "waiting" && t.verified === false && t.ownerId === "s1", JSON.stringify(t));
   check("the station counter moved on", (await db.collection("stations").doc("cashier").get()).data().count === 1);
@@ -66,7 +66,7 @@ async function station(id, extra) {
   await db.collection("tickets").doc((await db.collection("tickets").where("ownerId", "==", "s1").get()).docs[0].id).update({ status: "completed" });
   advance(10000);
   r = await attempt(student("s1"), { stationId: "cashier", purpose: "Another request" });
-  check("after the ticket is completed they can join again", r.ok && r.result.ticketNo === "CA-002", JSON.stringify(r));
+  check("after the ticket is completed they can join again", r.ok && r.result.ticketNo === "CA1-002", JSON.stringify(r));
 
   r = await attempt(guest("g1"), { stationId: "cashier", purpose: "Admission", guestName: "Maria Clara" });
   check("a guest can join and gets the guest type", r.ok, JSON.stringify(r));
@@ -139,7 +139,33 @@ async function station(id, extra) {
   // Ticket numbers restart each day.
   await station("daily", { name: "Daily", count: 41, countDay: "2000-01-01" });
   r = await attempt(student("d1"), { stationId: "daily", purpose: "New day" });
-  check("numbers restart at 001 on a new day", r.ok && r.result.ticketNo === "DA-001", JSON.stringify(r));
+  check("numbers restart at 001 on a new day", r.ok && r.result.ticketNo === "DA1-001", JSON.stringify(r));
+
+  // Ticket codes: stations whose names start with the same letters get numbered codes.
+  await station("admission", { name: "Admission" });
+  await station("admission2", { name: "Admission2" });
+  await station("advising", { name: "Advising" });
+  const e1 = await attempt(student("e1"), { stationId: "admission", purpose: "A" });
+  advance(10000);
+  const e2 = await attempt(student("e2"), { stationId: "admission2", purpose: "B" });
+  advance(10000);
+  const e3 = await attempt(student("e3"), { stationId: "advising", purpose: "C" });
+  check("codes: Admission, Admission2 and Advising get AD1, AD2 and AD3", e1.ok && e1.result.ticketNo === "AD1-001" && e2.ok && e2.result.ticketNo === "AD2-001" && e3.ok && e3.result.ticketNo === "AD3-001", JSON.stringify([e1, e2, e3]));
+
+  await station("guidance", { name: "Guidance", code: "GU7" });
+  advance(10000);
+  r = await attempt(student("e4"), { stationId: "guidance", purpose: "D" });
+  check("codes: a code saved on the station is used as is", r.ok && r.result.ticketNo === "GU7-001", JSON.stringify(r));
+
+  await station("gu-first", { name: "Gu First", code: "GU1" });
+  await station("guard", { name: "Guard" });
+  advance(10000);
+  r = await attempt(student("e5"), { stationId: "guard", purpose: "E" });
+  check("codes: a station without a saved code skips codes already taken", r.ok && r.result.ticketNo === "GU2-001", JSON.stringify(r));
+
+  const { assignStationCodes } = require("../lib/join");
+  const codes = assignStationCodes([{ id: "b", name: "Admission B" }, { id: "a", name: "Admission A" }, { id: "c", name: "Cashier", code: "AD1" }]);
+  check("codes: missing codes follow station id order and skip saved ones", codes.a === "AD2" && codes.b === "AD3" && codes.c === "AD1", JSON.stringify(codes));
 
   console.log(failures ? "\n" + failures + " FAILED" : "\nALL PASSED");
   process.exit(failures ? 1 : 0);

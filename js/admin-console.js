@@ -165,6 +165,8 @@ function selectTrafficStation(stationId) {
 }
 
 function updateAdmin() {
+  if (typeof backfillStationCodes === "function") backfillStationCodes();
+
   var area = document.getElementById("adminArea");
   if (!area) return;
 
