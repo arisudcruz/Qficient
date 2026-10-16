@@ -239,6 +239,18 @@ function toggleUserMenu(event) {
   if (button) button.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
 }
 
+// The header bell opens the notification history; pressed again it goes back to the stations.
+function toggleNotificationsPage() {
+  closeUserMenu();
+  setDashboardTab(currentDashboardTab() === "notifications" ? "queue" : "notifications");
+  window.scrollTo(0, 0);
+}
+
+function enableAlertsFromMenu() {
+  closeUserMenu();
+  enableNotifications();
+}
+
 function changeStudentTypeFromMenu() {
   closeUserMenu();
   promptStudentType(false);
@@ -284,7 +296,7 @@ document.addEventListener("keydown", function (event) {
 var DASHBOARD_TABS = {
   queue: { panel: "dashboardTabQueue", button: "tabBtnQueue" },
   board: { panel: "dashboardTabBoard", button: "tabBtnBoard" },
-  notifications: { panel: "dashboardTabNotifications", button: "tabBtnNotifications" }
+  notifications: { panel: "dashboardTabNotifications", button: "udNotifBell" }  // opened from the header bell
 };
 
 function currentDashboardTab() {

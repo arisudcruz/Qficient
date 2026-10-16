@@ -200,7 +200,7 @@ body[data-page="pageDashboard"] .themeToggle { display: none; }
 .ud-menu button:hover { background: var(--ud-soft); }
 .ud-menu .ud-menu-danger { color: var(--app-danger); }
 
-/* Notification bell */
+/* Notification bell: opens the notification history */
 
 .ud-bell {
   position: relative;
@@ -214,23 +214,38 @@ body[data-page="pageDashboard"] .themeToggle { display: none; }
   border-radius: 50%;
   color: var(--app-text);
   box-shadow: var(--app-shadow);
+  cursor: pointer;
 }
 
-.ud-bell.is-off { color: var(--app-text-muted); }
+.ud-bell.active {
+  background: var(--app-primary);
+  border-color: var(--app-primary);
+  color: #fff;
+}
 
-.ud-bell-dot {
+.ud-bell-badge {
   position: absolute;
-  top: 6px;
-  right: 7px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  top: -5px;
+  right: -6px;
+  min-width: 18px;
+  padding: 1px 5px;
   border: 2px solid var(--app-surface);
-  background: var(--app-danger);
+  border-radius: 999px;
+  background: var(--app-danger, #E5484D);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
 }
 
-.ud-bell.is-on .ud-bell-dot { background: #1FAA6F; }
-.ud-bell.is-on { cursor: default; }
+/* Account menu: a line that only reports a state (alerts on / blocked) */
+.ud-menu button.ud-menu-status,
+.ud-menu button.ud-menu-status:hover {
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: default;
+}
 
 /* ---------------- Page body ---------------- */
 
@@ -1008,25 +1023,7 @@ body.dark .ud-back { color: #7DB4F5; border-color: #3D74BC; }
 
 body.dark .ud-board .board-waiting-chip { color: #9CC8FA; background: rgba(125, 180, 245, 0.16); }
 
-/* ---------------- Notifications tab ---------------- */
-
-.ud-tab { position: relative; }
-
-.ud-tab-badge {
-  position: absolute;
-  top: 2px;
-  right: 0;
-  min-width: 18px;
-  padding: 1px 5px;
-  border: 2px solid var(--app-surface);
-  border-radius: 999px;
-  background: var(--app-danger, #E5484D);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.3;
-  text-align: center;
-}
+/* ---------------- Notifications page ---------------- */
 
 .ud-notifs { margin: 6px 0 0; }
 

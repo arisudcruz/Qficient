@@ -6,7 +6,10 @@
     </div>
 
     <div class="ud-header-right">
-      <div id="notificationToggle"></div>
+      <button type="button" class="ud-bell" id="udNotifBell" onclick="toggleNotificationsPage()" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="ud-bell-badge" id="udNotifBadge" hidden></span>
+      </button>
       <span class="ud-divider" aria-hidden="true"></span>
 
       <div class="ud-user-wrap">
@@ -24,6 +27,7 @@
             <span id="udMenuMeta"></span>
           </div>
           <button type="button" role="menuitem" id="udMenuType" onclick="changeStudentTypeFromMenu()">Change student type</button>
+          <button type="button" role="menuitem" id="udMenuAlerts" onclick="enableAlertsFromMenu()" hidden>Turn on phone alerts</button>
           <button type="button" role="menuitem" id="udMenuTheme" onclick="toggleThemeFromMenu()">Dark mode</button>
           <button type="button" role="menuitem" class="ud-menu-danger" onclick="logoutFromMenu()">Log out</button>
         </div>
@@ -65,10 +69,6 @@
     </button>
     <button type="button" class="ud-tab" id="tabBtnBoard" onclick="setDashboardTab('board')" aria-label="Live Board" title="Live Board">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 9h5M7 12h9"/></svg>
-    </button>
-    <button type="button" class="ud-tab" id="tabBtnNotifications" onclick="setDashboardTab('notifications')" aria-label="Notifications" title="Notifications">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-      <span class="ud-tab-badge" id="udNotifBadge" hidden></span>
     </button>
   </nav>
 </div>

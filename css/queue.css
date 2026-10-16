@@ -525,8 +525,7 @@ body.dark .app-page input.invalid {
   gap: 8px;
   padding: 0 20px 14px;
 }
-#studentTypeChip:empty,
-#notificationToggle:empty { display: none; }
+#studentTypeChip:empty { display: none; }
 
 .student-type-chip,
 .notif-chip {

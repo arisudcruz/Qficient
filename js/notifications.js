@@ -110,21 +110,23 @@ function enableNotifications() {
   });
 }
 
-var BELL_ICON_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
-
+// The "phone alerts" item in the account menu: turns on push alerts, or says they are on or blocked.
 function refreshNotificationToggle() {
-  var area = document.getElementById("notificationToggle");
-  if (!area) return;
+  var item = document.getElementById("udMenuAlerts");
+  if (!item) return;
 
   if (!user || !isFcmSupported()) {
-    area.innerHTML = "";
+    item.hidden = true;
     return;
   }
 
   var permission = Notification.permission;
+  item.hidden = false;
+  item.disabled = permission !== "default";
+  item.classList.toggle("ud-menu-status", permission !== "default");
 
   if (permission === "granted") {
-    area.innerHTML = '<span class="ud-bell is-on" role="img" aria-label="Notifications are on" title="Notifications are on">' + BELL_ICON_SVG + '<span class="ud-bell-dot"></span></span>';
+    item.textContent = "Phone alerts are on ✓";
 
     if (fcmTokenRegisteredFor !== user.id && FCM_VAPID_KEY.indexOf("REPLACE_WITH") !== 0) {
       fcmTokenRegisteredFor = user.id;
@@ -133,8 +135,10 @@ function refreshNotificationToggle() {
       });
     }
   } else if (permission === "denied") {
-    area.innerHTML = '<span class="ud-bell is-off" role="img" aria-label="Notifications are blocked in this browser" title="Notifications are blocked in this browser">' + BELL_ICON_SVG + '</span>';
+    item.textContent = "Phone alerts are blocked in this browser";
+    item.title = "Allow notifications for this site in the browser's settings to turn them on.";
   } else {
-    area.innerHTML = '<button type="button" class="ud-bell" onclick="enableNotifications()" aria-label="Enable notifications" title="Enable notifications">' + BELL_ICON_SVG + '<span class="ud-bell-dot"></span></button>';
+    item.textContent = "Turn on phone alerts";
+    item.title = "Ring and vibrate this phone when it's almost your turn, even if QFicient is closed.";
   }
 }
