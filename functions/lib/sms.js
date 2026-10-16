@@ -4,7 +4,19 @@
 // Providers (set in config.js, sms.provider):
 //   "log"        test mode: nothing is sent; each message is written to the `smsLog` collection (free)
 //   "semaphore"  Semaphore (semaphore.co), a Philippine SMS gateway; needs the SMS_API_KEY secret
+//   "android"    an Android phone running "SMS Gateway for Android" (sms-gate.app) in cloud mode; the phone sends
+//                the text from its own SIM. Needs the SMS_GATEWAY_USER and SMS_GATEWAY_PASSWORD secrets (the
+//                username and password shown in the app's Cloud Server section).
 // In the emulator every provider behaves like "log".
+
+// The secrets each provider needs; index.js asks Firebase for exactly these.
+const SMS_SECRETS = {
+  log: [],
+  semaphore: ["SMS_API_KEY"],
+  android: ["SMS_GATEWAY_USER", "SMS_GATEWAY_PASSWORD"]
+};
+
+const ANDROID_GATEWAY_URL = "https://api.sms-gate.app/3rdparty/v1/messages";
 
 const SMS_MAX_LENGTH = 306; // two standard SMS parts
 
@@ -26,7 +38,8 @@ function localNumber(mobile) {
   return String(mobile).replace(/^\+63/, "0");
 }
 
-function createSmsSender({ db, FieldValue, config, apiKey, log }) {
+// `secret(name)` returns the value of one of the provider's secrets.
+function createSmsSender({ db, FieldValue, config, secret, log }) {
   const settings = config.sms || {};
   const isEmulator = process.env.FUNCTIONS_EMULATOR === "true" || !!process.env.FIRESTORE_EMULATOR_HOST;
   const provider = isEmulator ? "log" : (settings.provider || "log");
@@ -40,7 +53,7 @@ function createSmsSender({ db, FieldValue, config, apiKey, log }) {
     }
 
     if (provider === "semaphore") {
-      const body = new URLSearchParams({ apikey: apiKey(), number: localNumber(mobile), message: text });
+      const body = new URLSearchParams({ apikey: secret("SMS_API_KEY"), number: localNumber(mobile), message: text });
       if (settings.senderName) body.set("sendername", settings.senderName);
 
       const response = await fetch("https://api.semaphore.co/api/v4/messages", {
@@ -53,10 +66,22 @@ function createSmsSender({ db, FieldValue, config, apiKey, log }) {
       return true;
     }
 
+    if (provider === "android") {
+      const login = Buffer.from(secret("SMS_GATEWAY_USER") + ":" + secret("SMS_GATEWAY_PASSWORD")).toString("base64");
+      const response = await fetch(settings.androidUrl || ANDROID_GATEWAY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Basic " + login },
+        body: JSON.stringify({ textMessage: { text: text }, phoneNumbers: [mobile] })
+      });
+      if (!response.ok) throw new Error("SMS gateway answered " + response.status + ": " + (await response.text()).slice(0, 200));
+      writeLog("sms handed to the Android gateway for " + mobile + " (" + tag + ")");
+      return true;
+    }
+
     throw new Error("Unknown SMS provider \"" + provider + "\" in functions/config.js");
   }
 
   return { send, provider };
 }
 
-module.exports = { createSmsSender, smsText, localNumber };
+module.exports = { createSmsSender, smsText, localNumber, SMS_SECRETS };

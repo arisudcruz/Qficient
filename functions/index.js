@@ -13,7 +13,7 @@ const { describeChange, onlyChanged, affectsQueueFront } = require("./lib/events
 const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
-const { createSmsSender } = require("./lib/sms");
+const { createSmsSender, SMS_SECRETS } = require("./lib/sms");
 const messages = require("./lib/messages");
 
 initializeApp();
@@ -21,12 +21,15 @@ const db = getFirestore();
 
 setGlobalOptions({ region: config.region, maxInstances: config.maxInstances });
 
-// The SMS key is only needed (and only asked for at deploy time) once a real provider is switched on.
-const smsApiKey = (config.sms && config.sms.provider !== "log") ? defineSecret("SMS_API_KEY") : null;
+// SMS secrets are only needed (and only asked for at deploy time) once a real provider is switched on.
+const smsSecrets = (SMS_SECRETS[config.sms && config.sms.provider] || []).map(function (name) { return defineSecret(name); });
 
 const sms = createSmsSender({
   db, FieldValue, config,
-  apiKey: function () { return smsApiKey ? smsApiKey.value() : ""; },
+  secret: function (name) {
+    const param = smsSecrets.find(function (s) { return s.name === name; });
+    return param ? param.value() : "";
+  },
   log: function (message) { logger.info(message); }
 });
 
@@ -49,7 +52,7 @@ async function voidMinutes() {
 
 // Runs whenever a ticket is created or changed: tells the student what happened and, when the front of a
 // queue may have changed, tells the next student in line.
-exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{ticketId}" }, smsApiKey ? { secrets: [smsApiKey] } : {}), async function (event) {
+exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{ticketId}" }, smsSecrets.length ? { secrets: smsSecrets } : {}), async function (event) {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after = event.data.after.exists ? event.data.after.data() : null;
   if (!after) return;
