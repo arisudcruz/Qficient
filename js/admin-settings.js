@@ -258,7 +258,7 @@ function openEditStationModal(stationId) {
     '<hr class="modal-divider">' +
     '<div class="modal-section">' +
       '<h3 class="modal-section-title">Edit Purpose</h3>' +
-      '<p class="modal-help">The purposes students and the Queue Enforcer can pick for this station. "Others, please specify" is always offered at the end. Leave the list empty to use the default purposes.</p>' +
+      '<p class="modal-help">These are the purposes this station offers right now, to students and in the Queue Enforcer form. Edit, remove or add, then save. "Others, please specify" is always offered at the end.</p>' +
       '<div class="purpose-edit-list" id="editStationPurposes">' + editPurposeRowsHtml(station) + '</div>' +
       '<div class="settings-actions modal-actions-end">' +
         '<button type="button" class="settings-btn settings-btn-blue" onclick="addEditPurposeRow()">+ Add Purpose</button>' +
@@ -320,8 +320,13 @@ function editPurposeRowHtml(value) {
   '</div>';
 }
 
+// The purposes a station offers right now: its own list, or the default list when it has none saved.
+function currentStationPurposes(station) {
+  return Array.isArray(station.purposes) && station.purposes.length ? station.purposes.slice() : queueMgmtPurposes.slice();
+}
+
 function editPurposeRowsHtml(station) {
-  var purposes = Array.isArray(station.purposes) ? station.purposes : [];
+  var purposes = currentStationPurposes(station);
   return purposes.length ? purposes.map(editPurposeRowHtml).join("") : editPurposeRowHtml("");
 }
 
@@ -360,12 +365,16 @@ function saveStationPurposes(stationId) {
     purposes.push(value);
   });
 
+  if (!purposes.length) {
+    say("Please keep at least one purpose. \"Others, please specify\" is always offered as well.");
+    return;
+  }
   if (purposes.length > STATION_PURPOSE_MAX) {
     say("A station can have up to " + STATION_PURPOSE_MAX + " purposes.");
     return;
   }
 
-  var before = Array.isArray(station.purposes) ? station.purposes : [];
+  var before = currentStationPurposes(station);
   if (JSON.stringify(before) === JSON.stringify(purposes)) {
     say("There are no changes to save.");
     return;
@@ -375,7 +384,7 @@ function saveStationPurposes(stationId) {
     var button = document.getElementById("savePurposesBtn");
     setButtonLoading(button, true);
     return db.collection("stations").doc(stationId).update({ purposes: purposes }).then(function () {
-      say(purposes.length ? "Purposes saved." : "Purposes cleared. This station now uses the default purposes.");
+      say("Purposes saved.");
     }).catch(function (error) {
       say("Could not save the purposes: " + error.message);
     }).then(function () {
