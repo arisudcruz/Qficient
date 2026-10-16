@@ -17,9 +17,13 @@ function goTo(pageId) {
   if (typeof routerAfterGoTo === "function") routerAfterGoTo(pageId);
 }
 
+// Ctrl+Alt+B opens the staff sign-in, but only from the landing page.
 document.addEventListener("keydown", function (event) {
-  if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "b") {
-    event.preventDefault();
-    goTo("pageAdmin");
-  }
+  if (!(event.ctrlKey && event.altKey && event.key.toLowerCase() === "b")) return;
+
+  var home = document.getElementById("pageHome");
+  if (!home || !home.classList.contains("show")) return;
+
+  event.preventDefault();
+  goTo("pageAdmin");
 });
