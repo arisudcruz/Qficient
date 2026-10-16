@@ -146,6 +146,7 @@ body.dark .enforcer-field select,
 body.dark .enforcer-field input,
 body.dark .report-filters input,
 body.dark .report-filters select,
+body.dark .queue-type-filter,
 body.dark .traffic-filters input,
 body.dark .admin-login-card input {
   background: var(--ad-field);

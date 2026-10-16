@@ -71,6 +71,36 @@ function adminHeaderRightHtml() {
   '</div>';
 }
 
+// The student-type filter above the queue lists (Queue Management and Queue Enforcer). It only hides rows;
+// Call Next and the queue order are unchanged. A ticket without a known type counts as Regular, as in the list.
+var QUEUE_TYPE_FILTERS = [
+  { value: "", label: "All Types" },
+  { value: "regular", label: "Regular" },
+  { value: "transferee", label: "Transferee / Irregular" },
+  { value: "guest", label: "Guest" }
+];
+
+function ticketTypeOf(ticket) {
+  return ticket.studentType === "transferee" || ticket.studentType === "guest" ? ticket.studentType : "regular";
+}
+
+function ticketMatchesTypeFilter(ticket, filter) {
+  return !filter || ticketTypeOf(ticket) === filter;
+}
+
+function queueTypeFilterHtml(selected, onchange) {
+  return '<select class="queue-type-filter" aria-label="Show student type" onchange="' + onchange + '">' +
+    QUEUE_TYPE_FILTERS.map(function (option) {
+      return '<option value="' + option.value + '"' + (option.value === selected ? ' selected' : '') + '>' + option.label + '</option>';
+    }).join("") +
+  '</select>';
+}
+
+function queueTypeFilterLabel(filter) {
+  var option = QUEUE_TYPE_FILTERS.find(function (o) { return o.value === filter; });
+  return option ? option.label : "";
+}
+
 function escapeAdminText(value) {
   return String(value == null ? "" : value)
     .replace(/&/g, "&amp;")

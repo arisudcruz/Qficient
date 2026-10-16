@@ -6,6 +6,13 @@ var ENFORCER_OTHER_PURPOSE = "__other__";
 
 var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", mobile: "", email: "" };
 var enforcerFilter = "";
+var enforcerTypeFilter = ""; // "" = all student types
+
+function setEnforcerTypeFilter(value) {
+  enforcerTypeFilter = value;
+  enforcerSelection = {};
+  refreshEnforcerList();
+}
 
 function emptyEnforcerDraft(stationId) {
   return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "", mobile: "", email: "" };
@@ -173,7 +180,8 @@ function getEnforcerListTickets() {
 
   return tickets.filter(function (ticket) {
     return (ticket.status === "serving" || ticket.status === "waiting" || ticket.status === "skipped") &&
-      isTodayTicket(ticket) && (!enforcerFilter || ticket.stationId === enforcerFilter);
+      isTodayTicket(ticket) && (!enforcerFilter || ticket.stationId === enforcerFilter) &&
+      ticketMatchesTypeFilter(ticket, enforcerTypeFilter);
   }).sort(function (a, b) {
     var byStation = (stationOrder[a.stationId] || 0) - (stationOrder[b.stationId] || 0);
     if (byStation) return byStation;
@@ -207,7 +215,9 @@ function enforcerListRowsHtml() {
   var list = getEnforcerListTickets();
 
   if (!list.length) {
-    return '<tr><td colspan="6" class="empty-row">No tickets in the queue right now.</td></tr>';
+    return '<tr><td colspan="6" class="empty-row">' + (enforcerTypeFilter ?
+      'No ' + escapeAdminText(queueTypeFilterLabel(enforcerTypeFilter)) + ' tickets in the queue right now.' :
+      'No tickets in the queue right now.') + '</td></tr>';
   }
 
   return list.map(function (ticket) {
@@ -414,7 +424,8 @@ function renderEnforcer() {
 
         '<section class="panel settings-panel">' +
           '<div class="panel-header"><h2>Queue List</h2>' +
-            '<div class="queued-tools"><button type="button" id="enforcerActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openEnforcerActionsModal()">Action</button></div></div>' +
+            '<div class="queued-tools">' + queueTypeFilterHtml(enforcerTypeFilter, "setEnforcerTypeFilter(this.value)") +
+              '<button type="button" id="enforcerActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openEnforcerActionsModal()">Action</button></div></div>' +
           '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr>' +
             '<th class="queue-select-cell"><span class="visually-hidden">Select</span></th>' +
             '<th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th></tr></thead>' +

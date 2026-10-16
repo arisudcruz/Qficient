@@ -1880,7 +1880,23 @@ body.dark .enforcer-field input {
 .queued-tools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
+}
+
+/* Student-type filter above the queue lists */
+.queue-type-filter {
+  width: auto;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .queue-row {
