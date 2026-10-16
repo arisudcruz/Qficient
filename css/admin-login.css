@@ -28,7 +28,7 @@ body[data-page="pageAdminLogin"] .themeToggle { display: none; }
 .al-photo {
   min-height: 360px;
   border-radius: 26px;
-  background: #E9E4DC url("/assets/admin-login-photo.webp") center 55% / cover no-repeat;
+  background: #E9E4DC url("/assets/admin-login-laptop.webp") center 45% / cover no-repeat;
 }
 
 .al-panel {
