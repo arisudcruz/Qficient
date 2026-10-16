@@ -24,7 +24,7 @@ function selectStudentType(type) {
       user.studentType = type;
       closeStudentTypeModal();
       updateDashboard();
-      say("Student type set to " + STUDENT_TYPE_LABELS[type] + ".");
+      sayDone("Student type set to " + STUDENT_TYPE_LABELS[type] + ".");
     })
     .catch(function (err) {
       say("Could not save student type: " + err.message);

@@ -149,7 +149,7 @@ function confirmCreateManualTicket() {
 
         enforcerDraft = emptyEnforcerDraft(enforcerFilter);
         renderEnforcer();
-        say("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + ". It is being texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + ".");
+        sayDone("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + ". It is being texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + ".");
       });
     }
   });

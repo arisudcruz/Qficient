@@ -103,7 +103,7 @@ function enableNotifications() {
         return;
       }
       saveFcmToken(token);
-      say("Notifications enabled.");
+      sayDone("Notifications enabled.");
     }).catch(function (err) {
       say("Could not enable notifications: " + err.message);
     });

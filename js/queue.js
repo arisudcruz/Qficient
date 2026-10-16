@@ -209,7 +209,7 @@ function joinQueue(stationId, purpose) {
     var result = response.data || {};
     // Hold the lock briefly so the new ticket reaches the snapshot before another join is allowed.
     setTimeout(function () { joiningQueue = false; }, 1500);
-    return Promise.resolve(say("Ticket " + result.ticketNo + " created for " + result.stationName + "!")).then(function () { return true; });
+    return Promise.resolve(sayDone("Ticket " + result.ticketNo + " created for " + result.stationName + "!")).then(function () { return true; });
   }).catch(function (err) {
     joiningQueue = false;
     var code = String(err && err.code || "").replace("functions/", "");
@@ -426,7 +426,7 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
     });
   }).then(function (result) {
     advanceStation(sourceStationId);
-    say("Ticket transferred to " + result.stationName + " as " + result.ticketNo + ".");
+    sayDone("Ticket transferred to " + result.stationName + " as " + result.ticketNo + ".");
     return result;
   }).catch(function (err) {
     say("Could not transfer ticket: " + err.message);
@@ -592,7 +592,7 @@ function recallTicket(ticketId) {
     recalledAt: firebase.firestore.FieldValue.serverTimestamp(),
     recallCount: firebase.firestore.FieldValue.increment(1)
   }).then(function () {
-    say("Recall notification sent.");
+    sayDone("Recall notification sent.");
   }).catch(function (err) {
     say("Could not recall ticket: " + err.message);
   });
@@ -624,7 +624,7 @@ function lastCallTicket(ticketId) {
     lastCalled: true,
     lastCallAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
-    say("Last call sent.");
+    sayDone("Last call sent.");
   }).catch(function (err) {
     say("Could not send the last call: " + err.message);
   });
