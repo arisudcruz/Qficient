@@ -1,25 +1,40 @@
 <div class="page admin-login-page" id="pageAdminLogin">
-  <div class="admin-login-card">
-    <div class="admin-login-brand">
-      <div class="admin-login-badge"><img src="/assets/qficient-logo-white.png" alt=""></div>
-      <div class="admin-login-name">QFicient</div>
-    </div>
+  <div class="al-shell">
+    <div class="al-photo" role="img" aria-label="A laptop on a desk showing the QFicient dashboard"></div>
 
-    <h1 class="admin-login-title">Admin Sign In</h1>
-    <p class="admin-login-sub">Sign in with your administrator account to continue.</p>
+    <section class="al-panel">
+      <div class="al-top">
+        <div class="al-brand">
+          <img src="/assets/qficient-logo-navy.png" alt="" width="34" height="34">
+          <span>QFicient</span>
+        </div>
+        <button type="button" class="al-back" onclick="goTo('pageHome')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Back
+        </button>
+      </div>
 
-    <form id="adminLoginForm" onsubmit="adminLogin(event)" novalidate>
-      <label for="adminEmail">Email</label>
-      <input type="email" id="adminEmail" autocomplete="username" placeholder="admin@example.com">
+      <h1 class="al-title">Welcome Back <span aria-hidden="true">👋</span></h1>
+      <p class="al-sub" id="adminLoginSub">Sign in with your administrator account to continue.</p>
 
-      <label for="adminPassword">Password</label>
-      <input type="password" id="adminPassword" autocomplete="current-password" placeholder="Enter your password">
+      <div class="al-switch" role="tablist" aria-label="Sign in as">
+        <button type="button" role="tab" id="adminModeAdmin" class="active" aria-selected="true" onclick="setAdminLoginMode('admin')">As an Admin</button>
+        <button type="button" role="tab" id="adminModeStaff" aria-selected="false" onclick="setAdminLoginMode('staff')">As a Staff</button>
+      </div>
 
-      <p class="admin-login-error" id="adminLoginError" role="alert" style="display: none"></p>
+      <hr class="al-divider">
 
-      <button type="submit" class="admin-login-submit" id="adminLoginSubmit">Sign in</button>
-    </form>
+      <form id="adminLoginForm" onsubmit="adminLogin(event)" novalidate>
+        <label for="adminEmail">Email</label>
+        <input type="email" id="adminEmail" autocomplete="username" placeholder="admin@example.com">
 
-    <span class="admin-login-back" onclick="goTo('pageHome')">← Back to home</span>
+        <label for="adminPassword">Password</label>
+        <input type="password" id="adminPassword" autocomplete="current-password" placeholder="Enter your password">
+
+        <p class="admin-login-error" id="adminLoginError" role="alert" style="display: none"></p>
+
+        <button type="submit" class="al-submit" id="adminLoginSubmit">Sign In</button>
+      </form>
+    </section>
   </div>
 </div>

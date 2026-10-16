@@ -1,0 +1,202 @@
+/* ============================================================
+   Admin / staff sign-in (#pageAdminLogin)
+   A photo on the left and the sign-in panel on the right; on phones only the panel shows.
+   ============================================================ */
+
+.page.admin-login-page {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: #FFFFFF;
+}
+
+.page.admin-login-page.show { display: block; }
+
+/* The floating theme button would sit on top of Back; the page follows the saved light/dark choice. */
+body[data-page="pageAdminLogin"] .themeToggle { display: none; }
+
+.al-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 32px;
+  min-height: 100vh;
+  padding: 22px;
+}
+
+.al-photo {
+  min-height: 360px;
+  border-radius: 26px;
+  background: #E9E4DC url("/assets/admin-login-photo.webp") center 55% / cover no-repeat;
+}
+
+.al-panel {
+  align-self: center;
+  justify-self: center;
+  width: min(380px, 100%);
+  padding: 24px 6px;
+}
+
+.al-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 44px;
+}
+
+.al-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.al-brand img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.al-brand span {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #172033;
+}
+
+.al-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: #172033;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.al-back:hover { color: #0054A6; }
+
+.al-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.85rem;
+  color: #172033;
+}
+
+.al-sub {
+  margin: 6px 0 22px;
+  font-size: 0.85rem;
+  color: #0054A6;
+}
+
+/* As an Admin / As a Staff */
+.al-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.al-switch button {
+  padding: 11px 10px;
+  border: 1.5px solid transparent;
+  border-radius: 9px;
+  background: #E8EEF6;
+  color: #172033;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.al-switch button.active {
+  background: #DCEBFF;
+  border-color: #4A7FD0;
+  color: #0054A6;
+}
+
+.al-divider {
+  margin: 22px 0 18px;
+  border: 0;
+  border-top: 1px solid #E2E8F0;
+}
+
+#pageAdminLogin form label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #172033;
+}
+
+#pageAdminLogin form input {
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1.5px solid #DFE5EE;
+  border-radius: 10px;
+  background: #fff;
+  color: #172033;
+  font-size: 0.88rem;
+}
+
+#pageAdminLogin form input:focus {
+  outline: none;
+  border-color: #0054A6;
+  box-shadow: 0 0 0 3px rgba(0, 84, 166, 0.12);
+}
+
+.al-submit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #0054A6;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.al-submit:hover { background: #003F7D; }
+
+#pageAdminLogin .admin-login-error { margin: -4px 0 14px; }
+
+/* Phones and narrow windows: the panel alone */
+@media (max-width: 860px) {
+  .al-shell {
+    display: block;
+    padding: 16px;
+  }
+
+  .al-photo { display: none; }
+
+  .al-panel {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px 4px 32px;
+  }
+
+  .al-top { margin-bottom: 36px; }
+}
+
+/* ---------- Dark mode ---------- */
+
+body.dark .page.admin-login-page { background: #0D1626; }
+body.dark .al-brand span,
+body.dark .al-back,
+body.dark .al-title,
+body.dark #pageAdminLogin form label { color: #E6EDF8; }
+body.dark .al-sub { color: #7DB4F5; }
+body.dark .al-switch button { background: #1B2C48; color: #C5D2E6; }
+body.dark .al-switch button.active { background: #1D3A66; border-color: #4A7FD0; color: #fff; }
+body.dark .al-divider { border-top-color: #263B5C; }
+body.dark #pageAdminLogin form input { background: #0F1B2E; border-color: #34507A; color: #E6EDF8; }
+body.dark .al-brand img { filter: brightness(0) invert(1); }
