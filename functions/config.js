@@ -26,7 +26,7 @@ module.exports = {
   //                           firebase functions:secrets:set SMS_GATEWAY_USER
   //                           firebase functions:secrets:set SMS_GATEWAY_PASSWORD
   sms: {
-    provider: "log",
+    provider: "android",
     senderName: "",  // Semaphore only: a sender name approved in your account; leave empty for the default
     androidUrl: ""   // Android only: leave empty for the app's public cloud server
   },
