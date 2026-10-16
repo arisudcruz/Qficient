@@ -31,7 +31,7 @@ function renderLiveBoardLauncher() {
         '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M10 8.5v6l5-3z"/></svg>' +
         'Live Board' +
       '</button>' +
-      '<p class="lb-launch-help">For the TV: open QFicient in the TV\'s browser, sign in with a staff account, go to Live Board and press the button. Then use the full-screen button at the top of the board.</p>' +
+      '<p class="lb-launch-help">For the TV: open QFicient in the TV\'s browser, sign in with a staff account, go to Live Board and press the button. Then use the full-screen button at the top of the board, and tap "Tap to turn on sound" once so the board can chime and announce each call.</p>' +
     '</div>';
 }
 
@@ -110,6 +110,8 @@ function renderTvBoard() {
   tickTvClock();
 
   var list = tvStations();
+  checkTvAnnouncements(list);
+
   if (!list.length) {
     board.style.gridTemplateColumns = "";
     board.innerHTML = '<p class="tv-empty">No stations are open right now.</p>';
@@ -178,6 +180,8 @@ function toggleTvFullscreen() {
 // goTo() calls these when the board is shown or left.
 function startTvBoard() {
   tvLastServing = {};
+  resetTvAnnouncements();
+  renderTvSoundButton();
   renderTvBoard();
   markTvActive();
   if (!tvClockTimer) tvClockTimer = setInterval(tickTvClock, 1000);
@@ -190,6 +194,7 @@ function stopTvBoard() {
   }
   ensureTvSideRotation(false);
   clearTimeout(tvIdleTimer);
+  resetTvAnnouncements();
 }
 
 document.addEventListener("mousemove", function () {

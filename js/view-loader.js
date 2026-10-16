@@ -26,6 +26,7 @@ var appScripts = [
   "js/admin-auth.js",
   "js/notifications.js",
   "js/landing.js",
+  "js/tv-announcer.js",
   "js/tv-board.js",
   "js/router.js"
 ];
