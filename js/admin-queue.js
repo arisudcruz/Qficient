@@ -381,6 +381,17 @@ function stopAutoVoidWatcher() {
   }
 }
 
+// The time a ticket was generated, in Philippine time (e.g. "7:42 PM").
+function ticketGeneratedTime(ticket) {
+  var ms = timestampToMs(ticket.createdAt, 0);
+  if (!ms) return "";
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+}
+
 function renderQueueManagement() {
   var area = document.getElementById("adminQueueArea");
   if (!area) return;
@@ -479,7 +490,8 @@ function renderQueueManagement() {
         '<div class="serving-card' + (serving && STUDENT_TYPE_LABELS[serving.studentType] ? ' serving-type-' + serving.studentType : '') + '">' +
           '<div class="serving-card-top">' +
             '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
-            '<span class="serving-time">' + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + '</span>' +
+            (serving && serving.createdAt ?
+              '<span class="serving-time" title="When this ticket was generated">Generated ' + escapeAdminText(ticketGeneratedTime(serving)) + '</span>' : '') +
           '</div>' +
           servingHtml +
         '</div>' +
