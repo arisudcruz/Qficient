@@ -67,7 +67,8 @@ function createSmsSender({ db, FieldValue, config, secret, log }) {
     }
 
     if (provider === "android") {
-      const login = Buffer.from(secret("SMS_GATEWAY_USER") + ":" + secret("SMS_GATEWAY_PASSWORD")).toString("base64");
+      // Trimmed: a pasted secret can carry a stray space or line break, which the gateway would reject.
+      const login = Buffer.from(String(secret("SMS_GATEWAY_USER")).trim() + ":" + String(secret("SMS_GATEWAY_PASSWORD")).trim()).toString("base64");
       const response = await fetch(settings.androidUrl || ANDROID_GATEWAY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Basic " + login },
