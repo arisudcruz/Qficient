@@ -4,11 +4,28 @@ var ENFORCER_TYPES = ["regular", "transferee", "guest"];
 // Kept here so the form survives switching sections and the list refreshing underneath it.
 var ENFORCER_OTHER_PURPOSE = "__other__";
 
-var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", email: "" };
+var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", mobile: "", email: "" };
 var enforcerFilter = "";
 
 function emptyEnforcerDraft(stationId) {
-  return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "", email: "" };
+  return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "", mobile: "", email: "" };
+}
+
+// A Philippine mobile number in any common form (0917 123 4567, 917-123-4567, +63 917 123 4567) becomes
+// +639171234567. Anything else gives "".
+function normalizePhMobile(value) {
+  var digits = String(value || "").replace(/[\s\-().]/g, "");
+  if (/^\+639\d{9}$/.test(digits)) return digits;
+  if (/^639\d{9}$/.test(digits)) return "+" + digits;
+  if (/^09\d{9}$/.test(digits)) return "+63" + digits.slice(1);
+  if (/^9\d{9}$/.test(digits)) return "+63" + digits;
+  return "";
+}
+
+// +639171234567 -> 0917 123 4567, for showing back to staff.
+function formatPhMobile(mobile) {
+  var local = String(mobile).replace(/^\+63/, "0");
+  return local.slice(0, 4) + " " + local.slice(4, 7) + " " + local.slice(7);
 }
 
 function getEnforcerStations() {
@@ -93,6 +110,11 @@ function enforcerFormProblem() {
   if (!d.purpose) return "Please select the purpose.";
   if (d.purpose === ENFORCER_OTHER_PURPOSE && !/[\p{L}\p{N}]/u.test(d.purposeOther)) return "Please specify the purpose.";
 
+  if (!d.mobile.trim()) return "Please enter the mobile number. The ticket number and alerts are sent there by SMS.";
+  if (!normalizePhMobile(d.mobile)) return "Please enter a valid Philippine mobile number, like 0917 123 4567.";
+
+  // Email is optional, but if it's filled in it has to be a real address.
+  if (!d.email.trim()) return "";
   var emailProblem = guestEmailProblem(d.email.trim());
   return emailProblem ? emailProblem.replace("Enter", "Please enter") : "";
 }
@@ -110,7 +132,7 @@ function confirmCreateManualTicket() {
 
   showConfirmModal({
     title: "Create Ticket?",
-    message: "The queue entry for " + name + " is ready to be created. It joins the " + (station ? station.name : "") + " queue and gets the next queue number.",
+    message: "The queue entry for " + name + " is ready to be created. It joins the " + (station ? station.name : "") + " queue and gets the next queue number, which is texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + ".",
     confirmLabel: "Create Ticket",
     tone: "danger",
     onConfirm: function () {
@@ -120,13 +142,14 @@ function confirmCreateManualTicket() {
         studentType: d.studentType,
         stationId: d.stationId,
         purpose: enforcerFinalPurpose(),
+        mobile: normalizePhMobile(d.mobile),
         email: d.email.trim()
       }).then(function (result) {
         if (!result) return;
 
         enforcerDraft = emptyEnforcerDraft(enforcerFilter);
         renderEnforcer();
-        say("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + ".");
+        say("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + ". It is being texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + ".");
       });
     }
   });
@@ -379,7 +402,8 @@ function renderEnforcer() {
             '<div class="enforcer-field"><label for="enforcerType">Student Type*</label><select id="enforcerType" onchange="onEnforcerInput(\'studentType\', this.value)">' + typeOptions + '</select></div>' +
             '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId) + '</select></div>' +
             '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
-            '<div class="enforcer-field enforcer-span-2"><label for="enforcerEmail">Email*</label><input type="email" id="enforcerEmail" placeholder="e.g. kimfrane@gmail.com" maxlength="254" value="' + escapeAdminText(d.email) + '" oninput="onEnforcerInput(\'email\', this.value)"></div>' +
+            '<div class="enforcer-field"><label for="enforcerMobile">Mobile Number*</label><input type="tel" id="enforcerMobile" inputmode="tel" autocomplete="off" placeholder="e.g. 0917 123 4567" maxlength="20" value="' + escapeAdminText(d.mobile) + '" oninput="onEnforcerInput(\'mobile\', this.value)"></div>' +
+            '<div class="enforcer-field enforcer-span-2"><label for="enforcerEmail">Email (optional)</label><input type="email" id="enforcerEmail" placeholder="e.g. kimfrane@gmail.com" maxlength="254" value="' + escapeAdminText(d.email) + '" oninput="onEnforcerInput(\'email\', this.value)"></div>' +
             '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +
           '</div>' +
           '<div class="settings-actions enforcer-form-actions">' +

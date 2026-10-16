@@ -62,7 +62,7 @@ function adminHeaderRightHtml() {
     '</button>' +
     '<span class="admin-header-divider" aria-hidden="true"></span>' +
     '<span class="admin-header-name">' + escapeAdminText(adminDisplayName()) + '</span>' +
-    '<button type="button" class="settings-logout" onclick="adminLogout()">Logout</button>' +
+    '<button type="button" class="settings-logout" onclick="confirmAdminLogout()">Logout</button>' +
   '</div>';
 }
 

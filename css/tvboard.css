@@ -54,8 +54,6 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
 .tv-brand img {
   width: 5vh;
   height: 5vh;
-  border-radius: 0.8vh;
-  background: #fff;
   object-fit: contain;
 }
 

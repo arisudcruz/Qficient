@@ -1,6 +1,7 @@
 const messages = require("./messages");
 const { compareQueueOrder } = require("./events");
 const { startOfTodayMs } = require("./time");
+const { smsText } = require("./sms");
 
 function isDeadTokenError(err) {
   const code = err && err.code;
@@ -9,7 +10,7 @@ function isDeadTokenError(err) {
 
 // Sends pushes and keeps them from going out twice. In the emulator nothing is really sent: each push is written
 // to a `testPushLog` collection so tests can check it.
-function createPusher({ db, FieldValue, Timestamp, messaging, config, log, forceReal }) {
+function createPusher({ db, FieldValue, Timestamp, messaging, config, log, forceReal, sms }) {
   const isEmulator = !forceReal && (process.env.FUNCTIONS_EMULATOR === "true" || !!process.env.FIRESTORE_EMULATOR_HOST);
   const writeLog = log || function () {};
 
@@ -55,15 +56,52 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     }
   }
 
+  // A walk-in ticket (made by the Queue Enforcer) is told by SMS, at the number kept in ticketContacts.
+  async function notifyBySms(ticketId, message, tag) {
+    if (!sms) return false;
+    try {
+      const contact = await db.collection("ticketContacts").doc(ticketId).get();
+      const mobile = contact.exists ? contact.data().mobile : null;
+      if (!mobile) return false;
+
+      await sms.send(mobile, smsText(message), tag);
+      return true;
+    } catch (err) {
+      writeLog("sms failed for ticket " + ticketId + ": " + (err && err.message ? err.message : err));
+      return false;
+    }
+  }
+
+  // Tells a ticket's owner: push to their device, or SMS for a walk-in ticket.
+  async function notifyTicket(ticket, message, tag) {
+    if (ticket && ticket.manual) return notifyBySms(ticket.id, message, tag);
+    return notifyUser(ticket && ticket.ownerId, message, tag);
+  }
+
   // Cloud Functions may deliver the same event more than once; the first delivery claims the key.
-  async function pushOnce(key, ownerId, message, tag) {
+  // `target` is the ticket (or, for older callers, just the owner's id).
+  async function pushOnce(key, target, message, tag) {
+    const ticket = target && typeof target === "object" ? target : null;
+    const ownerId = ticket ? ticket.ownerId : target;
+
     try {
       await db.collection("pushEvents").doc(key).create({ at: FieldValue.serverTimestamp(), ownerId: ownerId || null });
     } catch (err) {
       if (err && (err.code === 6 || err.code === "already-exists")) return false;
       throw err;
     }
-    return notifyUser(ownerId, message, tag);
+    return ticket ? notifyTicket(ticket, message, tag) : notifyUser(ownerId, message, tag);
+  }
+
+  // Where a waiting ticket stands in its station's line (1 = next), or 0 if it isn't waiting.
+  async function placeInLine(stationId, ticketId, nowMs) {
+    const snap = await db.collection("tickets")
+      .where("stationId", "==", stationId)
+      .where("createdAt", ">=", Timestamp.fromMillis(startOfTodayMs(config.tzOffsetMs, nowMs)))
+      .where("status", "==", "waiting")
+      .get();
+    const line = snap.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }).sort(compareQueueOrder);
+    return line.findIndex(function (t) { return t.id === ticketId; }) + 1;
   }
 
   // While someone is being served: tells the 2nd and 3rd in line they're almost up, and the 1st that they're next.
@@ -96,7 +134,7 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
         transaction.update(ticket.ref, { soonNotified: data.ticketNo });
         return true;
       });
-      if (claimedSoon) await notifyUser(ticket.ownerId, messages.soon(ticket, stationName, i + 1), ticket.id + ":soon:" + ticket.ticketNo);
+      if (claimedSoon) await notifyTicket(ticket, messages.soon(ticket, stationName, i + 1), ticket.id + ":soon:" + ticket.ticketNo);
     }
 
     const first = line[0];
@@ -111,10 +149,10 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     });
     if (!claimed) return false;
 
-    return notifyUser(first.ownerId, messages.next(first, stationName), first.id + ":next:" + stationId);
+    return notifyTicket(first, messages.next(first, stationName), first.id + ":next:" + stationId);
   }
 
-  return { notifyUser, pushOnce, notifyNextInLine };
+  return { notifyUser, notifyTicket, pushOnce, notifyNextInLine, placeInLine };
 }
 
 module.exports = { createPusher };

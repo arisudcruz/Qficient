@@ -322,16 +322,19 @@ service cloud.firestore {
     }
 
     // ---------- Contact details for manually created tickets ----------
-    // Queue Enforcer keeps the walk-in's email here, not on the ticket that every
+    // Queue Enforcer keeps the walk-in's mobile number (and optional email) here, not on the ticket that every
     // signed-in user can read. Written once by an admin or enforcer, never changed,
     // and readable by admins only.
 
     match /ticketContacts/{ticketId} {
       allow read: if isAdmin();
       allow create: if (isAdmin() || isEnforcer()) &&
-        request.resource.data.keys().hasOnly(['email', 'createdBy', 'createdAt']) &&
-        request.resource.data.email is string &&
-        request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254 &&
+        request.resource.data.keys().hasOnly(['mobile', 'email', 'createdBy', 'createdAt']) &&
+        request.resource.data.mobile is string &&
+        request.resource.data.mobile.matches('^[+]639[0-9]{9}$') &&
+        (!('email' in request.resource.data) ||
+          (request.resource.data.email is string &&
+           request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254)) &&
         request.resource.data.createdAt == request.time;
       allow update, delete: if false;
     }

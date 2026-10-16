@@ -226,8 +226,18 @@ function adminLogin(event) {
     });
 }
 
+function confirmAdminLogout() {
+  showConfirmModal({
+    title: "Are you sure you want to log out?",
+    message: "You'll need to sign in again to use the admin console on this device.",
+    confirmLabel: "Log Out",
+    tone: "danger",
+    onConfirm: function () { return adminLogout(); }
+  });
+}
+
 function adminLogout() {
-  firebase.auth().signOut()
+  return firebase.auth().signOut()
     .then(function () {
       deactivateAdminSession();
       setAdminSection("dashboard");

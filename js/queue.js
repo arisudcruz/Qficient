@@ -436,7 +436,10 @@ function createManualTicket(details) {
         manual: true,
         createdBy: createdBy
       });
-      transaction.set(contactRef, { email: details.email, createdBy: createdBy, createdAt: now });
+      // The mobile number receives the ticket and its alerts by SMS; it stays in this admin-only record.
+      var contact = { mobile: details.mobile, createdBy: createdBy, createdAt: now };
+      if (details.email) contact.email = details.email;
+      transaction.set(contactRef, contact);
 
       return { ticketNo: ticketNo, stationName: data.name };
     });

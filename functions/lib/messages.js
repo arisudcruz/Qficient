@@ -1,3 +1,9 @@
+function ordinal(n) {
+  const rest = n % 100;
+  const suffix = rest >= 11 && rest <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" })[n % 10] || "th";
+  return n + suffix;
+}
+
 function minutes(n) {
   return n + (n === 1 ? " minute" : " minutes");
 }
@@ -27,6 +33,11 @@ module.exports = {
   soon: (t, station, place) => ({
     title: "You're " + (place === 2 ? "2nd" : "3rd") + " in line",
     body: "Ticket " + t.ticketNo + " at " + station + " is almost up. Please stay nearby."
+  }),
+
+  manualCreated: (t, station, place) => ({
+    title: "Your ticket is " + t.ticketNo,
+    body: "You are in line at " + station + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + ". We'll text you when it's almost your turn. Please keep this message."
   }),
 
   next: (t, station) => ({

@@ -23,8 +23,8 @@ messaging.onBackgroundMessage(function (payload) {
   var urgent = /:(serving|recall|lastCall|skipped)$/.test(tag);
   var options = {
     body: data.body || "",
-    icon: "/assets/qfficient-badge.png",
-    badge: "/assets/qfficient-badge.png",
+    icon: "/assets/notification-icon.png",
+    badge: "/assets/notification-badge.png",
     tag: tag || undefined,
     renotify: !!tag,
     silent: false,

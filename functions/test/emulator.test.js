@@ -38,7 +38,7 @@ async function pushesFor(tag) {
 const hasPush = (tag, n) => async () => (await pushesFor(tag)).length === (n === undefined ? 1 : n);
 
 async function wipe() {
-  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents"]) {
+  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -132,6 +132,21 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   // Staff remove a ticket.
   await db.collection("tickets").doc("t2").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
   check("removed by staff: owner is told", await until(hasPush("t2:void")) && /removed by staff/.test((await pushesFor("t2:void"))[0].body));
+
+  // A walk-in ticket made by the Queue Enforcer gets text messages instead of pushes.
+  const smsFor = async (tag) => (await db.collection("smsLog").where("tag", "==", tag).get()).docs.map((d) => d.data());
+  await db.collection("ticketContacts").doc("w1").set({ mobile: "+639171234567", createdBy: "enf@x.com", createdAt: FieldValue.serverTimestamp() });
+  await ticket("w1", "RE-002", "manual:w1", "registrar", { manual: true, createdBy: "enf@x.com", studentType: "guest" });
+  check("walk-in: the ticket number is texted to their mobile", await until(async () => (await smsFor("w1:created")).length === 1));
+  const created = (await smsFor("w1:created"))[0];
+  check("walk-in: the text goes to the saved number", created && created.to === "+639171234567", created && created.to);
+  check("walk-in: the text names the ticket and the station", created && /RE-002/.test(created.text) && /Registrar/.test(created.text) && /^QFicient: /.test(created.text), created && created.text);
+  check("walk-in: the text uses plain characters only", created && /^[\x20-\x7E]*$/.test(created.text), created && created.text);
+  await db.collection("tickets").doc("w1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
+  check("walk-in: 'your turn' is texted", await until(async () => (await smsFor("w1:serving")).length === 1));
+  check("walk-in: no push was attempted for the walk-in", (await pushesFor("w1:serving")).length === 0);
+  await db.collection("tickets").doc("w1").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
+  check("walk-in: removal is texted", await until(async () => (await smsFor("w1:void")).length === 1));
 
   // Nothing went out twice.
   await wait(2000);

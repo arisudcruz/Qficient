@@ -257,6 +257,16 @@ function openEditStationModal(stationId) {
     '</div>' +
     '<hr class="modal-divider">' +
     '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Edit Purpose</h3>' +
+      '<p class="modal-help">The purposes students and the Queue Enforcer can pick for this station. "Others, please specify" is always offered at the end. Leave the list empty to use the default purposes.</p>' +
+      '<div class="purpose-edit-list" id="editStationPurposes">' + editPurposeRowsHtml(station) + '</div>' +
+      '<div class="settings-actions modal-actions-end">' +
+        '<button type="button" class="settings-btn settings-btn-blue" onclick="addEditPurposeRow()">+ Add Purpose</button>' +
+        '<button type="button" class="settings-btn settings-btn-primary" id="savePurposesBtn" onclick="saveStationPurposes(\'' + id + '\')">Save Changes</button>' +
+      '</div>' +
+    '</div>' +
+    '<hr class="modal-divider">' +
+    '<div class="modal-section">' +
       '<h3 class="modal-section-title">Maximum Service Queue</h3>' +
       '<p class="modal-help">Sets the maximum number of successful queue entries that can be processed within a single day. Once the configured limit is reached, the system prevents additional queue entries from being created for that day. Leave blank for no limit.</p>' +
       '<div class="modal-inline">' +
@@ -296,6 +306,95 @@ function saveStationName(stationId) {
     say("Station renamed.");
   }).catch(function (error) {
     say("Could not rename station: " + error.message);
+  });
+}
+
+/* Edit Purpose */
+
+var STATION_PURPOSE_MAX = 12;
+
+function editPurposeRowHtml(value) {
+  return '<div class="purpose-edit-row">' +
+    '<input type="text" class="modal-input purpose-edit-input" placeholder="Purpose" maxlength="60" value="' + escapeAdminText(value || "") + '">' +
+    '<button type="button" class="settings-icon-btn settings-icon-red" title="Remove this purpose" aria-label="Remove this purpose" onclick="removeEditPurposeRow(this)">✕</button>' +
+  '</div>';
+}
+
+function editPurposeRowsHtml(station) {
+  var purposes = Array.isArray(station.purposes) ? station.purposes : [];
+  return purposes.length ? purposes.map(editPurposeRowHtml).join("") : editPurposeRowHtml("");
+}
+
+function addEditPurposeRow() {
+  var list = document.getElementById("editStationPurposes");
+  if (!list) return;
+  if (list.querySelectorAll(".purpose-edit-row").length >= STATION_PURPOSE_MAX) {
+    say("A station can have up to " + STATION_PURPOSE_MAX + " purposes.");
+    return;
+  }
+  list.insertAdjacentHTML("beforeend", editPurposeRowHtml(""));
+  var inputs = list.querySelectorAll(".purpose-edit-input");
+  inputs[inputs.length - 1].focus();
+}
+
+function removeEditPurposeRow(button) {
+  var row = button.closest(".purpose-edit-row");
+  var list = document.getElementById("editStationPurposes");
+  if (!row || !list) return;
+  // Keep one empty box rather than an empty list, so there is always somewhere to type.
+  if (list.querySelectorAll(".purpose-edit-row").length === 1) row.querySelector("input").value = "";
+  else row.remove();
+}
+
+function saveStationPurposes(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station) return;
+
+  var purposes = [];
+  var seen = {};
+  document.querySelectorAll("#editStationPurposes .purpose-edit-input").forEach(function (input) {
+    var value = input.value.trim().replace(/\s+/g, " ");
+    var key = value.toLowerCase();
+    if (!value || seen[key]) return;
+    seen[key] = true;
+    purposes.push(value);
+  });
+
+  if (purposes.length > STATION_PURPOSE_MAX) {
+    say("A station can have up to " + STATION_PURPOSE_MAX + " purposes.");
+    return;
+  }
+
+  var before = Array.isArray(station.purposes) ? station.purposes : [];
+  if (JSON.stringify(before) === JSON.stringify(purposes)) {
+    say("There are no changes to save.");
+    return;
+  }
+
+  var save = function () {
+    var button = document.getElementById("savePurposesBtn");
+    setButtonLoading(button, true);
+    return db.collection("stations").doc(stationId).update({ purposes: purposes }).then(function () {
+      say(purposes.length ? "Purposes saved." : "Purposes cleared. This station now uses the default purposes.");
+    }).catch(function (error) {
+      say("Could not save the purposes: " + error.message);
+    }).then(function () {
+      setButtonLoading(document.getElementById("savePurposesBtn"), false);
+    });
+  };
+
+  var removed = before.filter(function (purpose) { return purposes.indexOf(purpose) === -1; });
+  if (!removed.length) {
+    save();
+    return;
+  }
+
+  showConfirmModal({
+    title: "Are you sure you want to remove " + (removed.length === 1 ? "this purpose" : "these purposes") + "?",
+    message: removed.join(", ") + " will no longer be offered at " + station.name + ". Tickets that already use " + (removed.length === 1 ? "it" : "them") + " are not changed.",
+    confirmLabel: "Save Changes",
+    tone: "danger",
+    onConfirm: save
   });
 }
 
@@ -469,8 +568,23 @@ function staffAuthMessage(error) {
       return "Network error. Check your connection and try again.";
     case "auth/operation-not-allowed":
       return "Email/Password sign-in is not turned on for this project in Firebase Authentication.";
+    case "auth/admin-restricted-operation":
+      return "Creating accounts is switched off in Firebase. Turn on Authentication → Settings → User actions → \"Enable create (sign-up)\", then try again.";
+    case "auth/password-does-not-meet-requirements":
+      return "That password doesn't meet this project's password rules. Try a longer one with upper and lower case letters and a number.";
+    case "auth/quota-exceeded":
+      return "Firebase is limiting new accounts right now. Please try again later.";
+    case "auth/requires-recent-login":
+      return "Firebase needs a fresh sign-in for that login. Please try again.";
+    case "permission-denied":
+    case "firestore/permission-denied":
+      return "Your account isn't allowed to change staff. Only an administrator can.";
+    case "staff/record-failed":
+      return "The login was created, but its role could not be saved (" + (error.detail || "unknown error") + "). Press Add Staff again with the same email and password to finish.";
     default:
-      return (error && error.message) || "Something went wrong. Please try again.";
+      // Show Firebase's own text without its "Firebase: ... (auth/...)" wrapping.
+      var text = String((error && error.message) || "").replace(/^Firebase:\s*/, "").replace(/\s*\((auth|firestore)\/[a-z-]+\)\.?$/, "");
+      return text || "Something went wrong. Please try again.";
   }
 }
 
@@ -550,7 +664,7 @@ function saveNewStaff() {
 
   setStaffFormBusy(true);
 
-  staffAuthReady().then(function (auth) {
+  Promise.resolve().then(staffAuthReady).then(function (auth) {
     // The login may already exist (for example after access was removed). That is fine only if the
     // admin knows its password, so nobody can be given a role on an email they do not control.
     return auth.createUserWithEmailAndPassword(email, password).catch(function (error) {
@@ -565,7 +679,14 @@ function saveNewStaff() {
     });
   }).then(function () {
     var now = firebase.firestore.FieldValue.serverTimestamp();
-    return db.collection("staff").doc(email).set({ email: email, name: name, role: role, createdAt: now, updatedAt: now });
+    return db.collection("staff").doc(email).set({ email: email, name: name, role: role, createdAt: now, updatedAt: now })
+      .catch(function (error) {
+        console.error("Staff record for " + email + " was not saved:", error);
+        var failed = new Error("record failed");
+        failed.code = error && error.code === "permission-denied" ? "permission-denied" : "staff/record-failed";
+        failed.detail = error && error.message;
+        throw failed;
+      });
   }).then(function () {
     closeFormModal();
     settingsSelectedRole = role;
@@ -573,6 +694,7 @@ function saveNewStaff() {
     renderSettings();
     say("Staff added. They can sign in with that email and password.");
   }).catch(function (error) {
+    console.error("Add staff failed:", error);
     say("Could not add staff: " + staffAuthMessage(error));
   }).then(function () {
     setStaffFormBusy(false);
@@ -646,7 +768,7 @@ function saveStaffEdit(email) {
   setStaffFormBusy(true);
 
   var passwordStep = changingPassword ?
-    staffAuthReady().then(function (auth) {
+    Promise.resolve().then(staffAuthReady).then(function (auth) {
       return auth.signInWithEmailAndPassword(account.email, current).then(function (credential) {
         return credential.user.updatePassword(next);
       }).then(function () {
@@ -663,6 +785,7 @@ function saveStaffEdit(email) {
     renderSettings();
     say(changingPassword ? "Staff updated. The new password works from the next sign-in." : "Staff updated.");
   }).catch(function (error) {
+    console.error("Edit staff failed:", error);
     say("Could not save the changes: " + staffAuthMessage(error));
   }).then(function () {
     setStaffFormBusy(false);

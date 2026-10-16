@@ -8,7 +8,7 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node test/events.test.js",
+    "test": "node test/events.test.js && node test/sms.test.js",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
