@@ -565,7 +565,7 @@ function renderStationCards(cooldownMs, ticket) {
             '<p class="ud-joined">' + waitingTicketsOf(station.id).length + ' waiting</p>' +
             '<p class="ud-serving">Now serving ' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</p>' +
           '</div>' +
-          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket ? ' disabled' : '') + '>Join</button>' +
+          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket ? ' disabled' : '') + '>Queue</button>' +
         '</div>' +
       '</div>';
   });
