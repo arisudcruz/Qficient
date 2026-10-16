@@ -14,6 +14,7 @@ function goTo(pageId) {
     if (pageId === "pageTvBoard") startTvBoard();
     else stopTvBoard();
   }
+  if (typeof checkStaffAlerts === "function") checkStaffAlerts(); // start (or stop) watching from what is there now
   if (typeof routerAfterGoTo === "function") routerAfterGoTo(pageId);
 }
 

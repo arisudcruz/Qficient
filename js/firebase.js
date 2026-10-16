@@ -88,6 +88,7 @@ function startTicketsListener() {
     renderQueueManagement();
     refreshNotifications();
     refreshEnforcerList();
+    checkStaffAlerts();
   }, function (err) {
     say("Connection error: " + err.message);
   });
