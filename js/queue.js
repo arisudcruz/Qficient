@@ -213,8 +213,14 @@ function joinQueue(stationId, purpose) {
   }).catch(function (err) {
     joiningQueue = false;
     var code = String(err && err.code || "").replace("functions/", "");
+    var message = String(err && err.message || "").replace(/\s*\[\d{3}\]\s*$/, ""); // the SDK may add the HTTP status
     var known = ["failed-precondition", "resource-exhausted", "invalid-argument", "not-found", "permission-denied", "unauthenticated"];
-    say(known.indexOf(code) !== -1 ? err.message : "Could not join queue: " + (err && err.message ? err.message : "please try again."));
+    // Waiting a little or picking a purpose is a warning; everything else means the join did not happen.
+    var softCodes = ["failed-precondition", "resource-exhausted", "invalid-argument"];
+
+    sayProblem("Couldn't join the queue",
+      known.indexOf(code) !== -1 && message ? message : "Something went wrong while joining the queue. Please try again.",
+      softCodes.indexOf(code) !== -1 ? "warning" : "error");
   });
 }
 

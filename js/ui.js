@@ -28,6 +28,12 @@ function setButtonLoading(button, loading) {
   else button.removeAttribute("aria-busy");
 }
 
+// For failures whose wording say() can't recognise as one. icon: "error" (default) or "warning".
+function sayProblem(title, text, icon) {
+  if (typeof Swal === "undefined") return say(text);
+  return Swal.fire({ icon: icon || "error", title: title, text: text, confirmButtonColor: "#1D2E5B" });
+}
+
 function say(text) {
   if (typeof Swal !== "undefined") {
     var lowerText = text.toLowerCase();

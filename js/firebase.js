@@ -109,5 +109,6 @@ firebase.auth().onAuthStateChanged(function (firebaseUser) {
     stopTicketsListener();
   }
 
+  endReplacedStudentSession(firebaseUser);
   restoreStudentSession(firebaseUser);
 });
