@@ -17,6 +17,13 @@ function resetQueueTransfer() {
 
 // Ticket ids ticked in the queued list; kept here because the list re-renders on every live update.
 var queueSelection = {};
+var queueTypeFilter = ""; // "" = all student types
+
+function setQueueTypeFilter(value) {
+  queueTypeFilter = value;
+  queueSelection = {}; // a selected row the filter hides would leave the Action button pointing at nothing
+  renderQueueManagement();
+}
 
 // The stations this person may run: all of them for an admin, only their own for Queue Management staff.
 function manageableStations() {
@@ -374,6 +381,17 @@ function stopAutoVoidWatcher() {
   }
 }
 
+// The time a ticket was generated, in Philippine time (e.g. "7:42 PM").
+function ticketGeneratedTime(ticket) {
+  var ms = timestampToMs(ticket.createdAt, 0);
+  if (!ms) return "";
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+}
+
 function renderQueueManagement() {
   var area = document.getElementById("adminQueueArea");
   if (!area) return;
@@ -416,7 +434,9 @@ function renderQueueManagement() {
   var queueListTickets = getQueueListTickets();
   var hasWaiting = !!getNextWaitingTicket(activeQueueStation);
 
-  var rowsHtml = queueListTickets.map(function (ticket) {
+  var shownTickets = queueListTickets.filter(function (ticket) { return ticketMatchesTypeFilter(ticket, queueTypeFilter); });
+
+  var rowsHtml = shownTickets.map(function (ticket) {
     var statusCell;
     if (ticket.status === "skipped") {
       var skip = getSkipPhase(ticket);
@@ -456,7 +476,11 @@ function renderQueueManagement() {
       '<td>' + statusCell + '</td></tr>';
   }).join("");
 
-  if (!rowsHtml) rowsHtml = '<tr><td colspan="4" class="empty-row">No tickets currently queued for this station.</td></tr>';
+  if (!rowsHtml) {
+    rowsHtml = '<tr><td colspan="4" class="empty-row">' + (queueListTickets.length && queueTypeFilter ?
+      'No ' + escapeAdminText(queueTypeFilterLabel(queueTypeFilter)) + ' tickets in this queue.' :
+      'No tickets currently queued for this station.') + '</td></tr>';
+  }
 
   area.innerHTML =
     '<div class="dashboard-header"><div class="header-greeting">Queue Management</div>' + adminHeaderRightHtml() + '</div>' +
@@ -466,7 +490,8 @@ function renderQueueManagement() {
         '<div class="serving-card' + (serving && STUDENT_TYPE_LABELS[serving.studentType] ? ' serving-type-' + serving.studentType : '') + '">' +
           '<div class="serving-card-top">' +
             '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
-            '<span class="serving-time">' + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + '</span>' +
+            (serving && serving.createdAt ?
+              '<span class="serving-time" title="When this ticket was generated">Generated ' + escapeAdminText(ticketGeneratedTime(serving)) + '</span>' : '') +
           '</div>' +
           servingHtml +
         '</div>' +
@@ -491,7 +516,8 @@ function renderQueueManagement() {
       '</section>' +
       '<section class="panel queued-list-panel">' +
         '<div class="panel-header"><h2>Current Queued List</h2>' +
-          '<div class="queued-tools"><span class="traffic-selection">' + queueListTickets.length + ' in Queue</span>' +
+          '<div class="queued-tools">' + queueTypeFilterHtml(queueTypeFilter, "setQueueTypeFilter(this.value)") +
+          '<span class="traffic-selection">' + (queueTypeFilter ? shownTickets.length + ' of ' : '') + queueListTickets.length + ' in Queue</span>' +
           '<button type="button" id="queueActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openQueueActionsModal()">Action</button></div></div>' +
         '<div class="table-wrap"><table class="queue-table"><thead><tr>' +
           '<th class="queue-select-cell"><span class="visually-hidden">Select</span></th>' +

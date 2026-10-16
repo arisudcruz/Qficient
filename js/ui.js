@@ -28,18 +28,31 @@ function setButtonLoading(button, loading) {
   else button.removeAttribute("aria-busy");
 }
 
+// For failures whose wording say() can't recognise as one. icon: "error" (default) or "warning".
+function sayProblem(title, text, icon) {
+  if (typeof Swal === "undefined") return say(text);
+  return Swal.fire({ icon: icon || "error", title: title, text: text, confirmButtonColor: "#1D2E5B" });
+}
+
+// A finished action ("Station created."): green check, "Done".
+function sayDone(text) {
+  if (typeof Swal === "undefined") return say(text);
+  return Swal.fire({ icon: "success", title: "Done", text: text, confirmButtonColor: "#1D2E5B" });
+}
+
+// Anything that is not a success: a failure ("Could not...", "...failed", "...error") shows as an error, everything
+// else ("The passwords do not match.", "No ticket is currently being served.") as a warning to check.
+// Successes use sayDone(), so a problem can never show a green check.
 function say(text) {
   if (typeof Swal !== "undefined") {
-    var lowerText = text.toLowerCase();
+    var lowerText = String(text).toLowerCase();
     var isError = lowerText.indexOf("error") !== -1 ||
       lowerText.indexOf("could not") !== -1 ||
       lowerText.indexOf("failed") !== -1;
-    var isWarning = lowerText.indexOf("please") !== -1 ||
-      lowerText.indexOf("already") !== -1;
 
     return Swal.fire({
-      icon: isError ? "error" : (isWarning ? "warning" : "success"),
-      title: isError ? "Something went wrong" : (isWarning ? "Please check" : "Done"),
+      icon: isError ? "error" : "warning",
+      title: isError ? "Something went wrong" : "Please check",
       text: text,
       confirmButtonColor: "#1D2E5B"
     });

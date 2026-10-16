@@ -88,6 +88,7 @@ function startTicketsListener() {
     renderQueueManagement();
     refreshNotifications();
     refreshEnforcerList();
+    checkStaffAlerts();
   }, function (err) {
     say("Connection error: " + err.message);
   });
@@ -109,5 +110,6 @@ firebase.auth().onAuthStateChanged(function (firebaseUser) {
     stopTicketsListener();
   }
 
+  endReplacedStudentSession(firebaseUser);
   restoreStudentSession(firebaseUser);
 });
