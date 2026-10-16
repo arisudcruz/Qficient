@@ -339,6 +339,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- Student notification history ----------
+    // Written only by the Cloud Functions (a copy of each alert sent to a student). The owner can read their
+    // own, mark them read and delete them.
+
+    match /userNotifications/{notificationId} {
+      allow read: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn() && resource.data.ownerId == request.auth.uid &&
+        changedKeys().hasOnly(['read']) && request.resource.data.read == true;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if false;
+    }
+
     // ---------- Admin notification inbox state ----------
     // Which notifications a staff member has read or deleted. One document per person,
     // keyed by their email, and only they can see or change it.

@@ -69,6 +69,15 @@ exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{
     await pusher.pushOnce(event.id + ":created", ticket, message, ticket.id + ":created");
   }
 
+  // The student's own history: they joined, or their transaction is done. (No push; they saw it happen.)
+  if (!before && !after.manual && after.status === "waiting") {
+    const place = await pusher.placeInLine(after.stationId, ticket.id, Date.now());
+    await pusher.recordOnce(event.id + ":joined", ticket, messages.joined(ticket, await stationNameOf(after.stationId), place), "joined");
+  }
+  if (before && !after.manual && after.status === "completed" && before.status !== "completed") {
+    await pusher.recordOnce(event.id + ":completed", ticket, messages.completed(ticket, await stationNameOf(after.stationId)), "completed");
+  }
+
   if (before) {
     const names = {};
     names[after.stationId] = await stationNameOf(after.stationId);

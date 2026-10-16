@@ -4,6 +4,7 @@
 //   #/login                    home with the Microsoft Sign In card open
 //   #/dashboard                student/guest station list
 //   #/dashboard/board          live board
+//   #/dashboard/notifications  the student's notification history
 //   #/dashboard/<station id>   a station's join page (or your ticket)
 //   #/admin                    admin sign-in
 //   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, liveboard, rules, settings
@@ -44,8 +45,8 @@ function routeHashForScreen() {
     case "pageTvBoard": return "#/tv";
     case "pageAdmin": return "#/admin/" + currentAdminSection();
     case "pageDashboard": {
-      var board = document.getElementById("dashboardTabBoard");
-      if (board && !board.hidden) return "#/dashboard/board";
+      var tab = currentDashboardTab();
+      if (tab !== "queue") return "#/dashboard/" + tab;
       if (dashView === "station" && dashStationId) return "#/dashboard/" + encodeURIComponent(dashStationId);
       return "#/dashboard";
     }
@@ -86,8 +87,8 @@ function withRouteLock(work) {
 
 // Opens the dashboard sub-screen a link asks for.
 function applyDashboardSub(sub) {
-  if (sub === "board") {
-    setDashboardTab("board");
+  if (sub === "board" || sub === "notifications") {
+    setDashboardTab(sub);
     return;
   }
 
