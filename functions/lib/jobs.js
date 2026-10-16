@@ -93,6 +93,15 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
     await batch.commit();
   }
 
+  // Students' notification history is kept for a week, like the admin inbox.
+  const historyCutoff = Timestamp.fromMillis(nowMs - (config.notificationHistoryDays || 7) * DAY_MS);
+  const oldHistory = await db.collection("userNotifications").where("createdAt", "<", historyCutoff).get();
+  for (let i = 0; i < oldHistory.docs.length; i += 400) {
+    const batch = db.batch();
+    oldHistory.docs.slice(i, i + 400).forEach(function (doc) { batch.delete(doc.ref); });
+    await batch.commit();
+  }
+
   return stale.length;
 }
 

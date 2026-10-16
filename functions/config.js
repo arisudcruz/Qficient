@@ -9,6 +9,9 @@ module.exports = {
   // Leftover tickets from earlier days (up to this many days back) are voided each night.
   staleLookbackDays: 7,
 
+  // Students' notification history (the Notifications tab) is deleted after this many days.
+  notificationHistoryDays: 7,
+
   // A push that cannot be delivered within this time is dropped instead of arriving late.
   pushTtlSeconds: 600,
 

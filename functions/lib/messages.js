@@ -40,6 +40,17 @@ module.exports = {
     body: "You are in line at " + station + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + ". We'll text you when it's almost your turn. Please keep this message."
   }),
 
+  // History only (no push): the student joined, or their transaction finished.
+  joined: (t, station, place) => ({
+    title: "You're in line",
+    body: "Ticket " + t.ticketNo + " at " + station + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + "."
+  }),
+
+  completed: (t, station) => ({
+    title: "Transaction complete",
+    body: "Ticket " + t.ticketNo + " at " + station + " is done. Thank you!"
+  }),
+
   next: (t, station) => ({
     title: "You're next in line",
     body: "Ticket " + t.ticketNo + " is next at " + station + ". Please get ready."

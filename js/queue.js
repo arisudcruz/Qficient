@@ -7,6 +7,48 @@ function getTicketPrefix(stationName) {
   return String(stationName).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "TK";
 }
 
+// Each station has a ticket code: two letters from its name plus a number, so stations whose names start alike
+// stay apart (Admission AD1, Admission2 AD2, Advising AD3). Tickets read AD1-001, AD1-002...
+// The code is saved on the station when it is created and kept if it is renamed. A station from before codes
+// existed gets the next free number for its letters, in order of station id; functions/lib/join.js does the
+// same, so the app and the server always agree.
+function assignStationCodes(list) {
+  var codes = {};
+  var used = {};
+
+  list.forEach(function (station) {
+    if (station.code) {
+      codes[station.id] = String(station.code);
+      used[String(station.code).toUpperCase()] = true;
+    }
+  });
+
+  list.filter(function (station) { return !station.code; })
+    .sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; })
+    .forEach(function (station) {
+      codes[station.id] = nextStationCode(station.name, used);
+      used[codes[station.id]] = true;
+    });
+
+  return codes;
+}
+
+// The first free code for a name: AD1, then AD2 if AD1 is taken... `used` maps codes already in use to true.
+function nextStationCode(name, used) {
+  var prefix = getTicketPrefix(name);
+  var n = 1;
+  while (used[prefix + n]) n++;
+  return prefix + n;
+}
+
+function stationCodeOf(stationId) {
+  return assignStationCodes(stations)[stationId] || "TK1";
+}
+
+function formatTicketNo(code, count) {
+  return code + "-" + String(count).padStart(3, "0");
+}
+
 function formatVoidWindow() {
   var minutes = systemSettings.autoVoidMinutes;
   return minutes + (minutes === 1 ? " minute" : " minutes");
@@ -350,7 +392,7 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
       var today = queueDayKey(Date.now());
       var isNewDay = dest.countDay !== today;
       var newCount = isNewDay ? 1 : (dest.count || 0) + 1;
-      var ticketNo = getTicketPrefix(dest.name) + "-" + String(newCount).padStart(3, "0");
+      var ticketNo = formatTicketNo(dest.code || stationCodeOf(destStationId), newCount);
       var now = firebase.firestore.FieldValue.serverTimestamp();
       var remove = firebase.firestore.FieldValue.delete();
 
@@ -418,7 +460,7 @@ function createManualTicket(details) {
       var today = queueDayKey(Date.now());
       var isNewDay = data.countDay !== today;
       var newCount = isNewDay ? 1 : (data.count || 0) + 1;
-      var ticketNo = getTicketPrefix(data.name) + "-" + String(newCount).padStart(3, "0");
+      var ticketNo = formatTicketNo(data.code || stationCodeOf(station.id), newCount);
       var now = firebase.firestore.FieldValue.serverTimestamp();
 
       transaction.update(stationRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });

@@ -17,6 +17,37 @@ function ticketPrefix(stationName) {
   return String(stationName || "").replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "TK";
 }
 
+// A station's ticket code (AD1, AD2...). Mirrors assignStationCodes() in js/queue.js: a saved code wins; a station
+// without one gets the next free number for its two letters, in order of station id.
+// `list` is [{ id, name, code }].
+function assignStationCodes(list) {
+  const codes = {};
+  const used = new Set();
+
+  list.forEach(function (station) {
+    if (station.code) {
+      codes[station.id] = String(station.code);
+      used.add(String(station.code).toUpperCase());
+    }
+  });
+
+  list.filter(function (station) { return !station.code; })
+    .sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; })
+    .forEach(function (station) {
+      const prefix = ticketPrefix(station.name);
+      let n = 1;
+      while (used.has(prefix + n)) n++;
+      codes[station.id] = prefix + n;
+      used.add(prefix + n);
+    });
+
+  return codes;
+}
+
+function formatTicketNo(code, count) {
+  return code + "-" + String(count).padStart(3, "0");
+}
+
 function studentNumberFromEmail(email) {
   const digits = String(email || "").split("@")[0].replace(/\D/g, "");
   return digits ? "02000" + digits : "";
@@ -127,7 +158,12 @@ async function joinQueue(deps, auth, data) {
     // Ticket numbers restart at 001 on the first join of each day.
     const newDay = station.countDay !== today;
     const count = newDay ? 1 : (Number(station.count) || 0) + 1;
-    const ticketNo = ticketPrefix(station.name) + "-" + String(count).padStart(3, "0");
+    let code = station.code;
+    if (!code) {
+      const all = await db.collection("stations").get();
+      code = assignStationCodes(all.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }))[stationId];
+    }
+    const ticketNo = formatTicketNo(code || ticketPrefix(station.name) + "1", count);
 
     const ticketRef = db.collection("tickets").doc();
     tx.update(stationRef, newDay ? { count: count, countDay: today } : { count: count });
@@ -149,4 +185,4 @@ async function joinQueue(deps, auth, data) {
   });
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, studentNumberFromEmail };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail };

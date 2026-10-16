@@ -72,10 +72,51 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     }
   }
 
+  // Keeps a copy in the student's notification history (the Notifications tab on their dashboard), whether or not
+  // their device can receive pushes. `type` is the kind of event: serving, soon, next, joined, completed...
+  async function recordNotification(ticket, message, type) {
+    if (!ticket || ticket.manual || !ticket.ownerId) return false;
+    try {
+      await db.collection("userNotifications").add({
+        ownerId: ticket.ownerId,
+        ticketId: ticket.id || null,
+        ticketNo: ticket.ticketNo || null,
+        stationId: ticket.stationId || null,
+        type: type,
+        title: message.title,
+        body: message.body,
+        read: false,
+        createdAt: FieldValue.serverTimestamp()
+      });
+      return true;
+    } catch (err) {
+      writeLog("could not save notification history for " + ticket.ownerId + ": " + (err && err.message ? err.message : err));
+      return false;
+    }
+  }
+
   // Tells a ticket's owner: push to their device, or SMS for a walk-in ticket.
   async function notifyTicket(ticket, message, tag) {
     if (ticket && ticket.manual) return notifyBySms(ticket.id, message, tag);
+    await recordNotification(ticket, message, String(tag || "").split(":")[1] || "update");
     return notifyUser(ticket && ticket.ownerId, message, tag);
+  }
+
+  // Claims a de-duplication key; false when another delivery of the same event already did.
+  async function claim(key, ownerId) {
+    try {
+      await db.collection("pushEvents").doc(key).create({ at: FieldValue.serverTimestamp(), ownerId: ownerId || null });
+      return true;
+    } catch (err) {
+      if (err && (err.code === 6 || err.code === "already-exists")) return false;
+      throw err;
+    }
+  }
+
+  // History only, no push: for things the student did or saw themselves (joining, a finished transaction).
+  async function recordOnce(key, ticket, message, type) {
+    if (!(await claim(key, ticket && ticket.ownerId))) return false;
+    return recordNotification(ticket, message, type);
   }
 
   // Cloud Functions may deliver the same event more than once; the first delivery claims the key.
@@ -84,12 +125,7 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     const ticket = target && typeof target === "object" ? target : null;
     const ownerId = ticket ? ticket.ownerId : target;
 
-    try {
-      await db.collection("pushEvents").doc(key).create({ at: FieldValue.serverTimestamp(), ownerId: ownerId || null });
-    } catch (err) {
-      if (err && (err.code === 6 || err.code === "already-exists")) return false;
-      throw err;
-    }
+    if (!(await claim(key, ownerId))) return false;
     return ticket ? notifyTicket(ticket, message, tag) : notifyUser(ownerId, message, tag);
   }
 
@@ -152,7 +188,7 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     return notifyTicket(first, messages.next(first, stationName), first.id + ":next:" + stationId);
   }
 
-  return { notifyUser, notifyTicket, pushOnce, notifyNextInLine, placeInLine };
+  return { notifyUser, notifyTicket, pushOnce, recordOnce, recordNotification, notifyNextInLine, placeInLine };
 }
 
 module.exports = { createPusher };

@@ -281,18 +281,32 @@ document.addEventListener("keydown", function (event) {
 
 /* ---------- Navigation inside the dashboard ---------- */
 
+var DASHBOARD_TABS = {
+  queue: { panel: "dashboardTabQueue", button: "tabBtnQueue" },
+  board: { panel: "dashboardTabBoard", button: "tabBtnBoard" },
+  notifications: { panel: "dashboardTabNotifications", button: "tabBtnNotifications" }
+};
+
+function currentDashboardTab() {
+  var names = Object.keys(DASHBOARD_TABS);
+  for (var i = 0; i < names.length; i++) {
+    var panel = document.getElementById(DASHBOARD_TABS[names[i]].panel);
+    if (panel && !panel.hidden) return names[i];
+  }
+  return "queue";
+}
+
 function setDashboardTab(tab) {
-  var onBoard = tab === "board";
-  var queuePanel = document.getElementById("dashboardTabQueue");
-  var boardPanel = document.getElementById("dashboardTabBoard");
+  if (!DASHBOARD_TABS[tab]) tab = "queue";
 
-  if (queuePanel) queuePanel.hidden = onBoard;
-  if (boardPanel) boardPanel.hidden = !onBoard;
-
-  ["tabBtnQueue", "tabBtnBoard"].forEach(function (id) {
-    var btn = document.getElementById(id);
-    if (btn) btn.classList.toggle("active", (id === "tabBtnBoard") === onBoard);
+  Object.keys(DASHBOARD_TABS).forEach(function (name) {
+    var panel = document.getElementById(DASHBOARD_TABS[name].panel);
+    var btn = document.getElementById(DASHBOARD_TABS[name].button);
+    if (panel) panel.hidden = name !== tab;
+    if (btn) btn.classList.toggle("active", name === tab);
   });
+
+  if (tab === "notifications") renderUserNotifications();
 
   syncRoute(false);
   updateDashboard();
@@ -716,12 +730,12 @@ function renderDashboard() {
   renderLiveBoard();
   renderHeader();
   refreshNotificationToggle();
+  syncUserNotificationsListener();
 
   var hero = document.getElementById("udHero");
   var stationsHost = document.getElementById("udStations");
   var stationView = document.getElementById("udStationView");
   var back = document.getElementById("udBack");
-  var boardPanel = document.getElementById("dashboardTabBoard");
   if (!hero || !stationsHost || !stationView) return;
 
   if (!user) {
@@ -771,7 +785,7 @@ function renderDashboard() {
   hero.hidden = inStation;
   stationsHost.hidden = inStation;
   stationView.hidden = !inStation;
-  if (back) back.hidden = !inStation || (!!boardPanel && !boardPanel.hidden);
+  if (back) back.hidden = !inStation || currentDashboardTab() !== "queue";
 
   if (!inStation) {
     ensureSkipCountdownWatcher(false);

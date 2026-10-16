@@ -37,8 +37,15 @@ async function pushesFor(tag) {
 }
 const hasPush = (tag, n) => async () => (await pushesFor(tag)).length === (n === undefined ? 1 : n);
 
+// The student's notification history (userNotifications).
+async function historyOf(owner) {
+  const snap = await db.collection("userNotifications").where("ownerId", "==", owner).get();
+  return snap.docs.map((d) => d.data());
+}
+const hasHistory = (owner, type) => async () => (await historyOf(owner)).some((h) => h.type === type);
+
 async function wipe() {
-  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts"]) {
+  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts", "userNotifications"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -78,6 +85,9 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await ticket("t3", "CA-003", "u3", "cashier");
   await wait(2500);
   check("no pushes when students just join an idle station", (await pushes()).length === 0, JSON.stringify(await pushes()));
+  check("history: joining is saved in the student's notifications", await until(hasHistory("u1", "joined")) && await until(hasHistory("u3", "joined")));
+  const joined = (await historyOf("u3")).find((h) => h.type === "joined");
+  check("history: the joined entry names the ticket, station and place", joined && /CA-003/.test(joined.body) && /Cashier/.test(joined.body) && /3rd in line/.test(joined.body) && joined.read === false, joined && joined.body);
 
   // Staff call the first ticket.
   await db.collection("tickets").doc("t1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
@@ -89,6 +99,10 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   const serving = (await pushesFor("t1:serving"))[0];
   check("serving: message names the station and ticket", serving && /CA-001/.test(serving.body) && /Cashier/.test(serving.body), serving && serving.body);
   check("serving: the push goes to the owner's device token", serving && serving.token === "tok-u1");
+  check("history: 'your turn' is saved for the owner", await until(hasHistory("u1", "serving")));
+  const servingEntry = (await historyOf("u1")).find((h) => h.type === "serving");
+  check("history: the entry keeps the push's title, body and ticket", servingEntry && servingEntry.title === serving.title && servingEntry.body === serving.body && servingEntry.ticketId === "t1" && servingEntry.ticketNo === "CA-001");
+  check("history: 'almost up' and 'you're next' are saved too", await until(hasHistory("u3", "soon")) && await until(hasHistory("u2", "next")));
 
   // Unrelated edits say nothing.
   await db.collection("tickets").doc("t3").update({ verified: true });
@@ -129,6 +143,14 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("tickets").doc("t3").update({ stationId: "registrar", ticketNo: "RE-001", status: "waiting", createdAt: FieldValue.serverTimestamp(), transferredAt: FieldValue.serverTimestamp() });
   check("transferred: owner is told the new number and station", await until(hasPush("t3:transferred")) && /RE-001/.test((await pushesFor("t3:transferred"))[0].body) && /Registrar/.test((await pushesFor("t3:transferred"))[0].body));
 
+  // The transferred ticket is served and finished.
+  await db.collection("tickets").doc("t3").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
+  await until(hasPush("t3:serving"));
+  await db.collection("tickets").doc("t3").update({ status: "completed", completedAt: FieldValue.serverTimestamp() });
+  check("history: a finished transaction is saved", await until(hasHistory("u3", "completed")));
+  check("history: no push for a finished transaction", (await pushesFor("t3:completed")).length === 0);
+  check("history: the transfer is saved", (await historyOf("u3")).some((h) => h.type === "transferred" && /RE-001/.test(h.body)));
+
   // Staff remove a ticket.
   await db.collection("tickets").doc("t2").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
   check("removed by staff: owner is told", await until(hasPush("t2:void")) && /removed by staff/.test((await pushesFor("t2:void"))[0].body));
@@ -147,6 +169,7 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   check("walk-in: no push was attempted for the walk-in", (await pushesFor("w1:serving")).length === 0);
   await db.collection("tickets").doc("w1").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
   check("walk-in: removal is texted", await until(async () => (await smsFor("w1:void")).length === 1));
+  check("history: walk-in tickets have no app history", (await historyOf("manual:w1")).length === 0);
 
   // Nothing went out twice.
   await wait(2000);
@@ -154,6 +177,13 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   (await pushes()).forEach((p) => { counts[p.tag] = (counts[p.tag] || 0) + 1; });
   const dupes = Object.keys(counts).filter((k) => counts[k] > 1);
   check("no push was sent twice", dupes.length === 0, JSON.stringify(dupes));
+  const historyCounts = {};
+  (await db.collection("userNotifications").get()).docs.forEach((d) => {
+    const key = d.data().ticketId + ":" + d.data().type + ":" + d.data().ticketNo;
+    historyCounts[key] = (historyCounts[key] || 0) + 1;
+  });
+  const historyDupes = Object.keys(historyCounts).filter((k) => historyCounts[k] > 1);
+  check("no history entry was saved twice", historyDupes.length === 0, JSON.stringify(historyDupes));
 
   // Duplicate delivery of the same event is dropped.
   const pusher = createPusher({ db, FieldValue, Timestamp, messaging: null, config });
@@ -181,6 +211,8 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("pushEvents").doc("ancient").set({ at: ts(5 * 24 * 3600 * 1000) });
   await db.collection("deviceTokens").doc("staleDevice").set({ token: "old", updatedAt: ts(40 * 24 * 3600 * 1000) });
   await db.collection("deviceTokens").doc("freshDevice").set({ token: "new", updatedAt: ts(2 * 24 * 3600 * 1000) });
+  await db.collection("userNotifications").doc("oldHistory").set({ ownerId: "u1", type: "serving", createdAt: ts(8 * 24 * 3600 * 1000) });
+  await db.collection("userNotifications").doc("recentHistory").set({ ownerId: "u1", type: "serving", createdAt: ts(2 * 24 * 3600 * 1000) });
   const cleaned = await cleanStale({ db, FieldValue, Timestamp, config });
   const o1 = (await db.collection("tickets").doc("old1").get()).data();
   const o3 = (await db.collection("tickets").doc("old3").get()).data();
@@ -190,6 +222,8 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   check("cleanup: a device registration untouched for a month is removed", !(await db.collection("deviceTokens").doc("staleDevice").get()).exists);
   check("cleanup: a recently refreshed device registration is kept", (await db.collection("deviceTokens").doc("freshDevice").get()).exists);
   check("cleanup: old de-duplication records are removed", !(await db.collection("pushEvents").doc("ancient").get()).exists);
+  check("cleanup: notification history older than a week is removed", !(await db.collection("userNotifications").doc("oldHistory").get()).exists);
+  check("cleanup: recent notification history is kept", (await db.collection("userNotifications").doc("recentHistory").get()).exists);
 
   const failed = results.filter((r) => !r.ok);
   console.log("\n" + (results.length - failed.length) + " / " + results.length + " passed");
