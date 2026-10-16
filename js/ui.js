@@ -1,7 +1,23 @@
-function toggleTheme() {
-  var isDark = document.body.classList.toggle("dark");
-  document.getElementById("themeToggle").textContent = isDark ? "☀️" : "🌙";
+var THEME_KEY = "qficient.theme";
+
+function applyTheme(isDark) {
+  document.body.classList.toggle("dark", isDark);
+  var toggle = document.getElementById("themeToggle");
+  if (toggle) toggle.textContent = isDark ? "☀️" : "🌙";
 }
+
+function toggleTheme() {
+  var isDark = !document.body.classList.contains("dark");
+  applyTheme(isDark);
+  try { localStorage.setItem(THEME_KEY, isDark ? "dark" : "light"); } catch (e) {}
+}
+
+// Dark mode stays on after a refresh, on this device.
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+  if (saved === "dark") applyTheme(true);
+})();
 
 // Shows a spinner on a button while its work is in progress, and keeps it from being pressed twice.
 function setButtonLoading(button, loading) {

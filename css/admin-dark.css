@@ -1,0 +1,312 @@
+/* ============================================================
+   Dark mode for the admin console, its sign-in page and its pop-ups.
+   Loaded last so it wins over the light colours written into layout.css.
+   ============================================================ */
+
+body.dark {
+  --ad-bg: #0D1626;
+  --ad-surface: #15233B;
+  --ad-surface-2: #1B2C48;
+  --ad-field: #0F1B2E;
+  --ad-line: #263B5C;
+  --ad-line-strong: #34507A;
+  --ad-text: #E6EDF8;
+  --ad-text-2: #C5D2E6;
+  --ad-muted: #94A5C2;
+  --ad-accent: #7DB4F5;
+  --ad-selected: #1D3A66;
+}
+
+/* ---------- Page and text ---------- */
+
+body.dark #pageAdmin,
+body.dark #pageAdmin .dashboard-main,
+body.dark #pageAdminLogin {
+  background: var(--ad-bg);
+  color: var(--ad-text);
+}
+
+body.dark .header-greeting,
+body.dark .panel-header h2,
+body.dark .settings-title,
+body.dark .settings-field-label,
+body.dark .settings-strong,
+body.dark .settings-header-user,
+body.dark .admin-header-name,
+body.dark .stat-label,
+body.dark .stat-value,
+body.dark .modal-section-title,
+body.dark .confirm-modal-title,
+body.dark .form-modal-title,
+body.dark .admin-login-title,
+body.dark .notif-title,
+body.dark .notif-group-title,
+body.dark .rules-general-title,
+body.dark .transfer-toggle-row,
+body.dark .enforcer-field label,
+body.dark .transfer-form label,
+body.dark .modal-field label,
+body.dark .report-filters label,
+body.dark .traffic-filters label {
+  color: var(--ad-text);
+}
+
+body.dark .admin-login-name { color: var(--ad-accent); }
+
+body.dark .settings-help,
+body.dark .settings-sub,
+body.dark .modal-help,
+body.dark .confirm-modal-message,
+body.dark .admin-login-sub,
+body.dark .stat-meta,
+body.dark .notif-detail,
+body.dark .notif-time,
+body.dark .report-caption,
+body.dark .report-note,
+body.dark .empty-row,
+body.dark .settings-empty,
+body.dark .traffic-selection,
+body.dark .bar-value,
+body.dark .lb-launch .lb-launch-help {
+  color: var(--ad-muted);
+}
+
+/* ---------- Cards, panels, pop-ups ---------- */
+
+body.dark .stat-card,
+body.dark .panel,
+body.dark .confirm-modal-card,
+body.dark .form-modal-card,
+body.dark .admin-login-card,
+body.dark .notif-card,
+body.dark .notif-popover,
+body.dark .search-box {
+  background: var(--ad-surface);
+  border-color: var(--ad-line);
+  color: var(--ad-text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+body.dark .stat-card { box-shadow: none; }
+body.dark .notif-card.read { background: #122036; }
+body.dark .notif-tabs { background: var(--ad-surface-2); }
+body.dark .notif-menu-btn { color: var(--ad-muted); }
+body.dark .notif-popover button { background: transparent; color: #FF8A8E; }
+body.dark .notif-popover button:hover { background: rgba(229, 72, 77, 0.16); }
+
+body.dark .modal-divider { border-color: var(--ad-line); }
+
+body.dark .confirm-modal-close:hover,
+body.dark .form-modal-close:hover {
+  background: var(--ad-surface-2);
+  color: #fff;
+}
+
+/* ---------- Tables ---------- */
+
+body.dark .table-wrap,
+body.dark .rules-table-wrap,
+body.dark .chart-bars,
+body.dark .rules-tabs {
+  border-color: var(--ad-line);
+}
+
+body.dark .queue-table th,
+body.dark .queue-table td {
+  border-color: var(--ad-line);
+  color: var(--ad-text-2);
+}
+
+body.dark .queue-table thead th {
+  background: var(--ad-surface-2);
+  color: var(--ad-muted);
+}
+
+body.dark .settings-row-selected td,
+body.dark .queue-row.selected td,
+body.dark .queue-row.selected td:not(.queue-row-no) {
+  background: var(--ad-selected);
+}
+
+body.dark .queue-row-guest td,
+body.dark .queue-row-transferee td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+body.dark .report-table tfoot td { border-top-color: var(--ad-line-strong); color: var(--ad-text); }
+
+/* ---------- Fields ---------- */
+
+body.dark .settings-input,
+body.dark .modal-input,
+body.dark .settings-select,
+body.dark .transfer-form select,
+body.dark .enforcer-station-select,
+body.dark .enforcer-field select,
+body.dark .enforcer-field input,
+body.dark .report-filters input,
+body.dark .report-filters select,
+body.dark .traffic-filters input,
+body.dark .admin-login-card input {
+  background: var(--ad-field);
+  color: var(--ad-text);
+  border-color: var(--ad-line-strong);
+  color-scheme: dark;
+}
+
+body.dark .modal-input[readonly],
+body.dark .settings-select:disabled,
+body.dark .enforcer-field select:disabled,
+body.dark .report-filters select:disabled {
+  background: var(--ad-surface-2);
+  color: var(--ad-muted);
+}
+
+body.dark ::placeholder { color: #6B7C99; }
+
+/* ---------- Buttons ---------- */
+
+body.dark .settings-btn-blue,
+body.dark .settings-btn-red,
+body.dark .settings-btn-green,
+body.dark .settings-icon-btn,
+body.dark .settings-logout,
+body.dark .traffic-reset,
+body.dark .confirm-modal-btn-cancel {
+  background: transparent;
+}
+
+body.dark .settings-btn-blue,
+body.dark .settings-icon-blue { color: var(--ad-accent); border-color: #3D74BC; }
+body.dark .settings-btn-red,
+body.dark .settings-icon-red { color: #FF8A8E; border-color: #A3363A; }
+body.dark .settings-btn-green { color: #4ADE80; border-color: #2F8A57; }
+body.dark .traffic-reset { color: var(--ad-accent); border-color: var(--ad-line-strong); }
+
+body.dark .settings-btn-muted,
+body.dark .settings-btn-muted:disabled {
+  background: var(--ad-surface-2);
+  color: #6B7C99;
+}
+
+body.dark .confirm-modal-btn-cancel {
+  color: var(--ad-text);
+  border-color: var(--ad-line-strong);
+}
+
+body.dark .confirm-modal-btn-cancel:hover { background: var(--ad-surface-2); }
+
+body.dark .queue-action-btn:disabled {
+  background: var(--ad-surface-2);
+  color: #6B7C99;
+}
+
+body.dark .queue-action-complete:disabled {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ADE80;
+}
+
+body.dark .recall-inline-btn { color: var(--ad-accent); }
+
+body.dark .last-call-btn {
+  background: rgba(229, 72, 77, 0.14);
+  border-color: #A3363A;
+  color: #FF8A8E;
+}
+
+body.dark .station-tabs { border-bottom-color: var(--ad-line); }
+body.dark .station-tab { color: var(--ad-muted); }
+body.dark .station-tab.active { color: var(--ad-text); border-bottom-color: var(--ad-accent); }
+
+body.dark .rules-tab { color: var(--ad-muted); }
+body.dark .rules-tab.active { color: var(--ad-text); border-bottom-color: var(--ad-accent); }
+body.dark .notif-tab { color: var(--ad-muted); }
+body.dark .notif-tab.active { background: #2F6FCE; color: #fff; }
+
+body.dark .admin-theme-btn {
+  background: var(--ad-surface);
+  border-color: var(--ad-line-strong);
+  color: #F2C14E;
+}
+
+body.dark .admin-theme-btn:hover { background: var(--ad-selected); }
+
+body.dark .stat-card.navy .stat-icon { background: rgba(147, 169, 217, 0.16); color: #A9BCE6; }
+
+body.dark .admin-bell {
+  background: var(--ad-surface);
+  border-color: #3D74BC;
+  color: var(--ad-accent);
+}
+
+body.dark .admin-bell:hover { background: var(--ad-selected); }
+body.dark .admin-bell.active { background: #2F6FCE; border-color: #2F6FCE; color: #fff; }
+body.dark .admin-header-divider { background: var(--ad-line); }
+
+
+/* ---------- Badges and tags ---------- */
+
+body.dark .status-badge.waiting,
+body.dark .status-badge.next,
+body.dark .status-badge.queued {
+  background: rgba(242, 193, 78, 0.14);
+  border-color: rgba(242, 193, 78, 0.4);
+  color: #F2C14E;
+}
+
+body.dark .status-badge.completed,
+body.dark .status-badge.active,
+body.dark .status-badge.station-active {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #4ADE80;
+}
+
+body.dark .status-badge.skip,
+body.dark .status-badge.skipped,
+body.dark .status-badge.void,
+body.dark .status-badge.station-inactive {
+  background: rgba(229, 72, 77, 0.16);
+  border-color: rgba(255, 138, 142, 0.4);
+  color: #FF8A8E;
+}
+
+body.dark .status-badge.serving {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(147, 197, 253, 0.4);
+  color: #93C5FD;
+}
+
+body.dark .type-tag,
+body.dark .manual-tag {
+  background: var(--ad-surface-2);
+  color: var(--ad-text-2);
+}
+
+body.dark .priority-tag {
+  background: rgba(242, 193, 78, 0.16);
+  color: #F2C14E;
+}
+
+/* ---------- Notices ---------- */
+
+body.dark .rules-readonly {
+  background: var(--ad-selected);
+  color: #CFE0F8;
+}
+
+body.dark .server-banner {
+  background: rgba(242, 193, 78, 0.12);
+  border-color: rgba(242, 193, 78, 0.4);
+  color: #F2C14E;
+}
+
+body.dark .admin-login-error {
+  background: rgba(229, 72, 77, 0.16);
+  color: #FF8A8E;
+}
+
+body.dark .lb-launch p { color: var(--ad-text); }
+
+body.dark .switch-track { background: var(--ad-line-strong); }
+body.dark .stat-dot { opacity: 0.6; }
