@@ -4,19 +4,13 @@
 // Providers (set in config.js, sms.provider):
 //   "log"        test mode: nothing is sent; each message is written to the `smsLog` collection (free)
 //   "semaphore"  Semaphore (semaphore.co), a Philippine SMS gateway; needs the SMS_API_KEY secret
-//   "android"    an Android phone running "SMS Gateway for Android" (sms-gate.app) in cloud mode; the phone sends
-//                the text from its own SIM. Needs the SMS_GATEWAY_USER and SMS_GATEWAY_PASSWORD secrets (the
-//                username and password shown in the app's Cloud Server section).
 // In the emulator every provider behaves like "log".
 
 // The secrets each provider needs; index.js asks Firebase for exactly these.
 const SMS_SECRETS = {
   log: [],
-  semaphore: ["SMS_API_KEY"],
-  android: ["SMS_GATEWAY_USER", "SMS_GATEWAY_PASSWORD"]
+  semaphore: ["SMS_API_KEY"]
 };
-
-const ANDROID_GATEWAY_URL = "https://api.sms-gate.app/3rdparty/v1/messages";
 
 const SMS_MAX_LENGTH = 306; // two standard SMS parts
 
@@ -63,19 +57,6 @@ function createSmsSender({ db, FieldValue, config, secret, log }) {
       });
       if (!response.ok) throw new Error("Semaphore answered " + response.status + ": " + (await response.text()).slice(0, 200));
       writeLog("sms sent to " + mobile + " (" + tag + ")");
-      return true;
-    }
-
-    if (provider === "android") {
-      // Trimmed: a pasted secret can carry a stray space or line break, which the gateway would reject.
-      const login = Buffer.from(String(secret("SMS_GATEWAY_USER")).trim() + ":" + String(secret("SMS_GATEWAY_PASSWORD")).trim()).toString("base64");
-      const response = await fetch(settings.androidUrl || ANDROID_GATEWAY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Basic " + login },
-        body: JSON.stringify({ textMessage: { text: text }, phoneNumbers: [mobile] })
-      });
-      if (!response.ok) throw new Error("SMS gateway answered " + response.status + ": " + (await response.text()).slice(0, 200));
-      writeLog("sms handed to the Android gateway for " + mobile + " (" + tag + ")");
       return true;
     }
 
