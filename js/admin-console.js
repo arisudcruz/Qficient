@@ -56,6 +56,7 @@ function adminHeaderRightHtml() {
   var onInbox = typeof currentAdminSection === "function" && currentAdminSection() === "notifications";
 
   return '<div class="admin-header-right">' +
+    staffSoundButtonHtml() +
     '<button type="button" class="admin-bell' + (onInbox ? ' active' : '') + '" title="Notifications" aria-label="Notifications" onclick="setAdminSection(\'notifications\')">' +
       '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>' +
       '<span class="admin-bell-badge" data-notif-badge hidden></span>' +
@@ -68,6 +69,36 @@ function adminHeaderRightHtml() {
     '<span class="admin-header-name">' + escapeAdminText(adminDisplayName()) + '</span>' +
     '<button type="button" class="settings-logout" onclick="confirmAdminLogout()">Logout</button>' +
   '</div>';
+}
+
+// The student-type filter above the queue lists (Queue Management and Queue Enforcer). It only hides rows;
+// Call Next and the queue order are unchanged. A ticket without a known type counts as Regular, as in the list.
+var QUEUE_TYPE_FILTERS = [
+  { value: "", label: "All Types" },
+  { value: "regular", label: "Regular" },
+  { value: "transferee", label: "Transferee / Irregular" },
+  { value: "guest", label: "Guest" }
+];
+
+function ticketTypeOf(ticket) {
+  return ticket.studentType === "transferee" || ticket.studentType === "guest" ? ticket.studentType : "regular";
+}
+
+function ticketMatchesTypeFilter(ticket, filter) {
+  return !filter || ticketTypeOf(ticket) === filter;
+}
+
+function queueTypeFilterHtml(selected, onchange) {
+  return '<select class="queue-type-filter" aria-label="Show student type" onchange="' + onchange + '">' +
+    QUEUE_TYPE_FILTERS.map(function (option) {
+      return '<option value="' + option.value + '"' + (option.value === selected ? ' selected' : '') + '>' + option.label + '</option>';
+    }).join("") +
+  '</select>';
+}
+
+function queueTypeFilterLabel(filter) {
+  var option = QUEUE_TYPE_FILTERS.find(function (o) { return o.value === filter; });
+  return option ? option.label : "";
 }
 
 function escapeAdminText(value) {

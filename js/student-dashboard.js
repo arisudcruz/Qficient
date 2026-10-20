@@ -24,7 +24,7 @@ function selectStudentType(type) {
       user.studentType = type;
       closeStudentTypeModal();
       updateDashboard();
-      say("Student type set to " + STUDENT_TYPE_LABELS[type] + ".");
+      sayDone("Student type set to " + STUDENT_TYPE_LABELS[type] + ".");
     })
     .catch(function (err) {
       say("Could not save student type: " + err.message);
@@ -239,6 +239,18 @@ function toggleUserMenu(event) {
   if (button) button.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
 }
 
+// The header bell opens the notification history; pressed again it goes back to the stations.
+function toggleNotificationsPage() {
+  closeUserMenu();
+  setDashboardTab(currentDashboardTab() === "notifications" ? "queue" : "notifications");
+  window.scrollTo(0, 0);
+}
+
+function enableAlertsFromMenu() {
+  closeUserMenu();
+  enableNotifications();
+}
+
 function changeStudentTypeFromMenu() {
   closeUserMenu();
   promptStudentType(false);
@@ -284,7 +296,7 @@ document.addEventListener("keydown", function (event) {
 var DASHBOARD_TABS = {
   queue: { panel: "dashboardTabQueue", button: "tabBtnQueue" },
   board: { panel: "dashboardTabBoard", button: "tabBtnBoard" },
-  notifications: { panel: "dashboardTabNotifications", button: "tabBtnNotifications" }
+  notifications: { panel: "dashboardTabNotifications", button: "udNotifBell" }  // opened from the header bell
 };
 
 function currentDashboardTab() {

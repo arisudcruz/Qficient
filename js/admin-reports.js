@@ -42,46 +42,17 @@ function onReportInput(field, value) {
 function reportOutcome(ticket) {
   if (ticket.status === "completed") return "served";
   if (ticket.status === "cancelled") return "cancelled";
-  if (ticket.status === "void") return ticket.autoVoided || ticket.staleCleanup ? "expired" : "removed";
+  if (ticket.status === "void") return ticket.autoVoided || ticket.staleCleanup ? "voided" : "removed";
   return "active";
 }
 
 function emptyReportRow(label) {
-  return { label: label, issued: 0, served: 0, cancelled: 0, removed: 0, expired: 0, active: 0, transferredOut: 0, waitSum: 0, waitCount: 0, serviceSum: 0, serviceCount: 0 };
+  return { label: label, issued: 0, served: 0, cancelled: 0, removed: 0, voided: 0, active: 0, transferredOut: 0 };
 }
-
-// A queue day ends at midnight, so a gap longer than this is bad data (a test ticket, a clock problem), not a wait.
-var REPORT_MAX_DURATION_MS = 12 * 60 * 60 * 1000;
 
 function addToReportRow(row, ticket) {
   row.issued += 1;
   row[reportOutcome(ticket)] += 1;
-
-  var created = timestampToMs(ticket.createdAt, 0);
-  var servingAt = timestampToMs(ticket.servingAt, 0);
-  var completedAt = timestampToMs(ticket.completedAt, 0);
-
-  if (created && servingAt && servingAt >= created && servingAt - created <= REPORT_MAX_DURATION_MS) {
-    row.waitSum += servingAt - created;
-    row.waitCount += 1;
-  }
-  if (ticket.status === "completed" && servingAt && completedAt && completedAt >= servingAt && completedAt - servingAt <= REPORT_MAX_DURATION_MS) {
-    row.serviceSum += completedAt - servingAt;
-    row.serviceCount += 1;
-  }
-}
-
-function reportAverage(sum, count) {
-  return count ? sum / count : null;
-}
-
-function formatDuration(ms) {
-  if (ms === null || ms === undefined) return "—";
-  var totalSeconds = Math.round(ms / 1000);
-  var minutes = Math.floor(totalSeconds / 60);
-  var seconds = totalSeconds % 60;
-  if (minutes >= 60) return Math.floor(minutes / 60) + "h " + (minutes % 60) + "m";
-  return minutes + "m " + String(seconds).padStart(2, "0") + "s";
 }
 
 function buildReport(allTickets, draft) {
@@ -170,14 +141,10 @@ function generateReport() {
 /* ---------- Screen ---------- */
 
 function reportRowCells(row) {
-  return [
-    row.issued, row.served, row.cancelled, row.removed, row.expired, row.active,
-    formatDuration(reportAverage(row.waitSum, row.waitCount)),
-    formatDuration(reportAverage(row.serviceSum, row.serviceCount))
-  ];
+  return [row.issued, row.served, row.cancelled, row.removed, row.voided];
 }
 
-var REPORT_COLUMNS = ["Issued", "Served", "Cancelled", "Removed", "Expired", "Still in queue", "Avg. wait", "Avg. service"];
+var REPORT_COLUMNS = ["Issued", "Served", "Cancelled", "Removed", "Voided"];
 
 function reportTableHtml(firstHeader, rows, total, withTransfers) {
   var head = '<tr><th>' + firstHeader + '</th>' + REPORT_COLUMNS.map(function (c) { return '<th>' + c + '</th>'; }).join("") +
@@ -220,9 +187,8 @@ function renderReports() {
       { label: "Tickets Issued", value: t.issued, tone: "amber" },
       { label: "Served", value: t.served, tone: "green" },
       { label: "Cancelled", value: t.cancelled, tone: "navy" },
-      { label: "Removed / Expired", value: (t.removed + t.expired), tone: "blue" },
-      { label: "Avg. Wait", value: formatDuration(reportAverage(t.waitSum, t.waitCount)), tone: "blue" },
-      { label: "Avg. Service", value: formatDuration(reportAverage(t.serviceSum, t.serviceCount)), tone: "green" }
+      { label: "Removed", value: t.removed, tone: "blue" },
+      { label: "Voided", value: t.voided, tone: "blue" }
     ];
 
     resultHtml =
@@ -235,7 +201,7 @@ function renderReports() {
         reportTableHtml("Station", r.stations, t, true) + '</section>' +
       '<section class="panel settings-panel"><div class="panel-header"><h2>Daily Summary</h2></div>' +
         reportTableHtml("Date", r.days, t, false) + '</section>' +
-      '<p class="report-note">Avg. wait is from getting the ticket to being called. Avg. service is from being called to the end of the transaction. Expired tickets ran out of time after a last call, or were left over at the end of the day.</p>';
+      '<p class="report-note">Removed tickets were taken off the queue by staff. Voided tickets ran out of time after a last call, or were left over at the end of the day. Issued also counts tickets that were still in line when the report was generated.</p>';
   }
 
   area.innerHTML =
@@ -339,8 +305,7 @@ function exportReportPdf() {
     doc.setFontSize(11);
     doc.setTextColor(23, 32, 51);
     doc.text("Issued: " + t.issued + "    Served: " + t.served + "    Cancelled: " + t.cancelled + "    Removed: " + t.removed +
-      "    Expired: " + t.expired + "    Avg. wait: " + formatDuration(reportAverage(t.waitSum, t.waitCount)) +
-      "    Avg. service: " + formatDuration(reportAverage(t.serviceSum, t.serviceCount)), 40, 90);
+      "    Voided: " + t.voided, 40, 90);
 
     var station = reportSheetRows("Station", r.stations, t, true);
     doc.autoTable({

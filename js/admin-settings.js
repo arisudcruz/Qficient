@@ -125,7 +125,7 @@ function confirmSaveConfiguration() {
       }, { merge: true }).then(function () {
         settingsTimeoutDraft = null;
         renderSettings();
-        say("Configuration saved.");
+        sayDone("Configuration saved.");
       }).catch(function (error) {
         say("Could not save configuration: " + error.message);
       });
@@ -259,7 +259,7 @@ function confirmCreateStation() {
         purposes: purposes
       }).then(function () {
         closeFormModal();
-        say("Station created.");
+        sayDone("Station created.");
       }).catch(function (error) {
         say("Could not create station: " + error.message);
       });
@@ -334,7 +334,7 @@ function saveStationName(stationId) {
 
   db.collection("stations").doc(stationId).update({ name: name }).then(function () {
     closeFormModal();
-    say("Station renamed.");
+    sayDone("Station renamed.");
   }).catch(function (error) {
     say("Could not rename station: " + error.message);
   });
@@ -415,7 +415,7 @@ function saveStationPurposes(stationId) {
     var button = document.getElementById("savePurposesBtn");
     setButtonLoading(button, true);
     return db.collection("stations").doc(stationId).update({ purposes: purposes }).then(function () {
-      say("Purposes saved.");
+      sayDone("Purposes saved.");
     }).catch(function (error) {
       say("Could not save the purposes: " + error.message);
     }).then(function () {
@@ -452,7 +452,7 @@ function saveStationMax(stationId) {
 
   db.collection("stations").doc(stationId).update({ maxQueue: limit }).then(function () {
     closeFormModal();
-    say("Maximum service queue saved.");
+    sayDone("Maximum service queue saved.");
   }).catch(function (error) {
     say("Could not save the limit: " + error.message);
   });
@@ -504,7 +504,7 @@ function confirmDeleteStation(stationId) {
       return batch.commit().then(function () {
         if (settingsSelectedRole === stationId) settingsSelectedRole = "admin";
         closeFormModal();
-        say("Station deleted.");
+        sayDone("Station deleted.");
       }).catch(function (error) {
         say("Could not delete station: " + error.message);
       });
@@ -564,7 +564,7 @@ function confirmSaveMemberRoles() {
       return batch.commit().then(function () {
         settingsRoleDrafts = {};
         renderSettings();
-        say("Roles updated.");
+        sayDone("Roles updated.");
       }).catch(function (error) {
         say("Could not update roles: " + error.message);
       });
@@ -732,7 +732,7 @@ function saveNewStaff() {
     settingsSelectedRole = role;
     settingsRoleDrafts = {};
     renderSettings();
-    say("Staff added. They can sign in with that email and password.");
+    sayDone("Staff added. They can sign in with that email and password.");
   }).catch(function (error) {
     console.error("Add staff failed:", error);
     say("Could not add staff: " + staffAuthMessage(error));
@@ -823,7 +823,7 @@ function saveStaffEdit(email) {
   }).then(function () {
     closeFormModal();
     renderSettings();
-    say(changingPassword ? "Staff updated. The new password works from the next sign-in." : "Staff updated.");
+    sayDone(changingPassword ? "Staff updated. The new password works from the next sign-in." : "Staff updated.");
   }).catch(function (error) {
     console.error("Edit staff failed:", error);
     say("Could not save the changes: " + staffAuthMessage(error));
@@ -845,7 +845,7 @@ function confirmDeleteStaff(email) {
     tone: "danger",
     onConfirm: function () {
       return db.collection("staff").doc(email).delete().then(function () {
-        say("Staff deleted.");
+        sayDone("Staff deleted.");
       }).catch(function (error) {
         say("Could not delete staff: " + error.message);
       });

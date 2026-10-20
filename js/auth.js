@@ -6,6 +6,7 @@ function getStudentNumberFromEmail(email) {
 
 var GUEST_PROFILE_KEY = "qficient.guestProfile";
 var startingSession = false;
+var endingStudentSession = false; // this tab is logging the student out itself
 
 function saveGuestProfile(profile) {
   try {
@@ -61,6 +62,31 @@ function enterStudentSession(signedInUser) {
     });
 }
 
+// The browser keeps one QFicient login for all its tabs. If a staff member signs in (or someone signs out) in
+// another tab, this tab's student screen would keep sending requests as that other account, so it is closed
+// with an explanation instead. Returns true when the student session was ended.
+function endReplacedStudentSession(firebaseUser) {
+  if (!user || startingSession || endingStudentSession) return false;
+  if (firebaseUser && firebaseUser.uid === user.id) return false;
+
+  var onStudentScreen = document.body.getAttribute("data-page") === "pageDashboard";
+  var nowStaff = !!firebaseUser && isPasswordUser(firebaseUser);
+
+  user = null;
+  clearGuestProfile();
+  updateDashboard();
+
+  if (onStudentScreen && (nowStaff || !firebaseUser)) {
+    goTo("pageHome");
+    sayProblem("You've been signed out",
+      nowStaff ?
+        "This browser is now signed in with a staff account (in another tab or window). To get a ticket, sign in again with your student account, or use a separate browser for staff." :
+        "You were signed out in another tab or window. Sign in again to get a ticket.",
+      "warning");
+  }
+  return true;
+}
+
 // Brings a signed-in student or guest back after a page refresh.
 function restoreStudentSession(firebaseUser) {
   if (startingSession || user) return;
@@ -90,6 +116,7 @@ function studentLogout() {
   var isGuest = !!user && user.type === "guest";
 
   var finish = function () {
+    endingStudentSession = true;
     forgetThisDevice(user && user.id).then(function () {
       return firebase.auth().signOut();
     }).then(function () {
@@ -99,6 +126,8 @@ function studentLogout() {
       goTo("pageHome");
     }).catch(function (error) {
       say("Could not log out: " + error.message);
+    }).then(function () {
+      endingStudentSession = false;
     });
   };
 

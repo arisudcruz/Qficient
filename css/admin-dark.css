@@ -146,6 +146,7 @@ body.dark .enforcer-field select,
 body.dark .enforcer-field input,
 body.dark .report-filters input,
 body.dark .report-filters select,
+body.dark .queue-type-filter,
 body.dark .traffic-filters input,
 body.dark .admin-login-card input {
   background: var(--ad-field);
@@ -230,6 +231,16 @@ body.dark .admin-theme-btn {
 }
 
 body.dark .admin-theme-btn:hover { background: var(--ad-selected); }
+
+body.dark .admin-sound-btn {
+  background: var(--ad-surface);
+  border-color: var(--ad-line-strong);
+  color: var(--ad-accent);
+}
+
+body.dark .admin-sound-btn:hover { background: var(--ad-selected); }
+body.dark .admin-sound-btn.is-off { color: #6B7C99; }
+body.dark .admin-sound-btn.is-needs-tap { border-color: #F2C14E; color: #F2C14E; }
 
 body.dark .stat-card.navy .stat-icon { background: rgba(147, 169, 217, 0.16); color: #A9BCE6; }
 
