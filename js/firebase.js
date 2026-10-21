@@ -79,7 +79,9 @@ function startTicketsListener() {
   ticketsScopeDay = queueDayKey(Date.now());
   ticketsUnsubscribe = ticketsQuery().onSnapshot(function (snapshot) {
     tickets = snapshot.docs.map(function (doc) {
-      return Object.assign({ id: doc.id }, doc.data());
+      // A time this browser just wrote (On Hold, Last Call) reads as an estimate until the server confirms it,
+      // instead of being empty, so countdowns start from the right moment.
+      return Object.assign({ id: doc.id }, doc.data({ serverTimestamps: "estimate" }));
     });
     ticketsLoaded = true;
     updateDashboard();

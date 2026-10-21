@@ -89,6 +89,7 @@ function countStationTicketsToday(stationId) {
 // (a phone or PC that is a minute off would otherwise show, and act on, the wrong time). The offset comes from
 // the Date header of our own site, corrected for the round trip and for any time spent in a cache.
 var serverOffsetMs = 0;
+var SERVER_CLOCK_MAX_OFFSET_MS = 60 * 60 * 1000; // a device clock off by more than an hour is not believable
 
 function serverNow() {
   return Date.now() + serverOffsetMs;
@@ -103,10 +104,14 @@ function syncServerClock() {
     var serverMs = header ? Date.parse(header) : NaN;
     if (isNaN(serverMs)) return;
 
-    var age = Number(response.headers.get("Age")) || 0;
+    // Vercel stamps Date when it answers, even for a cached page, so the cache's Age header must NOT be added:
+    // it is how old the cached copy is (often a day), not how stale the Date is.
     // The header is whole seconds, so the true time is about half a second later.
-    var offset = serverMs + age * 1000 + 500 - (sentAt + (receivedAt - sentAt) / 2);
-    serverOffsetMs = Math.abs(offset) < 1500 ? 0 : Math.round(offset);
+    var offset = serverMs + 500 - (sentAt + (receivedAt - sentAt) / 2);
+
+    // A small gap is rounding; an implausibly large one means the header can't be trusted, so keep the device clock.
+    if (Math.abs(offset) < 1500 || Math.abs(offset) > SERVER_CLOCK_MAX_OFFSET_MS) offset = 0;
+    serverOffsetMs = Math.round(offset);
   }).catch(function () {});
 }
 

@@ -27,7 +27,7 @@ function fakeFetch(status, answer) {
   return calls;
 }
 
-const secrets = { SMS_API_KEY: "test-semaphore-key", SMS_GATEWAY_USER: "phone-user", SMS_GATEWAY_PASSWORD: "phone-pass" };
+const secrets = { SMS_API_KEY: "test-semaphore-key" };
 const secret = (name) => secrets[name];
 const logged = [];
 const db = { collection: () => ({ add: async (doc) => { logged.push(doc); } }) };
@@ -44,37 +44,10 @@ const FieldValue = { serverTimestamp: () => "now" };
   await test("each provider names the secrets it needs", () => {
     assert.deepStrictEqual(SMS_SECRETS.log, []);
     assert.deepStrictEqual(SMS_SECRETS.semaphore, ["SMS_API_KEY"]);
-    assert.deepStrictEqual(SMS_SECRETS.android, ["SMS_GATEWAY_USER", "SMS_GATEWAY_PASSWORD"]);
-  });
-
-  await test("android: posts to the gateway's cloud API with the app's login", async () => {
-    const calls = fakeFetch(202, "{}");
-    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "android" } } });
-    await sms.send("+639171234567", "QFicient: hello", "t1:created");
-
-    assert.strictEqual(calls.length, 1);
-    assert.strictEqual(calls[0].url, "https://api.sms-gate.app/3rdparty/v1/messages");
-    assert.strictEqual(calls[0].options.method, "POST");
-    assert.strictEqual(calls[0].options.headers["Content-Type"], "application/json");
-    assert.strictEqual(calls[0].options.headers.Authorization, "Basic " + Buffer.from("phone-user:phone-pass").toString("base64"));
-    assert.deepStrictEqual(JSON.parse(calls[0].options.body), { textMessage: { text: "QFicient: hello" }, phoneNumbers: ["+639171234567"] });
-  });
-
-  await test("android: a private gateway address can be used instead", async () => {
-    const calls = fakeFetch(200, "{}");
-    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "android", androidUrl: "https://sms.example.edu/3rdparty/v1/messages" } } });
-    await sms.send("+639171234567", "x", "t");
-    assert.strictEqual(calls[0].url, "https://sms.example.edu/3rdparty/v1/messages");
-  });
-
-  await test("android: a refused login is reported as an error", async () => {
-    fakeFetch(401, "Unauthorized");
-    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "android" } } });
-    await assert.rejects(sms.send("+639171234567", "x", "t"), /SMS gateway answered 401: Unauthorized/);
   });
 
   await test("semaphore: posts the key, local number and text", async () => {
-    const calls = fakeFetch(200, "[]");
+    const calls = fakeFetch(200, '[{"message_id":123,"status":"Pending"}]');
     const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "semaphore", senderName: "QFICIENT" } } });
     await sms.send("+639171234567", "QFicient: hello", "t");
     const body = new URLSearchParams(calls[0].options.body.toString());
@@ -83,6 +56,25 @@ const FieldValue = { serverTimestamp: () => "now" };
     assert.strictEqual(body.get("number"), "09171234567");
     assert.strictEqual(body.get("message"), "QFicient: hello");
     assert.strictEqual(body.get("sendername"), "QFICIENT");
+  });
+
+  await test("semaphore: a refusal that comes back as 200 is still an error", async () => {
+    fakeFetch(200, '{"sendername":["The selected sendername is invalid."]}');
+    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "semaphore", senderName: "WRONG" } } });
+    await assert.rejects(sms.send("+639171234567", "x", "t"), /Semaphore did not queue the text: .*sendername/);
+  });
+
+  await test("semaphore: an HTTP error is reported", async () => {
+    fakeFetch(401, "Unauthorized");
+    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "semaphore" } } });
+    await assert.rejects(sms.send("+639171234567", "x", "t"), /Semaphore answered 401: Unauthorized/);
+  });
+
+  await test("semaphore: a stray space around the key is trimmed", async () => {
+    const calls = fakeFetch(200, '[{"message_id":1}]');
+    const sms = createSmsSender({ db, FieldValue, secret: () => "  key-with-spaces " + String.fromCharCode(10), config: { sms: { provider: "semaphore" } } });
+    await sms.send("+639171234567", "x", "t");
+    assert.strictEqual(new URLSearchParams(calls[0].options.body.toString()).get("apikey"), "key-with-spaces");
   });
 
   await test("log: nothing is sent, the text is saved", async () => {

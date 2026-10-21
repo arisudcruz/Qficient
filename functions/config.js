@@ -23,15 +23,11 @@ module.exports = {
   //   provider "semaphore": real SMS through semaphore.co. First run
   //                           firebase functions:secrets:set SMS_API_KEY
   //                         paste the Semaphore API key, then deploy the functions.
-  //   provider "android":   an Android phone with a SIM running "SMS Gateway for Android" (sms-gate.app) in
-  //                         Cloud Server mode sends the texts. First run both of these and paste the username
-  //                         and password shown in the app, then deploy the functions:
-  //                           firebase functions:secrets:set SMS_GATEWAY_USER
-  //                           firebase functions:secrets:set SMS_GATEWAY_PASSWORD
+  //   When switching to a real provider, also set WALKIN_SMS_ENABLED to true in js/admin-enforcer.js so the walk-in
+  //   form tells staff the ticket is texted.
   sms: {
-    provider: "android",
-    senderName: "",  // Semaphore only: a sender name approved in your account; leave empty for the default
-    androidUrl: ""   // Android only: leave empty for the app's public cloud server
+    provider: "semaphore",
+    senderName: "QFicient"   // Semaphore only: exactly as registered (active) in the Semaphore account
   },
 
   // Limits on joining the queue (enforced by the joinQueue function, per account).

@@ -6,6 +6,10 @@ var ENFORCER_OTHER_PURPOSE = "__other__";
 
 var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", mobile: "", email: "" };
 var enforcerFilter = "";
+
+// Whether walk-ins really get text messages. Off while functions/config.js has sms.provider "log" (test mode);
+// set to true together with a real SMS provider, so the form tells staff the ticket is texted.
+var WALKIN_SMS_ENABLED = true;
 var enforcerTypeFilter = ""; // "" = all student types
 
 function setEnforcerTypeFilter(value) {
@@ -117,7 +121,7 @@ function enforcerFormProblem() {
   if (!d.purpose) return "Please select the purpose.";
   if (d.purpose === ENFORCER_OTHER_PURPOSE && !/[\p{L}\p{N}]/u.test(d.purposeOther)) return "Please specify the purpose.";
 
-  if (!d.mobile.trim()) return "Please enter the mobile number. The ticket number and alerts are sent there by SMS.";
+  if (!d.mobile.trim()) return WALKIN_SMS_ENABLED ? "Please enter the mobile number. The ticket number and alerts are sent there by SMS." : "Please enter the mobile number.";
   if (!normalizePhMobile(d.mobile)) return "Please enter a valid Philippine mobile number, like 0917 123 4567.";
 
   // Email is optional, but if it's filled in it has to be a real address.
@@ -139,7 +143,7 @@ function confirmCreateManualTicket() {
 
   showConfirmModal({
     title: "Create Ticket?",
-    message: "The queue entry for " + name + " is ready to be created. It joins the " + (station ? station.name : "") + " queue and gets the next queue number, which is texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + ".",
+    message: "The queue entry for " + name + " is ready to be created. It joins the " + (station ? station.name : "") + " queue and gets the next queue number" + (WALKIN_SMS_ENABLED ? ", which is texted to " + formatPhMobile(normalizePhMobile(d.mobile)) : "") + ".",
     confirmLabel: "Create Ticket",
     tone: "danger",
     onConfirm: function () {
@@ -156,7 +160,7 @@ function confirmCreateManualTicket() {
 
         enforcerDraft = emptyEnforcerDraft(enforcerFilter);
         renderEnforcer();
-        sayDone("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + ". It is being texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + ".");
+        sayDone("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + "." + (WALKIN_SMS_ENABLED ? " It is being texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + "." : ""));
       });
     }
   });
