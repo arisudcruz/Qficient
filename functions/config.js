@@ -26,8 +26,8 @@ module.exports = {
   //   When switching to a real provider, also set WALKIN_SMS_ENABLED to true in js/admin-enforcer.js so the walk-in
   //   form tells staff the ticket is texted.
   sms: {
-    provider: "log",
-    senderName: ""   // Semaphore only: a sender name approved in your account; leave empty for the default
+    provider: "semaphore",
+    senderName: "QFicient"   // Semaphore only: exactly as registered (active) in the Semaphore account
   },
 
   // Limits on joining the queue (enforced by the joinQueue function, per account).

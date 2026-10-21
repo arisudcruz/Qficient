@@ -47,7 +47,8 @@ function createSmsSender({ db, FieldValue, config, secret, log }) {
     }
 
     if (provider === "semaphore") {
-      const body = new URLSearchParams({ apikey: secret("SMS_API_KEY"), number: localNumber(mobile), message: text });
+      // Trimmed: a pasted key can carry a stray space or line break, which Semaphore would reject.
+      const body = new URLSearchParams({ apikey: String(secret("SMS_API_KEY")).trim(), number: localNumber(mobile), message: text });
       if (settings.senderName) body.set("sendername", settings.senderName);
 
       const response = await fetch("https://api.semaphore.co/api/v4/messages", {
@@ -55,8 +56,17 @@ function createSmsSender({ db, FieldValue, config, secret, log }) {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: body
       });
-      if (!response.ok) throw new Error("Semaphore answered " + response.status + ": " + (await response.text()).slice(0, 200));
-      writeLog("sms sent to " + mobile + " (" + tag + ")");
+      const answer = await response.text();
+      if (!response.ok) throw new Error("Semaphore answered " + response.status + ": " + answer.slice(0, 200));
+
+      // Semaphore can answer 200 and still refuse (a wrong sender name, no credits): a real send is a list of
+      // queued messages, each with a message_id.
+      let sent = null;
+      try { sent = JSON.parse(answer); } catch (e) {}
+      if (!Array.isArray(sent) || !sent.length || !sent[0].message_id) {
+        throw new Error("Semaphore did not queue the text: " + answer.slice(0, 200));
+      }
+      writeLog("sms sent to " + mobile + " (" + tag + "), Semaphore message " + sent[0].message_id + " " + (sent[0].status || ""));
       return true;
     }
 

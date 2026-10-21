@@ -47,7 +47,7 @@ const FieldValue = { serverTimestamp: () => "now" };
   });
 
   await test("semaphore: posts the key, local number and text", async () => {
-    const calls = fakeFetch(200, "[]");
+    const calls = fakeFetch(200, '[{"message_id":123,"status":"Pending"}]');
     const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "semaphore", senderName: "QFICIENT" } } });
     await sms.send("+639171234567", "QFicient: hello", "t");
     const body = new URLSearchParams(calls[0].options.body.toString());
@@ -56,6 +56,25 @@ const FieldValue = { serverTimestamp: () => "now" };
     assert.strictEqual(body.get("number"), "09171234567");
     assert.strictEqual(body.get("message"), "QFicient: hello");
     assert.strictEqual(body.get("sendername"), "QFICIENT");
+  });
+
+  await test("semaphore: a refusal that comes back as 200 is still an error", async () => {
+    fakeFetch(200, '{"sendername":["The selected sendername is invalid."]}');
+    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "semaphore", senderName: "WRONG" } } });
+    await assert.rejects(sms.send("+639171234567", "x", "t"), /Semaphore did not queue the text: .*sendername/);
+  });
+
+  await test("semaphore: an HTTP error is reported", async () => {
+    fakeFetch(401, "Unauthorized");
+    const sms = createSmsSender({ db, FieldValue, secret, config: { sms: { provider: "semaphore" } } });
+    await assert.rejects(sms.send("+639171234567", "x", "t"), /Semaphore answered 401: Unauthorized/);
+  });
+
+  await test("semaphore: a stray space around the key is trimmed", async () => {
+    const calls = fakeFetch(200, '[{"message_id":1}]');
+    const sms = createSmsSender({ db, FieldValue, secret: () => "  key-with-spaces " + String.fromCharCode(10), config: { sms: { provider: "semaphore" } } });
+    await sms.send("+639171234567", "x", "t");
+    assert.strictEqual(new URLSearchParams(calls[0].options.body.toString()).get("apikey"), "key-with-spaces");
   });
 
   await test("log: nothing is sent, the text is saved", async () => {

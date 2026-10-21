@@ -9,7 +9,7 @@ var enforcerFilter = "";
 
 // Whether walk-ins really get text messages. Off while functions/config.js has sms.provider "log" (test mode);
 // set to true together with a real SMS provider, so the form tells staff the ticket is texted.
-var WALKIN_SMS_ENABLED = false;
+var WALKIN_SMS_ENABLED = true;
 var enforcerTypeFilter = ""; // "" = all student types
 
 function setEnforcerTypeFilter(value) {
