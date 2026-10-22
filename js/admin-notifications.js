@@ -90,6 +90,7 @@ function formatNotifTime(ms) {
 }
 
 function notifTitle(ticket) {
+  if (ticket.enrollment === true) return ticket.transferredFrom ? "Enrollment: Next Station" : "New Enrollment";
   return ticket.transferredFrom ? "Transferred Queue Request" : "New Queue Request";
 }
 
@@ -245,12 +246,15 @@ function openNotification(id) {
     return;
   }
 
+  // An enrollment ticket opens the Enrollment page, any other the Queue Management page, on that station.
+  var section = item.ticket.enrollment === true ? "enrollment" : "queue";
+  useQueueLane(section === "enrollment" ? "enrollment" : "regular");
   if (canServeStation(item.ticket.stationId) && stations.some(function (station) { return station.id === item.ticket.stationId; })) {
     activeQueueStation = item.ticket.stationId;
     resetQueueTransfer();
     queueSelection = {};
   }
-  setAdminSection("queue");
+  setAdminSection(section);
 }
 
 document.addEventListener("click", function (event) {

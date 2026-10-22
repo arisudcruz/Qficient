@@ -463,11 +463,13 @@ function confirmToggleStation(stationId) {
   if (!station) return;
 
   var disabling = station.active !== false;
+  var inEnrollment = enrollmentStationIds().indexOf(stationId) !== -1;
 
   showConfirmModal({
     title: disabling ? "Disable Station?" : "Enable Station?",
     message: disabling ?
-      "Disabling this station will make it inactive and prevent it from operating until it is enabled again. Existing station data will be retained." :
+      "Disabling this station will make it inactive and prevent it from operating until it is enabled again. Existing station data will be retained." +
+        (inEnrollment ? " It is part of the enrollment process, so enrolling students can't be sent to it while it is disabled." : "") :
       "Enabling this station will make it active and allow it to resume normal operation. Existing station data and configurations will be retained.",
     confirmLabel: disabling ? "Disable" : "Enable",
     tone: "danger",
@@ -485,6 +487,20 @@ function confirmDeleteStation(stationId) {
   });
   if (hasActiveTickets) {
     say("This station still has tickets in its queue. Clear them before deleting it.");
+    return;
+  }
+
+  // Enrolling students would have nowhere to go: take it out of the enrollment process first.
+  if (enrollmentStationIds().indexOf(stationId) !== -1) {
+    say("This station is part of the enrollment process. Remove it in Enrollment Settings before deleting it.");
+    return;
+  }
+  var stillAhead = tickets.some(function (t) {
+    if (t.enrollment !== true || ACTIVE_TICKET_STATUSES.indexOf(t.status) === -1 || !isTodayTicket(t)) return false;
+    return ticketEnrollmentFlow(t).slice((Number(t.enrollmentStep) || 0) + 1).indexOf(stationId) !== -1;
+  });
+  if (stillAhead) {
+    say("Students who are enrolling today still have this station ahead of them. Delete it after they have finished.");
     return;
   }
 

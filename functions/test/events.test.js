@@ -1,8 +1,8 @@
 // Pure logic tests; no emulator needed:  node test/events.test.js
 const assert = require("assert");
-const { describeChange, onlyChanged, affectsQueueFront, compareQueueOrder } = require("../lib/events");
+const { describeChange, onlyChanged, affectsQueueFront, compareQueueOrder, ticketLane } = require("../lib/events");
 
-const notify = { serving: true, recall: true, skipped: true, lastCall: true, next: true, transferred: true, voided: true };
+const notify = { serving: true, recall: true, skipped: true, lastCall: true, next: true, transferred: true, voided: true, enrollmentNext: true };
 const ctx = { stationName: (id) => (id === "registrar" ? "Registrar" : "Cashier"), voidMinutes: 2 };
 const ts = (ms) => ({ toMillis: () => ms });
 const base = { ticketNo: "CA-001", stationId: "cashier", ownerId: "u1", status: "waiting", recallCount: 0 };
@@ -48,6 +48,23 @@ test("messages use the voidMinutes setting", () => {
 test("messages use the station name", () => {
   const change = describeChange(base, Object.assign({}, base, { status: "serving" }), ctx, notify);
   assert.ok(/Cashier/.test(change.message.body) && /CA-001/.test(change.message.body));
+});
+
+const enrolling = Object.assign({}, base, { enrollment: true, enrollmentFlow: ["cashier", "registrar", "admission"], enrollmentStep: 0, purpose: "Enrollment" });
+test("enrollment: moving on to the next station is 'enrollmentNext', not 'transferred'", () => {
+  const change = describeChange(Object.assign({}, enrolling, { status: "serving" }),
+    Object.assign({}, enrolling, { stationId: "registrar", ticketNo: "RE1-004", enrollmentStep: 1, status: "waiting" }), ctx, notify);
+  assert.strictEqual(change.type, "enrollmentNext");
+  assert.ok(/Registrar/.test(change.message.title) && /RE1-004/.test(change.message.body) && /step 2 of 3/.test(change.message.body), change.message.body);
+});
+test("enrollment: the next-step alert can be switched off", () => assert.strictEqual(type(Object.assign({}, enrolling, { status: "serving" }),
+  Object.assign({}, enrolling, { stationId: "registrar", enrollmentStep: 1, status: "waiting" }), Object.assign({}, notify, { enrollmentNext: false })), null));
+test("enrollment: a regular transfer is still 'transferred'", () => assert.strictEqual(type(Object.assign({}, base, { status: "serving" }), Object.assign({}, base, { stationId: "registrar", status: "waiting" })), "transferred"));
+test("enrollment: being called works as before", () => assert.strictEqual(type(enrolling, Object.assign({}, enrolling, { status: "serving" })), "serving"));
+test("lanes: enrollment tickets are in their own line", () => {
+  assert.strictEqual(ticketLane(enrolling), "enrollment");
+  assert.strictEqual(ticketLane(base), "regular");
+  assert.strictEqual(ticketLane(Object.assign({}, base, { enrollment: false })), "regular");
 });
 
 test("onlyChanged ignores the listed bookkeeping field", () => assert.ok(onlyChanged(base, Object.assign({}, base, { nextNotified: "cashier" }), ["nextNotified"])));

@@ -4,6 +4,25 @@ var ENFORCER_TYPES = ["regular", "transferee", "guest"];
 // Kept here so the form survives switching sections and the list refreshing underneath it.
 var ENFORCER_OTHER_PURPOSE = "__other__";
 
+// The "Enrollment" choice in the form's Station list: the walk-in starts the enrollment process at the first station
+// for their student type.
+var ENFORCER_ENROLLMENT = "__enrollment__";
+
+function enforcerIsEnrollment() {
+  return enforcerDraft.stationId === ENFORCER_ENROLLMENT;
+}
+
+function enforcerEnrollmentOptionHtml() {
+  if (!enrollmentStationIds().length) return "";
+  return '<option value="' + ENFORCER_ENROLLMENT + '"' + (enforcerIsEnrollment() ? ' selected' : '') + '>Enrollment (by student type)</option>';
+}
+
+// Whether a change to the enrollment process should redraw the form (it is on screen).
+function enforcerFormNeedsFlows() {
+  var area = document.getElementById("adminEnforcerArea");
+  return !!area && area.style.display !== "none" && !!document.getElementById("enforcerStation");
+}
+
 var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", mobile: "", email: "" };
 var enforcerFilter = "";
 
@@ -49,6 +68,8 @@ function getEnforcerPurposes(stationId) {
 }
 
 function enforcerPurposeOptionsHtml() {
+  if (enforcerIsEnrollment()) return '<option value="' + ENROLLMENT_PURPOSE + '" selected>' + ENROLLMENT_PURPOSE + '</option>';
+
   var purposes = enforcerDraft.stationId ? getEnforcerPurposes(enforcerDraft.stationId) : [];
 
   var options = purposes.map(function (purpose) {
@@ -70,12 +91,12 @@ function onEnforcerInput(field, value) {
   enforcerDraft[field] = value;
 
   if (field === "stationId") {
-    enforcerDraft.purpose = "";
+    enforcerDraft.purpose = value === ENFORCER_ENROLLMENT ? ENROLLMENT_PURPOSE : "";
     enforcerDraft.purposeOther = "";
     var purposeSelect = document.getElementById("enforcerPurpose");
     if (purposeSelect) {
       purposeSelect.innerHTML = enforcerPurposeOptionsHtml();
-      purposeSelect.disabled = !value;
+      purposeSelect.disabled = !value || value === ENFORCER_ENROLLMENT;
     }
   }
 
@@ -118,6 +139,13 @@ function enforcerFormProblem() {
   if (!/\p{L}/u.test(d.lastName.trim())) return "Please enter the last name.";
   if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
   if (!d.stationId) return "Please select the station.";
+  if (d.stationId === ENFORCER_ENROLLMENT) {
+    if (ENROLLMENT_TYPES.indexOf(d.studentType) === -1) return "Enrollment is for Regular and Transferee / Irregular students.";
+    var flow = enrollmentFlowFor(d.studentType);
+    if (!flow.length) return "Enrollment isn't set up for " + STUDENT_TYPE_LABELS[d.studentType] + " students yet.";
+    var first = stations.find(function (s) { return s.id === flow[0]; });
+    if (!first || first.active === false) return "The first enrollment station is currently unavailable.";
+  }
   if (!d.purpose) return "Please select the purpose.";
   if (d.purpose === ENFORCER_OTHER_PURPOSE && !/[\p{L}\p{N}]/u.test(d.purposeOther)) return "Please specify the purpose.";
 
@@ -138,12 +166,17 @@ function confirmCreateManualTicket() {
   }
 
   var d = enforcerDraft;
-  var station = stations.find(function (s) { return s.id === d.stationId; });
+  var enrolling = enforcerIsEnrollment();
+  var stationId = enrolling ? enrollmentFlowFor(d.studentType)[0] : d.stationId;
+  var station = stations.find(function (s) { return s.id === stationId; });
   var name = d.firstName.trim().replace(/\s+/g, " ") + " " + d.lastName.trim().replace(/\s+/g, " ");
+  var where = enrolling ?
+    "It starts their enrollment at " + (station ? station.name : "the first station") + " and" :
+    "It joins the " + (station ? station.name : "") + " queue and";
 
   showConfirmModal({
     title: "Create Ticket?",
-    message: "The queue entry for " + name + " is ready to be created. It joins the " + (station ? station.name : "") + " queue and gets the next queue number" + (WALKIN_SMS_ENABLED ? ", which is texted to " + formatPhMobile(normalizePhMobile(d.mobile)) : "") + ".",
+    message: "The queue entry for " + name + " is ready to be created. " + where + " gets the next queue number" + (WALKIN_SMS_ENABLED ? ", which is texted to " + formatPhMobile(normalizePhMobile(d.mobile)) : "") + ".",
     confirmLabel: "Create Ticket",
     tone: "danger",
     onConfirm: function () {
@@ -152,6 +185,7 @@ function confirmCreateManualTicket() {
         lastName: d.lastName.trim().replace(/\s+/g, " "),
         studentType: d.studentType,
         stationId: d.stationId,
+        enrollment: enrolling,
         purpose: enforcerFinalPurpose(),
         mobile: normalizePhMobile(d.mobile),
         email: d.email.trim()
@@ -207,6 +241,9 @@ function enforcerTagsHtml(ticket) {
   var tags = "";
 
   if (ticket.manual === true) tags += ' <span class="type-tag manual-tag">Manual</span>';
+  if (ticket.enrollment === true) {
+    tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
+  }
   if (ticket.studentType === "transferee" || ticket.studentType === "guest") {
     tags += ' <span class="type-tag queue-row-' + ticket.studentType + '">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
   }
@@ -375,7 +412,7 @@ function renderEnforcer() {
 
   // A draft or filter pointing at a station that has since been disabled or removed is dropped.
   var valid = function (id) { return !id || activeStations.some(function (s) { return s.id === id; }); };
-  if (!valid(enforcerDraft.stationId)) {
+  if (!enforcerIsEnrollment() && !valid(enforcerDraft.stationId)) {
     enforcerDraft.stationId = "";
     enforcerDraft.purpose = "";
     enforcerDraft.purposeOther = "";
@@ -414,8 +451,8 @@ function renderEnforcer() {
             '<div class="enforcer-field"><label for="enforcerFirstName">First Name*</label><input type="text" id="enforcerFirstName" placeholder="First Name" maxlength="50" value="' + escapeAdminText(d.firstName) + '" oninput="onEnforcerInput(\'firstName\', this.value)"></div>' +
             '<div class="enforcer-field"><label for="enforcerLastName">Last Name*</label><input type="text" id="enforcerLastName" placeholder="Last Name" maxlength="50" value="' + escapeAdminText(d.lastName) + '" oninput="onEnforcerInput(\'lastName\', this.value)"></div>' +
             '<div class="enforcer-field"><label for="enforcerType">Student Type*</label><select id="enforcerType" onchange="onEnforcerInput(\'studentType\', this.value)">' + typeOptions + '</select></div>' +
-            '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId) + '</select></div>' +
-            '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
+            '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId).replace(/^(<option value="">[^<]*<\/option>)/, "$1" + enforcerEnrollmentOptionHtml()) + '</select></div>' +
+            '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId && !enforcerIsEnrollment() ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
             '<div class="enforcer-field"><label for="enforcerMobile">Mobile Number*</label><input type="tel" id="enforcerMobile" inputmode="tel" autocomplete="off" placeholder="e.g. 0917 123 4567" maxlength="20" value="' + escapeAdminText(d.mobile) + '" oninput="onEnforcerInput(\'mobile\', this.value)"></div>' +
             '<div class="enforcer-field enforcer-span-2"><label for="enforcerEmail">Email (optional)</label><input type="email" id="enforcerEmail" placeholder="e.g. kimfrane@gmail.com" maxlength="254" value="' + escapeAdminText(d.email) + '" oninput="onEnforcerInput(\'email\', this.value)"></div>' +
             '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +

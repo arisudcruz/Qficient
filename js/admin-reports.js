@@ -81,7 +81,8 @@ function buildReport(allTickets, draft) {
 
   // Tickets sent away from a station still count where they ended up; the source station sees them here.
   allTickets.forEach(function (ticket) {
-    if (ticket.transferredFrom && byStation[ticket.transferredFrom] && canViewStationData(ticket.transferredFrom)) {
+    // An enrollment student moving on to their next station is a step of the process, not a transfer.
+    if (ticket.transferredFrom && ticket.enrollment !== true && byStation[ticket.transferredFrom] && canViewStationData(ticket.transferredFrom)) {
       byStation[ticket.transferredFrom].transferredOut += 1;
     }
   });

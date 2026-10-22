@@ -91,13 +91,20 @@ service cloud.firestore {
         resource.data.get('countDay', '') != today();
     }
 
-    // The station's staff may move the "now serving" pointer, but only onto a ticket of that same station.
+    // The station's staff may move a "now serving" pointer, but only onto a ticket of that same station and line:
+    // nowServingId for the regular line, enrollmentServingId for the enrollment line.
+    function pointsAtLineTicket(stationId, field, enrollment) {
+      let id = request.resource.data[field];
+      return id == null ||
+        (id is string &&
+         get(/databases/$(database)/documents/tickets/$(id)).data.stationId == stationId &&
+         get(/databases/$(database)/documents/tickets/$(id)).data.get('enrollment', false) == enrollment);
+    }
+
     function isStationStaffPointer(stationId) {
       return isStationStaffOf(stationId) &&
-        changedKeys().hasOnly(['nowServingId']) &&
-        (request.resource.data.nowServingId == null ||
-         (request.resource.data.nowServingId is string &&
-          get(/databases/$(database)/documents/tickets/$(request.resource.data.nowServingId)).data.stationId == stationId));
+        ((changedKeys().hasOnly(['nowServingId']) && pointsAtLineTicket(stationId, 'nowServingId', false)) ||
+         (changedKeys().hasOnly(['enrollmentServingId']) && pointsAtLineTicket(stationId, 'enrollmentServingId', true)));
     }
 
     match /stations/{stationId} {
@@ -110,14 +117,29 @@ service cloud.firestore {
 
     // ---------- System settings ----------
 
+    // settings/enrollment: the stations each student type goes through to enroll, in order.
+    function isEnrollmentFlow(flows, type) {
+      return !(type in flows) || (flows[type] is list && flows[type].size() <= 20);
+    }
+
+    function isEnrollmentConfig(d) {
+      return d.keys().hasOnly(['flows', 'updatedAt']) &&
+        d.updatedAt == request.time &&
+        d.flows is map &&
+        d.flows.keys().hasOnly(['regular', 'transferee']) &&
+        isEnrollmentFlow(d.flows, 'regular') &&
+        isEnrollmentFlow(d.flows, 'transferee');
+    }
+
     match /settings/{docId} {
       allow read: if true;
       allow create, update: if isAdmin() &&
-        docId == 'system' &&
-        request.resource.data.keys().hasOnly(['autoVoidMinutes', 'updatedAt']) &&
-        request.resource.data.autoVoidMinutes is int &&
-        request.resource.data.autoVoidMinutes >= 1 &&
-        request.resource.data.autoVoidMinutes <= 1440;
+        ((docId == 'system' &&
+          request.resource.data.keys().hasOnly(['autoVoidMinutes', 'updatedAt']) &&
+          request.resource.data.autoVoidMinutes is int &&
+          request.resource.data.autoVoidMinutes >= 1 &&
+          request.resource.data.autoVoidMinutes <= 1440) ||
+         (docId == 'enrollment' && isEnrollmentConfig(request.resource.data)));
       allow delete: if false;
     }
 
@@ -136,7 +158,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return isEnforcer() &&
         d.keys().hasOnly(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentNumber', 'studentType',
-                          'purpose', 'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
+                          'purpose', 'status', 'verified', 'createdAt', 'manual', 'createdBy',
+                          'enrollment', 'enrollmentFlow', 'enrollmentStep']) &&
         d.keys().hasAll(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentType', 'purpose',
                          'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
         d.manual == true &&
@@ -151,7 +174,22 @@ service cloud.firestore {
         d.stationId is string &&
         d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
         d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
-        stationIsOpen(d.stationId);
+        stationIsOpen(d.stationId) &&
+        isValidNewEnrollment(d);
+    }
+
+    // An enrollment ticket starts at the first station of its student type's process, with a copy of that process.
+    // A regular ticket carries none of the enrollment fields.
+    function isValidNewEnrollment(d) {
+      return !('enrollment' in d) ?
+        !('enrollmentFlow' in d) && !('enrollmentStep' in d) :
+        d.enrollment == true &&
+        d.enrollmentStep == 0 &&
+        d.purpose == 'Enrollment' &&
+        d.studentType in ['regular', 'transferee'] &&
+        d.enrollmentFlow is list && d.enrollmentFlow.size() > 0 &&
+        d.enrollmentFlow == get(/databases/$(database)/documents/settings/enrollment).data.flows[d.studentType] &&
+        d.stationId == d.enrollmentFlow[0];
     }
 
     // The only changes an enforcer may make to an existing ticket, and only while it is still waiting
@@ -199,7 +237,36 @@ service cloud.firestore {
           request.resource.data.lastCalled == true) &&
         (!changedKeys().hasAny(['autoVoided']) || request.resource.data.autoVoided == true) &&
         (!changedKeys().hasAny(['recallCount']) ||
-          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1);
+          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1) &&
+        (resource.data.get('enrollment', false) != true || request.resource.data.status != 'completed' ||
+          resource.data.status == 'completed' ||
+          resource.data.enrollmentStep == resource.data.enrollmentFlow.size() - 1);
+    }
+
+    // Sending an enrollment ticket on to the next station of its process: a new number there, at the back of that
+    // station's enrollment line. Its process, purpose and type can't change on the way.
+    function isStationStaffEnrollmentStep() {
+      let r = resource.data;
+      let d = request.resource.data;
+      return isStationStaffOf(r.stationId) &&
+        r.get('enrollment', false) == true &&
+        r.status == 'serving' &&
+        changedKeys().hasOnly(['stationId', 'ticketNo', 'status', 'verified', 'createdAt', 'enrollmentStep',
+                               'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
+        d.enrollmentStep == r.enrollmentStep + 1 &&
+        d.enrollmentStep < r.enrollmentFlow.size() &&
+        d.stationId == r.enrollmentFlow[d.enrollmentStep] &&
+        d.stationId != r.stationId && stationIsOpen(d.stationId) &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.transferredAt == request.time &&
+        d.transferredFrom == r.stationId &&
+        d.previousTicketNo == r.ticketNo &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
+        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
     }
 
     // Sending the ticket being served to another station, as a fresh waiting ticket at the back of that queue.
@@ -208,6 +275,7 @@ service cloud.firestore {
       let d = request.resource.data;
       return isStationStaffOf(r.stationId) &&
         r.status == 'serving' &&
+        r.get('enrollment', false) != true &&
         changedKeys().hasOnly(['stationId', 'ticketNo', 'purpose', 'status', 'verified', 'createdAt',
                                'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
                                'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
@@ -237,7 +305,7 @@ service cloud.firestore {
       // Students and guests join through the joinQueue Cloud Function, which creates their ticket on the server.
       allow create: if isAdmin() || isEnforcerNewTicket();
       allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
-        (signedIn() && isOwnerCancelling());
+        isStationStaffEnrollmentStep() || (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }
 

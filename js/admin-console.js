@@ -278,21 +278,23 @@ function toggleSidebar() {
 var ADMIN_SECTION_AREAS = {
   dashboard: "adminArea",
   queue: "adminQueueArea",
+  enrollment: "adminEnrollmentArea",
   enforcer: "adminEnforcerArea",
   notifications: "adminNotificationsArea",
   liveboard: "adminLiveBoardArea",
   reports: "adminReportsArea",
   rules: "adminRulesArea",
-  settings: "adminSettingsArea"
+  settings: "adminSettingsArea",
+  enrollmentsettings: "adminEnrollmentSettingsArea"
 };
 
 // Which pages each kind of account can open. Admins have no restrictions. Everyone sees the Dashboard and
 // Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
 // (their own station only); both can read the Rules but never open Settings.
 var ADMIN_ROLE_SECTIONS = {
-  admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "reports", "rules", "settings"],
+  admin: ["dashboard", "queue", "enrollment", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings"],
   enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules"],
-  station: ["dashboard", "queue", "notifications", "liveboard", "reports", "rules"]
+  station: ["dashboard", "queue", "enrollment", "notifications", "liveboard", "reports", "rules"]
 };
 
 // Where each kind of account lands after signing in.
@@ -304,8 +306,13 @@ function resetAdminPageState() {
   enforcerFilter = "";
   enforcerSelection = {};
   enforcerDraft = emptyEnforcerDraft("");
+  useQueueLane("regular");
   queueSelection = {};
+  queueTypeFilter = "";
   resetQueueTransfer();
+  savedQueueState = {};
+  enrollmentFlowDrafts = {};
+  enrollmentSettingsType = "regular";
   settingsSelectedRole = "admin";
   settingsRoleDrafts = {};
   settingsTimeoutDraft = null;
@@ -355,7 +362,9 @@ function setAdminSection(section) {
 
   if (typeof syncRoute === "function") syncRoute(false);
 
-  if (section === "queue") {
+  // Queue Management and Enrollment are the same page running a station's regular or enrollment line.
+  if (section === "queue" || section === "enrollment") {
+    useQueueLane(section === "enrollment" ? "enrollment" : "regular");
     renderQueueManagement();
     startAutoVoidWatcher();
     return;
@@ -364,6 +373,8 @@ function setAdminSection(section) {
   stopAutoVoidWatcher();
   if (section === "settings") {
     renderSettings();
+  } else if (section === "enrollmentsettings") {
+    renderEnrollmentSettings();
   } else if (section === "enforcer") {
     renderEnforcer();
   } else if (section === "notifications") {

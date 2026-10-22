@@ -25,9 +25,54 @@ function setQueueTypeFilter(value) {
   renderQueueManagement();
 }
 
+/* ---------- Which line this page runs: Queue Management (regular) or Enrollment ---------- */
+
+// Both pages are drawn by the code below. Only one is in use at a time: the other page's state (station tab,
+// selection, filter, transfer form) is put aside, and its area emptied so no two elements share an id.
+var queueLane = "regular";
+var QUEUE_PAGES = {
+  regular: { areaId: "adminQueueArea", title: "Queue Management" },
+  enrollment: { areaId: "adminEnrollmentArea", title: "Enrollment" }
+};
+var savedQueueState = {
+  enrollment: { station: "", selection: {}, typeFilter: "", transfer: { open: false, stationId: "", purpose: "" } }
+};
+
+function useQueueLane(lane) {
+  if (lane === queueLane) return;
+
+  savedQueueState[queueLane] = { station: activeQueueStation, selection: queueSelection, typeFilter: queueTypeFilter, transfer: queueTransfer };
+  var next = savedQueueState[lane] || { station: "", selection: {}, typeFilter: "", transfer: { open: false, stationId: "", purpose: "" } };
+  activeQueueStation = next.station;
+  queueSelection = next.selection;
+  queueTypeFilter = next.typeFilter;
+  queueTransfer = next.transfer;
+
+  var oldArea = document.getElementById(QUEUE_PAGES[queueLane].areaId);
+  if (oldArea) oldArea.innerHTML = "";
+  queueLane = lane;
+}
+
+function queueAreaId() {
+  return QUEUE_PAGES[queueLane].areaId;
+}
+
 // The stations this person may run: all of them for an admin, only their own for Queue Management staff.
 function manageableStations() {
   return stations.filter(function (station) { return canServeStation(station.id); });
+}
+
+// The station tabs of the page in use. The Enrollment page shows stations that are part of an enrollment process,
+// plus any that still have enrollment students in line today (e.g. just taken out of a process).
+function queueTabStations() {
+  if (queueLane !== "enrollment") return manageableStations();
+
+  var inProcess = enrollmentStationIds();
+  return manageableStations().filter(function (station) {
+    return inProcess.indexOf(station.id) !== -1 || tickets.some(function (t) {
+      return t.stationId === station.id && ticketLane(t) === "enrollment" && ACTIVE_TICKET_STATUSES.indexOf(t.status) !== -1 && isTodayTicket(t);
+    });
+  });
 }
 
 function selectQueueStation(stationId) {
@@ -44,6 +89,7 @@ function getQueueListTickets() {
 
   return tickets.filter(function (t) {
     return t.stationId === activeQueueStation &&
+      ticketLane(t) === queueLane &&
       (t.status === "waiting" || t.status === "skipped") &&
       isTodayTicket(t) &&
       (!serving || t.id !== serving.id);
@@ -65,7 +111,7 @@ function updateQueueSelectionUI() {
     if (!valid[id]) delete queueSelection[id];
   });
 
-  document.querySelectorAll("#adminQueueArea .queue-row[data-ticket]").forEach(function (row) {
+  document.querySelectorAll("#" + queueAreaId() + " .queue-row[data-ticket]").forEach(function (row) {
     var selected = !!queueSelection[row.getAttribute("data-ticket")];
     row.classList.toggle("selected", selected);
     row.querySelector(".queue-select-box").checked = selected;
@@ -134,13 +180,14 @@ function confirmSelectedAction(kind) {
   if (kind === "call") {
     if (count !== 1) return;
     var serving = getServingTicket(stationId);
+    var lane = queueLane;
     options = {
       title: "Call ticket " + selected[0].ticketNo + " next?",
-      message: (serving ? "This marks ticket " + serving.ticketNo + " as completed and calls " : "This calls ") +
+      message: (serving ? currentTicketFateText(serving) + " and calls " : "This calls ") +
         selected[0].ticketNo + " now, ahead of the rest of the queue.",
       confirmLabel: "Call Next",
       tone: "primary",
-      run: function () { return callSelectedTicket(stationId, ids[0]); }
+      run: function () { return callSelectedTicket(stationId, ids[0], lane); }
     };
   } else if (kind === "prioritize") {
     var waitingIds = selected.filter(function (t) { return t.status === "waiting"; }).map(function (t) { return t.id; });
@@ -258,22 +305,32 @@ function confirmTransfer(stationId) {
 }
 
 function getServingTicket(stationId) {
-  return servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  return servingTicketOf(stations.find(function (s) { return s.id === stationId; }), queueLane);
+}
+
+// What Call Next does to the ticket still at the counter: completed, or (enrollment) sent on to the next station.
+function currentTicketFateText(serving) {
+  if (ticketLane(serving) !== "enrollment") return "This marks ticket " + serving.ticketNo + " as completed";
+  var nextId = nextEnrollmentStationId(serving);
+  return nextId ?
+    "This sends " + serving.ticketNo + " on to " + (stationNameById(nextId) || "the next station") :
+    "This completes " + serving.ticketNo + "'s enrollment";
 }
 
 function confirmCallNext(stationId) {
-  if (!getNextWaitingTicket(stationId)) return;
+  var lane = queueLane;
+  if (!getNextWaitingTicket(stationId, lane)) return;
 
   var serving = getServingTicket(stationId);
 
   showConfirmModal({
     title: serving ? "Call the next ticket?" : "Call the first ticket?",
     message: serving ?
-      "This marks ticket " + serving.ticketNo + " as completed and calls the next person in line." :
+      currentTicketFateText(serving) + " and calls the next person in line." :
       "This calls the next waiting ticket for this station.",
     confirmLabel: "Call Next",
     tone: "primary",
-    onConfirm: function () { callNextTicket(stationId); }
+    onConfirm: function () { return callNextTicket(stationId, lane); }
   });
 }
 
@@ -299,7 +356,7 @@ function confirmSkip(stationId) {
     message: "They'll have " + formatVoidWindow() + " to return to the counter. After that you can give them a last call before the ticket is voided.",
     confirmLabel: "Put On Hold",
     tone: "danger",
-    onConfirm: function () { return skipCurrentTicket(stationId); }
+    onConfirm: function () { return skipCurrentTicket(stationId, ticketLane(serving)); }
   });
 }
 
@@ -312,7 +369,7 @@ function confirmRemove(stationId) {
     message: "This immediately voids the ticket. This can't be undone.",
     confirmLabel: "Remove",
     tone: "danger",
-    onConfirm: function () { return removeCurrentTicket(stationId); }
+    onConfirm: function () { return removeCurrentTicket(stationId, ticketLane(serving)); }
   });
 }
 
@@ -393,12 +450,25 @@ function ticketGeneratedTime(ticket) {
 }
 
 function renderQueueManagement() {
-  var area = document.getElementById("adminQueueArea");
+  var area = document.getElementById(queueAreaId());
   if (!area) return;
 
-  var visibleStations = manageableStations();
+  var isEnrollment = queueLane === "enrollment";
+  var visibleStations = queueTabStations();
   if (visibleStations.length && !visibleStations.find(function (s) { return s.id === activeQueueStation; })) {
     activeQueueStation = visibleStations[0].id;
+  }
+
+  var headerHtml = '<div class="dashboard-header"><div class="header-greeting">' + QUEUE_PAGES[queueLane].title + '</div>' + adminHeaderRightHtml() + '</div>';
+
+  if (isEnrollment && !visibleStations.length) {
+    area.innerHTML = headerHtml +
+      '<div class="settings-empty"><div class="settings-empty-icon">🎓</div><p>' +
+        (adminKind() === "admin" ?
+          'No enrollment process yet. Set the stations for each student type in Enrollment Settings.' :
+          'Your station is not part of the enrollment process.') +
+      '</p></div>';
+    return;
   }
 
   var serving = getServingTicket(activeQueueStation);
@@ -417,6 +487,7 @@ function renderQueueManagement() {
       '</div>' +
       '<div><span class="detail-label">Student Type</span><span class="detail-value">' + escapeAdminText(STUDENT_TYPE_LABELS[serving.studentType] || serving.studentType || "—") + '</span></div>' +
       '<div class="detail-full"><span class="detail-label">Purpose</span><span class="detail-value">' + escapeAdminText(serving.purpose || "—") + '</span></div>' +
+      (isEnrollment ? '<div class="detail-full"><span class="detail-label">Enrollment</span><span class="detail-value">' + escapeAdminText(enrollmentStepText(serving)) + '</span></div>' : '') +
     '</div>' :
     '<div class="serving-number serving-empty">--</div>' +
     '<div class="serving-details"><div class="detail-full"><span class="detail-value">No ticket currently being served.</span></div></div>';
@@ -432,7 +503,7 @@ function renderQueueManagement() {
   if (!serving) queueTransfer.open = false;
 
   var queueListTickets = getQueueListTickets();
-  var hasWaiting = !!getNextWaitingTicket(activeQueueStation);
+  var hasWaiting = !!getNextWaitingTicket(activeQueueStation, queueLane);
 
   var shownTickets = queueListTickets.filter(function (ticket) { return ticketMatchesTypeFilter(ticket, queueTypeFilter); });
 
@@ -467,6 +538,7 @@ function renderQueueManagement() {
     var typeClass = (ticket.studentType === "transferee" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '';
     var typeTag = typeClass ? ' <span class="type-tag">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>' : '';
     var priorityTag = (ticket.prioritizedAt && ticket.status === "waiting") ? ' <span class="type-tag priority-tag">★ Priority</span>' : '';
+    if (isEnrollment) priorityTag += ' <span class="type-tag enrollment-tag">Step ' + ((Number(ticket.enrollmentStep) || 0) + 1) + ' of ' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
     var id = escapeAdminText(ticket.id);
 
     return '<tr class="queue-row' + typeClass + (queueSelection[ticket.id] ? ' selected' : '') + '" data-ticket="' + id + '" onclick="toggleQueueSelection(\'' + id + '\', event)">' +
@@ -483,7 +555,7 @@ function renderQueueManagement() {
   }
 
   area.innerHTML =
-    '<div class="dashboard-header"><div class="header-greeting">Queue Management</div>' + adminHeaderRightHtml() + '</div>' +
+    headerHtml +
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
     '<div class="queue-mgmt-grid">' +
       '<section class="panel serving-panel">' +
@@ -496,12 +568,13 @@ function renderQueueManagement() {
           servingHtml +
         '</div>' +
         '<div class="serving-actions">' +
-          '<button type="button" class="queue-action-btn queue-action-complete"' + (serving ? '' : ' disabled') + ' onclick="confirmComplete(\'' + activeQueueStation + '\')">✓ End Transaction</button>' +
+          (isEnrollment ? '' : '<button type="button" class="queue-action-btn queue-action-complete"' + (serving ? '' : ' disabled') + ' onclick="confirmComplete(\'' + activeQueueStation + '\')">✓ End Transaction</button>') +
           '<button type="button" class="queue-action-btn"' + (hasWaiting ? '' : ' disabled title="No one is waiting to be called"') + ' onclick="confirmCallNext(\'' + activeQueueStation + '\')">📞 Call Next</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRecall(\'' + (serving ? serving.id : '') + '\')">↺ Recall</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmSkip(\'' + activeQueueStation + '\')">⏸ On Hold</button>' +
           '<button type="button" class="queue-action-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmRemove(\'' + activeQueueStation + '\')">🗑 Remove</button>' +
         '</div>' +
+        (isEnrollment ? enrollmentProceedHtml(activeQueueStation, serving) :
         '<label class="transfer-toggle-row' + (serving ? '' : ' is-disabled') + '"' + (serving ? '' : ' title="Transfer is available while a ticket is being served"') + '>' +
           '<span class="switch"><input type="checkbox" id="queueTransferToggle"' + (queueTransfer.open ? ' checked' : '') + (serving ? '' : ' disabled') + ' onchange="toggleQueueTransfer()"><span class="switch-track"></span></span>' +
           '<span>Transfer Ticket</span>' +
@@ -512,7 +585,7 @@ function renderQueueManagement() {
             '<div><label>To Station</label><select id="queueTransferStation" onchange="onTransferStationChange(this)">' + stationOptionsHtml + '</select></div>' +
           '</div>' +
           '<button type="button" class="bigBtn transfer-btn"' + (serving ? '' : ' disabled') + ' onclick="confirmTransfer(\'' + activeQueueStation + '\')">⇄ Transfer</button>' +
-        '</div>' +
+        '</div>') +
       '</section>' +
       '<section class="panel queued-list-panel">' +
         '<div class="panel-header"><h2>Current Queued List</h2>' +

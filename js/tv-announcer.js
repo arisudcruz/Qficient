@@ -133,7 +133,8 @@ function runTvAnnouncements() {
 
 function tvServingText(ticket, stationName) {
   var number = spokenTicketNo(ticket.ticketNo);
-  return "Now serving, ticket " + number + ", at " + stationName + ". Ticket " + number + ", please proceed to " + stationName + ".";
+  var kind = ticket.enrollment === true ? "enrollment ticket " : "ticket ";
+  return "Now serving, " + kind + number + ", at " + stationName + ". Ticket " + number + ", please proceed to " + stationName + ".";
 }
 
 function tvRecallText(ticket, stationName) {
@@ -154,12 +155,16 @@ function checkTvAnnouncements(list) {
   var names = {};
   list.forEach(function (station) { names[station.id] = station.name; });
 
+  // Both lines of every station: regular and enrollment.
   list.forEach(function (station) {
-    var serving = servingTicketOf(station);
-    seen.serving[station.id] = serving ? serving.id : (before.serving[station.id] || null);
-    if (!firstLook && serving && before.serving[station.id] !== serving.id) {
-      queueTvAnnouncement(tvServingText(serving, station.name));
-    }
+    ["regular", "enrollment"].forEach(function (lane) {
+      var key = station.id + ":" + lane;
+      var serving = servingTicketOf(station, lane);
+      seen.serving[key] = serving ? serving.id : (before.serving[key] || null);
+      if (!firstLook && serving && before.serving[key] !== serving.id) {
+        queueTvAnnouncement(tvServingText(serving, station.name));
+      }
+    });
   });
 
   tickets.forEach(function (ticket) {

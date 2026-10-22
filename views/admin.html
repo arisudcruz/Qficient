@@ -21,6 +21,10 @@
           <span class="nav-icon">◌</span>
           <span class="nav-text">Queue Management</span>
         </button>
+        <button type="button" class="nav-item" data-section="enrollment" title="Enrollment" onclick="setAdminSection('enrollment')">
+          <span class="nav-icon">◎</span>
+          <span class="nav-text">Enrollment</span>
+        </button>
         <button type="button" class="nav-item" data-section="enforcer" title="Queue Enforcer" onclick="setAdminSection('enforcer')">
           <span class="nav-icon">◈</span>
           <span class="nav-text">Queue Enforcer</span>
@@ -41,6 +45,10 @@
           <span class="nav-icon">⚙</span>
           <span class="nav-text">Settings</span>
         </button>
+        <button type="button" class="tool-item" data-section="enrollmentsettings" title="Enrollment Settings" onclick="setAdminSection('enrollmentsettings')">
+          <span class="nav-icon">⇅</span>
+          <span class="nav-text">Enrollment Settings</span>
+        </button>
         <button type="button" class="tool-item" data-section="rules" title="Rules" onclick="setAdminSection('rules')">
           <span class="nav-icon">⚖</span>
           <span class="nav-text">Rules</span>
@@ -57,12 +65,14 @@
       <div id="adminServerBanner" class="server-banner" style="display: none"></div>
       <div id="adminArea"></div>
       <div id="adminQueueArea" style="display: none"></div>
+      <div id="adminEnrollmentArea" style="display: none"></div>
       <div id="adminEnforcerArea" style="display: none"></div>
       <div id="adminNotificationsArea" style="display: none"></div>
       <div id="adminLiveBoardArea" style="display: none"></div>
       <div id="adminReportsArea" style="display: none"></div>
       <div id="adminRulesArea" style="display: none"></div>
       <div id="adminSettingsArea" style="display: none"></div>
+      <div id="adminEnrollmentSettingsArea" style="display: none"></div>
     </main>
   </div>
 </div>

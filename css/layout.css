@@ -2306,3 +2306,151 @@ body.dark .admin-theme-moon { display: none; }
 body.dark .admin-theme-sun { display: block; }
 
 body[data-page="pageAdmin"] .themeToggle { display: none; }
+
+/* ---------- Enrollment page: hand-off to the next station ---------- */
+
+.enrollment-proceed {
+  margin-top: 16px;
+}
+
+.enrollment-proceed-title {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #172033;
+}
+
+.enrollment-proceed-label {
+  display: block;
+  margin: 0 0 5px;
+  font-size: 0.72rem;
+  color: #64748B;
+}
+
+.enrollment-proceed-dest {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #C8D5E5;
+  border-radius: 8px;
+  background: #F8FAFC;
+  color: #172033;
+  font-size: 0.85rem;
+}
+
+.enrollment-proceed-btn.is-complete {
+  background: #1F9D55;
+}
+
+.type-tag.enrollment-tag {
+  background: #E4EEFF;
+  color: #0054A6;
+}
+
+/* ---------- Enrollment Settings ---------- */
+
+.enrollment-config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 28px;
+}
+
+.enrollment-steps {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.enrollment-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enrollment-step-no {
+  width: 18px;
+  font-weight: 700;
+  color: #172033;
+  text-align: right;
+}
+
+.enrollment-step-name {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 14px;
+  border: 1.5px solid #4A7FD0;
+  border-radius: 9px;
+  color: #0054A6;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.enrollment-step.is-missing .enrollment-step-name {
+  border-color: #E5484D;
+  color: #E5484D;
+}
+
+.enrollment-step-note {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #B7791F;
+}
+
+.enrollment-step-tools {
+  display: flex;
+  gap: 4px;
+}
+
+.enrollment-step-tools button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #CBD5E1;
+  border-radius: 7px;
+  background: #fff;
+  color: #172033;
+  cursor: pointer;
+}
+
+.enrollment-step-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.enrollment-step-tools .enrollment-step-remove {
+  color: #E5484D;
+}
+
+.enrollment-step-empty {
+  padding: 14px;
+  border: 1px dashed #CBD5E1;
+  border-radius: 9px;
+  color: #64748B;
+  font-size: 0.82rem;
+}
+
+.enrollment-config-actions {
+  justify-content: flex-end;
+}
+
+.enrollment-add {
+  align-self: start;
+  padding: 18px;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+}
+
+.enrollment-add .settings-select {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 860px) {
+  .enrollment-config-grid {
+    grid-template-columns: 1fr;
+  }
+}
