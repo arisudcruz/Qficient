@@ -28,6 +28,19 @@ function setButtonLoading(button, loading) {
   else button.removeAttribute("aria-busy");
 }
 
+// Swings a notification bell once ("something new arrived"). Can be played again as soon as it has finished.
+function ringBell(bell) {
+  if (!bell) return;
+  bell.classList.remove("bell-ring");
+  void bell.offsetWidth; // restart the animation if it is still playing
+  bell.classList.add("bell-ring");
+  bell.addEventListener("animationend", function done(event) {
+    if (event.animationName !== "bell-ring") return;
+    bell.classList.remove("bell-ring");
+    bell.removeEventListener("animationend", done);
+  });
+}
+
 // For failures whose wording say() can't recognise as one. icon: "error" (default) or "warning".
 function sayProblem(title, text, icon) {
   if (typeof Swal === "undefined") return say(text);

@@ -5,6 +5,7 @@ var USER_NOTIF_PAGE_SIZE = 20;
 
 var userNotifState = { uid: null, loaded: false, error: "", items: [], tab: "unread", limit: USER_NOTIF_PAGE_SIZE, menuId: null };
 var userNotifUnsubscribe = null;
+var userNotifLastUnread = null; // unread count after the last load; null until the first one (which doesn't ring)
 
 var USER_NOTIF_ICONS = {
   joined: "🎟️",
@@ -31,10 +32,9 @@ function syncUserNotificationsListener() {
     userNotifUnsubscribe = null;
   }
   userNotifState = { uid: uid, loaded: false, error: "", items: [], tab: "unread", limit: USER_NOTIF_PAGE_SIZE, menuId: null };
-  if (!uid) {
-    renderUserNotifBadge();
-    return;
-  }
+  userNotifLastUnread = null;
+  renderUserNotifBadge();
+  if (!uid) return;
 
   userNotifUnsubscribe = db.collection("userNotifications")
     .where("ownerId", "==", uid)
@@ -67,10 +67,17 @@ function renderUserNotifBadge() {
   var count = userNotifUnreadCount();
   badge.hidden = count <= 0;
   badge.textContent = count > 99 ? "99+" : String(count);
+
+  // A short ring when a new unread one arrives (not for the ones already there when the history loads).
+  var bell = document.getElementById("udNotifBell");
+  if (!userNotifState.uid || !userNotifState.loaded) return;
+  if (userNotifLastUnread !== null && count > userNotifLastUnread) ringBell(bell);
+  userNotifLastUnread = count;
 }
 
 function refreshUserNotifications() {
   renderUserNotifBadge();
+  refreshNotifDropdown("student");
   var panel = document.getElementById("dashboardTabNotifications");
   if (panel && !panel.hidden) renderUserNotifications();
 }

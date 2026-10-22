@@ -1200,3 +1200,11 @@ body.dark .ud-step.is-current .ud-step-name { color: #9CC8FA; }
   .ud-enroll-card .ud-join { width: 100%; }
   .ud-step-name { font-size: 9.5px; }
 }
+
+/* ---------- Notification bell: a short ring when something new arrives ---------- */
+
+.ud-bell.bell-ring svg {
+  transform-origin: 50% 0;
+  animation: bell-ring 0.9s ease-in-out;
+}
+

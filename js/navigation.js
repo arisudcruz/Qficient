@@ -10,6 +10,7 @@ function goTo(pageId) {
   document.getElementById(pageId).classList.add("show");
   document.body.setAttribute("data-page", pageId);
   if (pageId !== "pageHome" && typeof closeSignInCard === "function") closeSignInCard();
+  if (typeof closeNotifDropdown === "function") closeNotifDropdown();
   if (typeof startTvBoard === "function") {
     if (pageId === "pageTvBoard") startTvBoard();
     else stopTvBoard();
