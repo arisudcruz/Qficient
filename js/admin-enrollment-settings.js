@@ -1,11 +1,12 @@
 // Enrollment Settings (#/admin/enrollmentsettings, admins only): for each student type, the stations an enrolling
-// student goes through, in order. Saved in settings/enrollment as { flows: { regular: [...], transferee: [...] } }.
+// student goes through, in order. Saved in settings/enrollment as { flows: { regular: [...], transferee: [...], freshman: [...] } }.
+// Incoming Freshman is a walk-in type (Queue Enforcer); the other two can also start an enrollment themselves.
 // A student keeps the order that was set when they started, so changes here only affect new enrollments.
 
 var enrollmentSettingsType = "regular";
 var enrollmentFlowDrafts = {}; // unsaved edits per student type; kept while live updates arrive
 
-var ENROLLMENT_TYPE_LABELS = { regular: "Regular", transferee: "Transferee / Irregular" };
+var ENROLLMENT_TYPE_LABELS = { regular: "Regular", transferee: "Transferee / Irregular", freshman: "Incoming Freshman" };
 var ENROLLMENT_FLOW_MAX = 20;
 
 function enrollmentDraftFor(type) {

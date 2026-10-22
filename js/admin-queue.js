@@ -535,7 +535,7 @@ function renderQueueManagement() {
     }
 
     // Regular tickets stay plain; only the other types are marked.
-    var typeClass = (ticket.studentType === "transferee" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '';
+    var typeClass = (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '';
     var typeTag = typeClass ? ' <span class="type-tag">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>' : '';
     var priorityTag = (ticket.prioritizedAt && ticket.status === "waiting") ? ' <span class="type-tag priority-tag">★ Priority</span>' : '';
     if (isEnrollment) priorityTag += ' <span class="type-tag enrollment-tag">Step ' + ((Number(ticket.enrollmentStep) || 0) + 1) + ' of ' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
