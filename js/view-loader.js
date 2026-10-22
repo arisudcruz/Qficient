@@ -16,6 +16,8 @@ var appScripts = [
   "js/user-notifications.js",
   "js/admin-console.js",
   "js/admin-queue.js",
+  "js/admin-enrollment.js",
+  "js/admin-enrollment-settings.js",
   "js/admin-settings.js",
   "js/admin-enforcer.js",
   "js/admin-notifications.js",

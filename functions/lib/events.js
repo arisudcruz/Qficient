@@ -1,6 +1,11 @@
 const { toMs } = require("./time");
 const messages = require("./messages");
 
+// Every station has a regular line and an enrollment line (tickets with enrollment: true). Mirrors js/queue.js.
+function ticketLane(t) {
+  return t && t.enrollment === true ? "enrollment" : "regular";
+}
+
 // Prioritized tickets first (earliest prioritized first), then everyone else by arrival. Mirrors js/queue.js.
 function compareQueueOrder(a, b) {
   const aPriority = !!a.prioritizedAt;
@@ -21,6 +26,10 @@ function describeChange(before, after, ctx, notify) {
   const lastCallBefore = toMs(before.lastCallAt);
   const lastCallAfter = toMs(after.lastCallAt);
 
+  // An enrollment student sent on to the next station of their process.
+  if (after.enrollment === true && after.stationId !== before.stationId && after.status === "waiting") {
+    return notify.enrollmentNext ? { type: "enrollmentNext", message: messages.enrollmentNext(after, stationName) } : null;
+  }
   if (after.stationId !== before.stationId && after.status === "waiting") {
     return notify.transferred ? { type: "transferred", message: messages.transferred(after, stationName) } : null;
   }
@@ -62,4 +71,4 @@ function affectsQueueFront(before, after) {
     toMs(before.prioritizedAt) !== toMs(after.prioritizedAt);
 }
 
-module.exports = { compareQueueOrder, describeChange, onlyChanged, affectsQueueFront };
+module.exports = { ticketLane, compareQueueOrder, describeChange, onlyChanged, affectsQueueFront };

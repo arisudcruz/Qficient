@@ -94,6 +94,12 @@ function applyDashboardSub(sub) {
 
   setDashboardTab("queue");
 
+  if (sub === ENROLLMENT_VIEW) {
+    if (myTicket()) viewMyTicket();
+    else openEnrollment();
+    return;
+  }
+
   var wanted = sub && stations.some(function (station) { return station.id === sub; }) ? sub : "";
   if (wanted && myTicket()) viewMyTicket();
   else if (wanted) openStation(wanted);

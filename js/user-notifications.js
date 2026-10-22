@@ -16,6 +16,8 @@ var USER_NOTIF_ICONS = {
   lastCall: "⏰",
   transferred: "🔀",
   void: "❌",
+  enrollmentNext: "➡️",
+  enrollmentCompleted: "🎓",
   completed: "✅"
 };
 

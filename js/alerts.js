@@ -65,7 +65,7 @@ function ordinalWord(n) {
 
 function placeInLine(ticket) {
   if (ticket.status !== "waiting") return 0;
-  return waitingTicketsOf(ticket.stationId).findIndex(function (item) { return item.id === ticket.id; }) + 1;
+  return waitingTicketsOf(ticket.stationId, ticketLane(ticket)).findIndex(function (item) { return item.id === ticket.id; }) + 1;
 }
 
 function stationNameOf(stationId) {
@@ -78,7 +78,7 @@ function watchTicketEvents(ticket) {
   var place = placeInLine(ticket);
   var stationName = stationNameOf(ticket.stationId);
   var station = stations.find(function (s) { return s.id === ticket.stationId; });
-  var someoneServed = !!servingTicketOf(station);
+  var someoneServed = !!servingTicketOf(station, ticketLane(ticket));
 
   // First look at this ticket (just joined, or the page was reopened): note where it stands, without alerts.
   if (!ticketWatch || ticketWatch.id !== ticket.id) {
@@ -90,7 +90,11 @@ function watchTicketEvents(ticket) {
   var w = ticketWatch;
 
   if (ticket.stationId !== w.stationId || ticket.ticketNo !== w.ticketNo) {
-    studentAlert("🔀 Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false);
+    if (ticket.enrollment === true) {
+      studentAlert("➡️ Next enrollment step: please go to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", true);
+    } else {
+      studentAlert("🔀 Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false);
+    }
     // A new queue: start counting again from where they are now, without a second message straight away.
     w.soon = place > 0 && place <= 3;
     w.next = place === 1 && someoneServed;
@@ -148,7 +152,9 @@ function showEndNotice(ticket) {
     }
   } else if (ticket.status === "completed") {
     markEndNoticeSeen(ticket.id);
-    studentAlert("✅ Your transaction for ticket " + ticket.ticketNo + " is complete. Thank you!", "good", false);
+    studentAlert(ticket.enrollment === true ?
+      "🎓 Your enrollment is complete. Thank you!" :
+      "✅ Your transaction for ticket " + ticket.ticketNo + " is complete. Thank you!", "good", false);
   }
 }
 

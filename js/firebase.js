@@ -37,6 +37,18 @@ db.collection("settings").doc("system").onSnapshot(function (doc) {
   console.error("Could not load system settings: " + err.message);
 });
 
+// The enrollment process for each student type (Enrollment Settings).
+db.collection("settings").doc("enrollment").onSnapshot(function (doc) {
+  var flows = doc.exists && doc.data().flows ? doc.data().flows : {};
+  enrollmentSettings = { flows: flows };
+  updateDashboard();
+  renderQueueManagement();
+  renderEnrollmentSettings();
+  if (typeof enforcerFormNeedsFlows === "function" && enforcerFormNeedsFlows()) renderEnforcer();
+}, function (err) {
+  console.error("Could not load the enrollment process: " + err.message);
+});
+
 var ticketsUnsubscribe = null;
 var ticketsLoaded = false; // true once the first list of tickets has arrived
 

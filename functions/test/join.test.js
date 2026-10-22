@@ -34,7 +34,7 @@ async function attempt(auth, data) {
 }
 
 async function wipe() {
-  for (const name of ["tickets", "stations", "joinState", "students"]) {
+  for (const name of ["tickets", "stations", "joinState", "students", "settings"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -162,6 +162,54 @@ async function station(id, extra) {
   advance(10000);
   r = await attempt(student("e5"), { stationId: "guard", purpose: "E" });
   check("codes: a station without a saved code skips codes already taken", r.ok && r.result.ticketNo === "GU2-001", JSON.stringify(r));
+
+  // Enrollment: the first station of the student type's process, with the process copied onto the ticket.
+  await station("en-a", { name: "Alpha" });
+  await station("en-b", { name: "Beta" });
+  await db.collection("settings").doc("enrollment").set({ flows: { regular: ["en-a", "en-b"], transferee: ["en-b"] } });
+  await db.collection("students").doc("f1").set({ studentType: "regular" });
+  advance(10000);
+  r = await attempt(student("f1"), { stationId: "cashier", purpose: "ignored", enrollment: true });
+  t = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : null;
+  check("enrollment: starts at the first station of the type's process", r.ok && t.stationId === "en-a" && /^AL1-/.test(t.ticketNo), JSON.stringify(r));
+  check("enrollment: the ticket keeps a copy of the process, at step 0, purpose Enrollment",
+    t && t.enrollment === true && JSON.stringify(t.enrollmentFlow) === JSON.stringify(["en-a", "en-b"]) && t.enrollmentStep === 0 && t.purpose === "Enrollment", JSON.stringify(t));
+
+  await db.collection("students").doc("f2").set({ studentType: "transferee" });
+  advance(10000);
+  r = await attempt(student("f2"), { enrollment: true });
+  t = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : null;
+  check("enrollment: each student type has its own process", r.ok && t.stationId === "en-b" && JSON.stringify(t.enrollmentFlow) === JSON.stringify(["en-b"]), JSON.stringify(r));
+
+  advance(10000);
+  r = await attempt(student("f3"), { enrollment: true });
+  check("enrollment: a student without a student type is asked to set it", !r.ok && r.code === "failed-precondition" && /student type/.test(r.message), JSON.stringify(r));
+
+  advance(10000);
+  r = await attempt(guest("f4"), { enrollment: true, guestName: "Guest Person" });
+  check("enrollment: guests can't enroll", !r.ok && r.code === "failed-precondition", JSON.stringify(r));
+
+  await db.collection("settings").doc("enrollment").set({ flows: { regular: ["en-a", "en-b"] } });
+  await db.collection("students").doc("f5").set({ studentType: "transferee" });
+  advance(10000);
+  r = await attempt(student("f5"), { enrollment: true });
+  check("enrollment: a type without a process is refused", !r.ok && r.code === "failed-precondition" && /isn't open/.test(r.message), JSON.stringify(r));
+
+  await station("en-a", { name: "Alpha", active: false });
+  await db.collection("students").doc("f6").set({ studentType: "regular" });
+  advance(10000);
+  r = await attempt(student("f6"), { enrollment: true });
+  check("enrollment: a disabled first station is refused", !r.ok && r.code === "failed-precondition", JSON.stringify(r));
+
+  await station("en-a", { name: "Alpha", active: true, count: 1 });
+  advance(10000);
+  r = await attempt(student("f1"), { enrollment: true });
+  check("enrollment: one live ticket per person still holds", !r.ok && /already have an active ticket/.test(r.message), JSON.stringify(r));
+
+  advance(10000);
+  r = await attempt(student("f1b"), { stationId: "cashier", purpose: "Regular join" });
+  t = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : null;
+  check("enrollment: a normal join carries no enrollment fields", r.ok && t.enrollment === undefined && t.enrollmentFlow === undefined && t.enrollmentStep === undefined, JSON.stringify(t));
 
   const { assignStationCodes } = require("../lib/join");
   const codes = assignStationCodes([{ id: "b", name: "Admission B" }, { id: "a", name: "Admission A" }, { id: "c", name: "Cashier", code: "AD1" }]);

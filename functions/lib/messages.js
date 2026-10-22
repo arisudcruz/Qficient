@@ -4,6 +4,12 @@ function ordinal(n) {
   return n + suffix;
 }
 
+// " (step 2 of 3)" for an enrollment ticket.
+function stepOf(t) {
+  const total = Array.isArray(t.enrollmentFlow) ? t.enrollmentFlow.length : 0;
+  return total ? " (step " + ((Number(t.enrollmentStep) || 0) + 1) + " of " + total + ")" : "";
+}
+
 function minutes(n) {
   return n + (n === 1 ? " minute" : " minutes");
 }
@@ -49,6 +55,27 @@ module.exports = {
   completed: (t, station) => ({
     title: "Transaction complete",
     body: "Ticket " + t.ticketNo + " at " + station + " is done. Thank you!"
+  }),
+
+  // Enrollment: a student goes through several stations in order.
+  enrollmentJoined: (t, station, place) => ({
+    title: "Your enrollment has started",
+    body: "Ticket " + t.ticketNo + ": please go to " + station + " first" + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + "."
+  }),
+
+  enrollmentNext: (t, station) => ({
+    title: "Next enrollment step: " + station,
+    body: "Please go to " + station + stepOf(t) + ". Your new number is " + t.ticketNo + "."
+  }),
+
+  enrollmentCompleted: (t) => ({
+    title: "Enrollment complete",
+    body: "You've finished every enrollment step. Thank you!"
+  }),
+
+  enrollmentManualCreated: (t, station, place) => ({
+    title: "Your ticket is " + t.ticketNo,
+    body: "Your enrollment starts at " + station + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + ". We'll text you at each step. Please keep this message."
   }),
 
   next: (t, station) => ({

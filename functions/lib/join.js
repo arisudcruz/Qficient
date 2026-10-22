@@ -4,6 +4,7 @@
 const { startOfTodayMs, dayKey, toMs } = require("./time");
 
 const ACTIVE_STATUSES = ["waiting", "serving", "skipped"];
+const ENROLLMENT_PURPOSE = "Enrollment";
 const COUNTED_STATUSES = ["waiting", "serving", "skipped", "completed"]; // cancelled and void don't use up the cap
 
 class JoinError extends Error {
@@ -75,8 +76,16 @@ async function joinQueue(deps, auth, data) {
   }
 
   const guest = provider === "anonymous";
-  const stationId = typeof input.stationId === "string" ? input.stationId.trim() : "";
-  const purpose = cleanText(input.purpose, 200);
+  const enrolling = input.enrollment === true;
+  let stationId = typeof input.stationId === "string" ? input.stationId.trim() : "";
+  let purpose = cleanText(input.purpose, 200);
+
+  if (enrolling) {
+    if (guest) throw new JoinError("failed-precondition", "Enrollment is for students. Please sign in with your school account.");
+    // The station and purpose come from the enrollment process, not from the request.
+    stationId = "pending";
+    purpose = ENROLLMENT_PURPOSE;
+  }
 
   if (!stationId || stationId.length > 100 || stationId.indexOf("/") !== -1) throw new JoinError("invalid-argument", "Please choose a station.");
   if (!/[\p{L}\p{N}]/u.test(purpose)) throw new JoinError("invalid-argument", "Please enter your purpose before joining.");
@@ -96,6 +105,21 @@ async function joinQueue(deps, auth, data) {
     const profile = await db.collection("students").doc(auth.uid).get();
     const saved = profile.exists ? profile.data().studentType : "";
     studentType = saved === "regular" || saved === "transferee" ? saved : "";
+  }
+
+  // An enrollment starts at the first station of the student type's process, and the ticket keeps a copy of that
+  // process so later changes in Enrollment Settings don't move students who are already enrolling.
+  let enrollmentFlow = null;
+  if (enrolling) {
+    if (!studentType) throw new JoinError("failed-precondition", "Please set your student type first (account menu), then start your enrollment.");
+    const settings = await db.collection("settings").doc("enrollment").get();
+    const flows = settings.exists && settings.data().flows ? settings.data().flows : {};
+    const flow = flows[studentType];
+    if (!Array.isArray(flow) || !flow.length || flow.length > 20 || !flow.every(function (id) { return typeof id === "string" && id && id.indexOf("/") === -1; })) {
+      throw new JoinError("failed-precondition", "Enrollment isn't open for your student type yet.");
+    }
+    enrollmentFlow = flow.slice();
+    stationId = enrollmentFlow[0];
   }
 
   const stationRef = db.collection("stations").doc(stationId);
@@ -166,8 +190,7 @@ async function joinQueue(deps, auth, data) {
     const ticketNo = formatTicketNo(code || ticketPrefix(station.name) + "1", count);
 
     const ticketRef = db.collection("tickets").doc();
-    tx.update(stationRef, newDay ? { count: count, countDay: today } : { count: count });
-    tx.set(ticketRef, {
+    const ticket = {
       ticketNo: ticketNo,
       stationId: stationId,
       ownerId: auth.uid,
@@ -178,7 +201,14 @@ async function joinQueue(deps, auth, data) {
       status: "waiting",
       verified: false,
       createdAt: FieldValue.serverTimestamp()
-    });
+    };
+    if (enrollmentFlow) {
+      ticket.enrollment = true;
+      ticket.enrollmentFlow = enrollmentFlow;
+      ticket.enrollmentStep = 0;
+    }
+    tx.update(stationRef, newDay ? { count: count, countDay: today } : { count: count });
+    tx.set(ticketRef, ticket);
     tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: joinsToday + 1 });
 
     return { ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "" };

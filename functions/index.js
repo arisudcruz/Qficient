@@ -62,20 +62,30 @@ exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{
 
   const ticket = Object.assign({ id: event.params.ticketId }, after);
 
+  const enrolling = after.enrollment === true;
+
   // A walk-in ticket made by the Queue Enforcer: text them their ticket number.
   if (!before && after.manual && after.status === "waiting" && config.notify.manualCreated) {
     const place = await pusher.placeInLine(after.stationId, ticket.id, Date.now());
-    const message = messages.manualCreated(ticket, await stationNameOf(after.stationId), place);
+    const station = await stationNameOf(after.stationId);
+    const message = enrolling ? messages.enrollmentManualCreated(ticket, station, place) : messages.manualCreated(ticket, station, place);
     await pusher.pushOnce(event.id + ":created", ticket, message, ticket.id + ":created");
   }
 
-  // The student's own history: they joined, or their transaction is done. (No push; they saw it happen.)
+  // The student's own history: they joined, or their transaction (or whole enrollment) is done. (No push; they saw it happen.)
   if (!before && !after.manual && after.status === "waiting") {
     const place = await pusher.placeInLine(after.stationId, ticket.id, Date.now());
-    await pusher.recordOnce(event.id + ":joined", ticket, messages.joined(ticket, await stationNameOf(after.stationId), place), "joined");
+    const station = await stationNameOf(after.stationId);
+    await pusher.recordOnce(event.id + ":joined", ticket,
+      enrolling ? messages.enrollmentJoined(ticket, station, place) : messages.joined(ticket, station, place), "joined");
   }
-  if (before && !after.manual && after.status === "completed" && before.status !== "completed") {
-    await pusher.recordOnce(event.id + ":completed", ticket, messages.completed(ticket, await stationNameOf(after.stationId)), "completed");
+  if (before && after.status === "completed" && before.status !== "completed") {
+    if (enrolling && config.notify.enrollmentNext) {
+      // The last enrollment station: tell walk-ins by SMS too.
+      await pusher.pushOnce(event.id + ":enrollmentCompleted", ticket, messages.enrollmentCompleted(ticket), ticket.id + ":enrollmentCompleted");
+    } else if (!after.manual) {
+      await pusher.recordOnce(event.id + ":completed", ticket, messages.completed(ticket, await stationNameOf(after.stationId)), "completed");
+    }
   }
 
   if (before) {
@@ -87,7 +97,9 @@ exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{
     }, config.notify);
 
     if (change) {
-      await pusher.pushOnce(event.id + ":" + change.type, ticket, change.message, ticket.id + ":" + change.type);
+      // Each enrollment step is its own alert (the same tag would replace the previous one on the phone).
+      const tag = ticket.id + ":" + change.type + (change.type === "enrollmentNext" ? ":" + after.enrollmentStep : "");
+      await pusher.pushOnce(event.id + ":" + change.type, ticket, change.message, tag);
     }
   }
 

@@ -1,5 +1,5 @@
 const messages = require("./messages");
-const { compareQueueOrder } = require("./events");
+const { compareQueueOrder, ticketLane } = require("./events");
 const { startOfTodayMs } = require("./time");
 const { smsText } = require("./sms");
 
@@ -129,33 +129,48 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     return ticket ? notifyTicket(ticket, message, tag) : notifyUser(ownerId, message, tag);
   }
 
-  // Where a waiting ticket stands in its station's line (1 = next), or 0 if it isn't waiting.
+  // Where a waiting ticket stands in its line at the station (1 = next), or 0 if it isn't waiting. Regular and
+  // enrollment tickets are in separate lines.
   async function placeInLine(stationId, ticketId, nowMs) {
     const snap = await db.collection("tickets")
       .where("stationId", "==", stationId)
       .where("createdAt", ">=", Timestamp.fromMillis(startOfTodayMs(config.tzOffsetMs, nowMs)))
       .where("status", "==", "waiting")
       .get();
-    const line = snap.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }).sort(compareQueueOrder);
+    const all = snap.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); });
+    const target = all.find(function (t) { return t.id === ticketId; });
+    if (!target) return 0;
+    const line = all.filter(function (t) { return ticketLane(t) === ticketLane(target); }).sort(compareQueueOrder);
     return line.findIndex(function (t) { return t.id === ticketId; }) + 1;
   }
 
   // While someone is being served: tells the 2nd and 3rd in line they're almost up, and the 1st that they're next.
+  // Each of the station's lines (regular, enrollment) moves on its own.
   async function notifyNextInLine(stationId, stationName, nowMs) {
     const base = db.collection("tickets")
       .where("stationId", "==", stationId)
       .where("createdAt", ">=", Timestamp.fromMillis(startOfTodayMs(config.tzOffsetMs, nowMs)));
 
     const [serving, waiting] = await Promise.all([
-      base.where("status", "==", "serving").limit(1).get(),
+      base.where("status", "==", "serving").get(),
       base.where("status", "==", "waiting").get()
     ]);
-    // Nobody is being served, so the queue isn't moving: no reminders yet.
     if (serving.empty || waiting.empty) return false;
 
-    const line = waiting.docs
-      .map(function (doc) { return Object.assign({ id: doc.id, ref: doc.ref }, doc.data()); })
-      .sort(compareQueueOrder);
+    const servingLanes = new Set(serving.docs.map(function (doc) { return ticketLane(doc.data()); }));
+    const all = waiting.docs.map(function (doc) { return Object.assign({ id: doc.id, ref: doc.ref }, doc.data()); });
+
+    let notified = false;
+    for (const lane of ["regular", "enrollment"]) {
+      // Nobody is being served in this line, so it isn't moving: no reminders yet.
+      if (!servingLanes.has(lane)) continue;
+      const line = all.filter(function (t) { return ticketLane(t) === lane; }).sort(compareQueueOrder);
+      if (line.length && await notifyLine(line, stationId, stationName)) notified = true;
+    }
+    return notified;
+  }
+
+  async function notifyLine(line, stationId, stationName) {
 
     // 2nd and 3rd in line get one "almost your turn" reminder per ticket number (a transfer gives a new number,
     // so they are reminded again in the new queue).

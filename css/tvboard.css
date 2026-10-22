@@ -431,3 +431,43 @@ body.dark .lb-launch p { color: #E6EDF8; }
   line-height: 1.5;
   color: #64748B;
 }
+
+/* A station's enrollment line, under its regular Now Serving */
+.tv-enroll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1vw;
+  margin-top: 1vh;
+  padding: 0.9vh 1vw;
+  border: 1px solid #BFD3F2;
+  border-radius: 1vh;
+  background: #EAF2FF;
+  color: var(--tv-blue-dark);
+}
+
+.tv-enroll-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5vh;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tv-enroll-now,
+.tv-enroll-next {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+
+.tv-enroll small {
+  font-size: 1.2vh;
+  opacity: 0.75;
+}
+
+.tv-enroll b {
+  font-family: var(--font-display);
+  font-size: 2.4vh;
+}

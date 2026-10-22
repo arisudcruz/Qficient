@@ -43,6 +43,7 @@ module.exports = {
     lastCall: true,
     next: true,
     transferred: true,
+    enrollmentNext: true,   // an enrollment student is sent on to their next station (and told when it's all done)
     voided: true,
     manualCreated: true   // the walk-in's ticket number, texted when the Queue Enforcer creates it
   }
