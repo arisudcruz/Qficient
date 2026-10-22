@@ -54,6 +54,12 @@ function stopNotificationsListener() {
   updateNotificationBadge(0);
 }
 
+// A notification is one arrival at a station: a ticket keeps its id but gets a new number when it is transferred or
+// moves on to the next enrollment station, so each arrival is new (unread) again, even if the last one was read.
+function notifKey(ticket) {
+  return ticket.id + ":" + (ticket.ticketNo || "");
+}
+
 function notifCreatedMs(ticket) {
   return ticket.createdAt && typeof ticket.createdAt.toMillis === "function" ? ticket.createdAt.toMillis() : Date.now();
 }
@@ -68,7 +74,7 @@ function getNotifications() {
   var cutoff = Date.now() - NOTIF_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 
   return tickets.map(function (ticket) {
-    return { id: ticket.id, ticket: ticket, ms: notifCreatedMs(ticket) };
+    return { id: notifKey(ticket), ticket: ticket, ms: notifCreatedMs(ticket) };
   }).filter(function (item) {
     return item.ms >= cutoff && !notifState.deletedIds[item.id] && canViewStationData(item.ticket.stationId);
   }).sort(function (a, b) {
@@ -147,7 +153,7 @@ function notifPruneEntries() {
   var cutoff = Date.now() - (NOTIF_LOOKBACK_DAYS + 1) * 24 * 60 * 60 * 1000;
   var live = {};
   tickets.forEach(function (ticket) {
-    if (notifCreatedMs(ticket) >= cutoff) live[ticket.id] = true;
+    if (notifCreatedMs(ticket) >= cutoff) live[notifKey(ticket)] = true;
   });
 
   var patch = {};
