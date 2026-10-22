@@ -78,7 +78,7 @@ function isTodayTicket(ticket) {
 // station they wait in their own line with their own "now serving", apart from everyone else; both lines share the
 // station's ticket counter, so numbers never repeat. A ticket keeps the order of stations it started with.
 var ENROLLMENT_PURPOSE = "Enrollment";
-var ENROLLMENT_TYPES = ["regular", "transferee"];
+var ENROLLMENT_TYPES = ["regular", "transferee", "freshman"];
 var LANE_POINTER = { regular: "nowServingId", enrollment: "enrollmentServingId" };
 var enrollmentSettings = { flows: {} }; // settings/enrollment, kept current by js/firebase.js
 

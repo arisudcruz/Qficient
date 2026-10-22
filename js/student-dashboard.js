@@ -1,12 +1,16 @@
+// "freshman" (Incoming Freshman) is only given by the Queue Enforcer's walk-in form; students pick Regular or
+// Transferee / Irregular for themselves.
 var STUDENT_TYPE_LABELS = {
   regular: "Regular",
   transferee: "Transferee / Irregular",
+  freshman: "Incoming Freshman",
   guest: "Guest"
 };
 
 var STUDENT_TYPE_SHORT_LABELS = {
   regular: "Regular",
   transferee: "Transferee",
+  freshman: "Freshman",
   guest: "Guest"
 };
 
@@ -648,7 +652,7 @@ function enrollmentCardHtml(cooldownMs, ticket) {
       '<div class="ud-station-icon">' + STATION_ICON_SVG + '</div>' +
       '<div class="ud-enroll-copy">' +
         '<h3>Enrollment</h3>' +
-        '<p class="ud-joined">' + enrolling + (enrolling === 1 ? ' person' : ' people') + ' enrolling</p>' +
+        '<p class="ud-joined">' + enrolling + (enrolling === 1 ? ' person' : ' people') + ' joined</p>' +
         '<p class="ud-serving">Now serving ' + escapeHtml(latest ? latest.ticketNo : "—") + '</p>' +
         (note ? '<p class="ud-enroll-note">' + escapeHtml(note) + '</p>' : '') +
       '</div>' +
@@ -804,13 +808,19 @@ function renderTicketCard(ticket) {
     notice.hidden = !!skip;
     notice.textContent = ticket.status === "serving" ?
       (lane === "enrollment" ? "It's your turn! Your enrollment is now being processed at " + (ticketStation ? ticketStation.name : "the counter") + "." : "It's your turn. Please proceed to the counter.") :
-      (lane === "enrollment" ? "Please go to " + (ticketStation ? ticketStation.name : "the next station") + " and wait for your number." : "Queue joined. We'll let you know when it's your turn.");
+      (lane === "enrollment" ?
+        "Please go to " + (ticketStation ? ticketStation.name : "the next station") + " and wait for your number." + (place >= 0 ? " You're " + ordinalWord(place + 1) + " in line." : "") :
+        "Queue joined. We'll let you know when it's your turn.");
   }
+
+  // The enrollment ticket follows its own design: "ENROLLMENT" over the number, a yellow "Now Serving" badge,
+  // and no position boxes (the banner above says where they stand).
+  if (lane === "enrollment" && ticket.status === "serving") statusClass = "ud-status";
 
   document.getElementById("ticketArea").innerHTML =
     '<div class="ud-ticket' + (typeLabel ? ' ticket-type-' + ticket.studentType : '') + '">' +
       '<div class="ud-ticket-head">' +
-        '<p class="ud-ticket-station">' + escapeHtml((lane === "enrollment" ? "Enrollment · " : "") + (ticketStation ? ticketStation.name : "")) + '</p>' +
+        '<p class="ud-ticket-station">' + escapeHtml(lane === "enrollment" ? "Enrollment" : (ticketStation ? ticketStation.name : "")) + '</p>' +
         '<p class="ud-ticket-no">' + escapeHtml(ticket.ticketNo) + '</p>' +
       '</div>' +
       alertHtml +
@@ -825,10 +835,11 @@ function renderTicketCard(ticket) {
         '<div><span>Purpose</span><b>' + escapeHtml(ticket.purpose || "—") + '</b></div>' +
         (typeLabel ? '<div><span>Student Type</span><b>' + escapeHtml(typeLabel) + '</b></div>' : '') +
       '</div>' +
+      (lane === "enrollment" ? '' :
       '<div class="ud-ticket-pos">' +
         '<div class="ud-pos-box"><b>' + escapeHtml(posBig) + '</b><span>' + escapeHtml(posLabel) + '</span></div>' +
         '<div class="ud-pos-box"><b>' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</b><span>Now serving</span></div>' +
-      '</div>' +
+      '</div>') +
     '</div>' +
     (ticket.status === "serving" ? '' : '<button type="button" class="ud-cancel" onclick="confirmCancelTicket()">Cancel Queue</button>');
 }

@@ -1839,8 +1839,13 @@ body.dark .enforcer-field input {
   background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%);
 }
 
+.serving-type-freshman {
+  background: linear-gradient(180deg, #1F9D55 0%, #136B39 100%);
+}
+
 .serving-type-regular .live-dot,
-.serving-type-transferee .live-dot {
+.serving-type-transferee .live-dot,
+.serving-type-freshman .live-dot {
   background: rgba(255, 255, 255, 0.55);
 }
 
@@ -1857,6 +1862,7 @@ body.dark .enforcer-field input {
 
 .queue-row-transferee { --type-color: #F29A0D; --type-tint: #FEF1DC; --type-text: #9A5F00; }
 .queue-row-guest { --type-color: #6A2FD6; --type-tint: #EFE8FB; --type-text: #5B21B6; }
+.queue-row-freshman { --type-color: #1F9D55; --type-tint: #E3F6EA; --type-text: #17703D; }
 
 .queue-table td.queue-row-no {
   background: var(--type-tint);

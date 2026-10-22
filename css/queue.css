@@ -344,6 +344,9 @@ body.dark .app-page input.invalid {
 .ticket-type-guest .ticket-head {
   background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%);
 }
+.ticket-type-freshman .ticket-head {
+  background: linear-gradient(180deg, #1F9D55 0%, #136B39 100%);
+}
 .ticket-station-label {
   font-size: 11px;
   letter-spacing: 0.1em;

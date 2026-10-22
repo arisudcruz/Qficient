@@ -77,11 +77,12 @@ var QUEUE_TYPE_FILTERS = [
   { value: "", label: "All Types" },
   { value: "regular", label: "Regular" },
   { value: "transferee", label: "Transferee / Irregular" },
+  { value: "freshman", label: "Incoming Freshman" },
   { value: "guest", label: "Guest" }
 ];
 
 function ticketTypeOf(ticket) {
-  return ticket.studentType === "transferee" || ticket.studentType === "guest" ? ticket.studentType : "regular";
+  return ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest" ? ticket.studentType : "regular";
 }
 
 function ticketMatchesTypeFilter(ticket, filter) {

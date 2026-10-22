@@ -544,6 +544,7 @@ body.dark .ud-generate:disabled { background: #2C4468; color: #8DA1C2; }
 .ud-ticket.ticket-type-regular .ud-ticket-head { background: linear-gradient(180deg, #00509C 0%, #001F44 100%); }
 .ud-ticket.ticket-type-transferee .ud-ticket-head { background: linear-gradient(180deg, #F29A0D 0%, #A66A06 100%); }
 .ud-ticket.ticket-type-guest .ud-ticket-head { background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%); }
+.ud-ticket.ticket-type-freshman .ud-ticket-head { background: linear-gradient(180deg, #1F9D55 0%, #136B39 100%); }
 
 .ud-ticket-station {
   margin: 0;

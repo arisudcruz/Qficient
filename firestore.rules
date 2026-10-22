@@ -126,9 +126,10 @@ service cloud.firestore {
       return d.keys().hasOnly(['flows', 'updatedAt']) &&
         d.updatedAt == request.time &&
         d.flows is map &&
-        d.flows.keys().hasOnly(['regular', 'transferee']) &&
+        d.flows.keys().hasOnly(['regular', 'transferee', 'freshman']) &&
         isEnrollmentFlow(d.flows, 'regular') &&
-        isEnrollmentFlow(d.flows, 'transferee');
+        isEnrollmentFlow(d.flows, 'transferee') &&
+        isEnrollmentFlow(d.flows, 'freshman');
     }
 
     match /settings/{docId} {
@@ -168,7 +169,7 @@ service cloud.firestore {
         d.status == 'waiting' &&
         d.verified == false &&
         d.createdAt == request.time &&
-        d.studentType in ['regular', 'transferee', 'guest'] &&
+        d.studentType in ['regular', 'transferee', 'freshman', 'guest'] &&
         d.studentNumber == '' &&
         d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
         d.stationId is string &&
@@ -186,7 +187,7 @@ service cloud.firestore {
         d.enrollment == true &&
         d.enrollmentStep == 0 &&
         d.purpose == 'Enrollment' &&
-        d.studentType in ['regular', 'transferee'] &&
+        d.studentType in ['regular', 'transferee', 'freshman'] &&
         d.enrollmentFlow is list && d.enrollmentFlow.size() > 0 &&
         d.enrollmentFlow == get(/databases/$(database)/documents/settings/enrollment).data.flows[d.studentType] &&
         d.stationId == d.enrollmentFlow[0];

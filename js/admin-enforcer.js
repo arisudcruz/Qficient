@@ -1,5 +1,5 @@
 // Queue Enforcer: staff create a ticket for someone who can't do it on their own device.
-var ENFORCER_TYPES = ["regular", "transferee", "guest"];
+var ENFORCER_TYPES = ["regular", "transferee", "freshman", "guest"];
 
 // Kept here so the form survives switching sections and the list refreshing underneath it.
 var ENFORCER_OTHER_PURPOSE = "__other__";
@@ -140,7 +140,7 @@ function enforcerFormProblem() {
   if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
   if (!d.stationId) return "Please select the station.";
   if (d.stationId === ENFORCER_ENROLLMENT) {
-    if (ENROLLMENT_TYPES.indexOf(d.studentType) === -1) return "Enrollment is for Regular and Transferee / Irregular students.";
+    if (ENROLLMENT_TYPES.indexOf(d.studentType) === -1) return "Enrollment is for Regular, Transferee / Irregular and Incoming Freshman students.";
     var flow = enrollmentFlowFor(d.studentType);
     if (!flow.length) return "Enrollment isn't set up for " + STUDENT_TYPE_LABELS[d.studentType] + " students yet.";
     var first = stations.find(function (s) { return s.id === flow[0]; });
@@ -244,7 +244,7 @@ function enforcerTagsHtml(ticket) {
   if (ticket.enrollment === true) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
-  if (ticket.studentType === "transferee" || ticket.studentType === "guest") {
+  if (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") {
     tags += ' <span class="type-tag queue-row-' + ticket.studentType + '">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
   }
   if (ticket.prioritizedAt && ticket.status === "waiting") tags += ' <span class="type-tag priority-tag">\u2605 Priority</span>';
