@@ -245,13 +245,6 @@ function toggleUserMenu(event) {
   if (button) button.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
 }
 
-// The header bell opens the notification history; pressed again it goes back to the stations.
-function toggleNotificationsPage() {
-  closeUserMenu();
-  setDashboardTab(currentDashboardTab() === "notifications" ? "queue" : "notifications");
-  window.scrollTo(0, 0);
-}
-
 function enableAlertsFromMenu() {
   closeUserMenu();
   enableNotifications();

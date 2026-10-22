@@ -334,3 +334,4 @@ body.dark .enrollment-step-name { border-color: #3D74BC; color: #9CC8FA; }
 body.dark .enrollment-step-tools button { background: var(--ad-surface-2); border-color: var(--ad-line-strong); color: var(--ad-text); }
 body.dark .enrollment-step-empty { border-color: var(--ad-line-strong); color: var(--ad-muted); }
 body.dark .enrollment-add { border-color: var(--ad-line); }
+

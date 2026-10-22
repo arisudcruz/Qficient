@@ -15,6 +15,26 @@ var notifState = {
 
 var notifUnsubscribe = null;
 var notifTimer = null;
+var notifLastUnread = null; // unread count after the last load; null until the first one (which doesn't ring)
+
+// Every page header has its own bell; the visible one rings when the unread count goes up after the inbox has
+// loaded (the read marks and the tickets).
+// (This file loads before js/admin-auth.js and js/firebase.js, which define adminUser and ticketsLoaded.)
+function adminInboxLoading() {
+  if (typeof adminUser === "undefined" || !adminUser) return false;
+  return !notifState.loaded || typeof ticketsLoaded === "undefined" || !ticketsLoaded;
+}
+
+function syncAdminBells(count) {
+  if (adminInboxLoading() || typeof adminUser === "undefined" || !adminUser) return;
+
+  if (notifLastUnread !== null && count > notifLastUnread) {
+    document.querySelectorAll(".admin-bell").forEach(function (bell) {
+      if (bell.offsetParent !== null) ringBell(bell);
+    });
+  }
+  notifLastUnread = count;
+}
 
 function notifDocRef() {
   return db.collection("staffNotifications").doc(staffKey(adminUser.email));
@@ -22,6 +42,8 @@ function notifDocRef() {
 
 function startNotificationsListener() {
   if (notifUnsubscribe || !adminUser) return;
+
+  notifLastUnread = null;
 
   notifUnsubscribe = notifDocRef().onSnapshot(function (doc) {
     var data = doc.exists ? doc.data() : {};
@@ -51,6 +73,7 @@ function stopNotificationsListener() {
     notifTimer = null;
   }
   notifState = { loaded: false, readBeforeMs: null, readIds: {}, deletedIds: {}, tab: "unread", limit: NOTIF_PAGE_SIZE, menuId: null };
+  notifLastUnread = null;
   updateNotificationBadge(0);
 }
 
@@ -121,10 +144,16 @@ function updateNotificationBadge(count) {
     el.hidden = count <= 0;
     el.textContent = text;
   });
+  syncAdminBells(count);
 }
 
-// Pages redraw their header often; give each new bell the current count.
+// Pages redraw their header often; give each new bell the current count (and the "open" look while the
+// notifications dropdown is showing).
 new MutationObserver(function () {
+  if (notifDropdown.kind === "admin") {
+    var openBell = NOTIF_DROPDOWN_SOURCES.admin.bell();
+    if (openBell && !openBell.classList.contains("bell-open")) openBell.classList.add("bell-open");
+  }
   document.querySelectorAll("[data-notif-badge]").forEach(function (el) {
     var text = notifUnreadCount > 99 ? "99+" : String(notifUnreadCount);
     if (el.textContent !== text || el.hidden !== (notifUnreadCount <= 0)) {
@@ -140,6 +169,7 @@ function refreshNotifications() {
 
   var unread = getNotifications().filter(function (item) { return !isNotifRead(item); });
   updateNotificationBadge(unread.length);
+  refreshNotifDropdown("admin");
 
   var area = document.getElementById("adminNotificationsArea");
   if (area && area.style.display !== "none") renderNotifications();

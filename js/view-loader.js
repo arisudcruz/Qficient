@@ -8,6 +8,7 @@ var viewFiles = [
 
 var appScripts = [
   "js/ui.js",
+  "js/notif-dropdown.js",
   "js/navigation.js",
   "js/auth.js",
   "js/queue.js",
