@@ -25,54 +25,9 @@ function setQueueTypeFilter(value) {
   renderQueueManagement();
 }
 
-/* ---------- Which line this page runs: Queue Management (regular) or Enrollment ---------- */
-
-// Both pages are drawn by the code below. Only one is in use at a time: the other page's state (station tab,
-// selection, filter, transfer form) is put aside, and its area emptied so no two elements share an id.
-var queueLane = "regular";
-var QUEUE_PAGES = {
-  regular: { areaId: "adminQueueArea", title: "Queue Management" },
-  enrollment: { areaId: "adminEnrollmentArea", title: "Enrollment" }
-};
-var savedQueueState = {
-  enrollment: { station: "", selection: {}, typeFilter: "", transfer: { open: false, stationId: "", purpose: "" } }
-};
-
-function useQueueLane(lane) {
-  if (lane === queueLane) return;
-
-  savedQueueState[queueLane] = { station: activeQueueStation, selection: queueSelection, typeFilter: queueTypeFilter, transfer: queueTransfer };
-  var next = savedQueueState[lane] || { station: "", selection: {}, typeFilter: "", transfer: { open: false, stationId: "", purpose: "" } };
-  activeQueueStation = next.station;
-  queueSelection = next.selection;
-  queueTypeFilter = next.typeFilter;
-  queueTransfer = next.transfer;
-
-  var oldArea = document.getElementById(QUEUE_PAGES[queueLane].areaId);
-  if (oldArea) oldArea.innerHTML = "";
-  queueLane = lane;
-}
-
-function queueAreaId() {
-  return QUEUE_PAGES[queueLane].areaId;
-}
-
 // The stations this person may run: all of them for an admin, only their own for Queue Management staff.
 function manageableStations() {
   return stations.filter(function (station) { return canServeStation(station.id); });
-}
-
-// The station tabs of the page in use. The Enrollment page shows stations that are part of an enrollment process,
-// plus any that still have enrollment students in line today (e.g. just taken out of a process).
-function queueTabStations() {
-  if (queueLane !== "enrollment") return manageableStations();
-
-  var inProcess = enrollmentStationIds();
-  return manageableStations().filter(function (station) {
-    return inProcess.indexOf(station.id) !== -1 || tickets.some(function (t) {
-      return t.stationId === station.id && ticketLane(t) === "enrollment" && ACTIVE_TICKET_STATUSES.indexOf(t.status) !== -1 && isTodayTicket(t);
-    });
-  });
 }
 
 function selectQueueStation(stationId) {
@@ -89,7 +44,6 @@ function getQueueListTickets() {
 
   return tickets.filter(function (t) {
     return t.stationId === activeQueueStation &&
-      ticketLane(t) === queueLane &&
       (t.status === "waiting" || t.status === "skipped") &&
       isTodayTicket(t) &&
       (!serving || t.id !== serving.id);
@@ -111,7 +65,7 @@ function updateQueueSelectionUI() {
     if (!valid[id]) delete queueSelection[id];
   });
 
-  document.querySelectorAll("#" + queueAreaId() + " .queue-row[data-ticket]").forEach(function (row) {
+  document.querySelectorAll("#adminQueueArea .queue-row[data-ticket]").forEach(function (row) {
     var selected = !!queueSelection[row.getAttribute("data-ticket")];
     row.classList.toggle("selected", selected);
     row.querySelector(".queue-select-box").checked = selected;
@@ -180,14 +134,13 @@ function confirmSelectedAction(kind) {
   if (kind === "call") {
     if (count !== 1) return;
     var serving = getServingTicket(stationId);
-    var lane = queueLane;
     options = {
       title: "Call ticket " + selected[0].ticketNo + " next?",
       message: (serving ? currentTicketFateText(serving) + " and calls " : "This calls ") +
         selected[0].ticketNo + " now, ahead of the rest of the queue.",
       confirmLabel: "Call Next",
       tone: "primary",
-      run: function () { return callSelectedTicket(stationId, ids[0], lane); }
+      run: function () { return callSelectedTicket(stationId, ids[0]); }
     };
   } else if (kind === "prioritize") {
     var waitingIds = selected.filter(function (t) { return t.status === "waiting"; }).map(function (t) { return t.id; });
@@ -305,12 +258,12 @@ function confirmTransfer(stationId) {
 }
 
 function getServingTicket(stationId) {
-  return servingTicketOf(stations.find(function (s) { return s.id === stationId; }), queueLane);
+  return servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
 }
 
 // What Call Next does to the ticket still at the counter: completed, or (enrollment) sent on to the next station.
 function currentTicketFateText(serving) {
-  if (ticketLane(serving) !== "enrollment") return "This marks ticket " + serving.ticketNo + " as completed";
+  if (serving.enrollment !== true) return "This marks ticket " + serving.ticketNo + " as completed";
   var nextId = nextEnrollmentStationId(serving);
   return nextId ?
     "This sends " + serving.ticketNo + " on to " + (stationNameById(nextId) || "the next station") :
@@ -318,8 +271,7 @@ function currentTicketFateText(serving) {
 }
 
 function confirmCallNext(stationId) {
-  var lane = queueLane;
-  if (!getNextWaitingTicket(stationId, lane)) return;
+  if (!getNextWaitingTicket(stationId)) return;
 
   var serving = getServingTicket(stationId);
 
@@ -330,7 +282,7 @@ function confirmCallNext(stationId) {
       "This calls the next waiting ticket for this station.",
     confirmLabel: "Call Next",
     tone: "primary",
-    onConfirm: function () { return callNextTicket(stationId, lane); }
+    onConfirm: function () { return callNextTicket(stationId); }
   });
 }
 
@@ -356,7 +308,7 @@ function confirmSkip(stationId) {
     message: "They'll have " + formatVoidWindow() + " to return to the counter. After that you can give them a last call before the ticket is voided.",
     confirmLabel: "Put On Hold",
     tone: "danger",
-    onConfirm: function () { return skipCurrentTicket(stationId, ticketLane(serving)); }
+    onConfirm: function () { return skipCurrentTicket(stationId); }
   });
 }
 
@@ -369,7 +321,7 @@ function confirmRemove(stationId) {
     message: "This immediately voids the ticket. This can't be undone.",
     confirmLabel: "Remove",
     tone: "danger",
-    onConfirm: function () { return removeCurrentTicket(stationId, ticketLane(serving)); }
+    onConfirm: function () { return removeCurrentTicket(stationId); }
   });
 }
 
@@ -450,28 +402,19 @@ function ticketGeneratedTime(ticket) {
 }
 
 function renderQueueManagement() {
-  var area = document.getElementById(queueAreaId());
+  var area = document.getElementById("adminQueueArea");
   if (!area) return;
 
-  var isEnrollment = queueLane === "enrollment";
-  var visibleStations = queueTabStations();
+  var visibleStations = manageableStations();
   if (visibleStations.length && !visibleStations.find(function (s) { return s.id === activeQueueStation; })) {
     activeQueueStation = visibleStations[0].id;
   }
 
-  var headerHtml = '<div class="dashboard-header"><div class="header-greeting">' + QUEUE_PAGES[queueLane].title + '</div>' + adminHeaderRightHtml() + '</div>';
-
-  if (isEnrollment && !visibleStations.length) {
-    area.innerHTML = headerHtml +
-      '<div class="settings-empty"><div class="settings-empty-icon">🎓</div><p>' +
-        (adminKind() === "admin" ?
-          'No enrollment process yet. Set the stations for each student type in Enrollment Settings.' :
-          'Your station is not part of the enrollment process.') +
-      '</p></div>';
-    return;
-  }
+  var headerHtml = '<div class="dashboard-header"><div class="header-greeting">Queue Management</div>' + adminHeaderRightHtml() + '</div>';
 
   var serving = getServingTicket(activeQueueStation);
+  // An enrollment ticket at the counter is sent on to its next station instead of being ended or transferred.
+  var isEnrollment = !!serving && serving.enrollment === true;
 
   var tabsHtml = visibleStations.map(function (s) {
     var activeClass = s.id === activeQueueStation ? " active" : "";
@@ -503,7 +446,7 @@ function renderQueueManagement() {
   if (!serving) queueTransfer.open = false;
 
   var queueListTickets = getQueueListTickets();
-  var hasWaiting = !!getNextWaitingTicket(activeQueueStation, queueLane);
+  var hasWaiting = !!getNextWaitingTicket(activeQueueStation);
 
   var shownTickets = queueListTickets.filter(function (ticket) { return ticketMatchesTypeFilter(ticket, queueTypeFilter); });
 
@@ -538,7 +481,7 @@ function renderQueueManagement() {
     var typeClass = (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '';
     var typeTag = typeClass ? ' <span class="type-tag">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>' : '';
     var priorityTag = (ticket.prioritizedAt && ticket.status === "waiting") ? ' <span class="type-tag priority-tag">★ Priority</span>' : '';
-    if (isEnrollment) priorityTag += ' <span class="type-tag enrollment-tag">Step ' + ((Number(ticket.enrollmentStep) || 0) + 1) + ' of ' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
+    if (ticket.enrollment === true) priorityTag += ' <span class="type-tag enrollment-tag">Enrollment · Step ' + ((Number(ticket.enrollmentStep) || 0) + 1) + ' of ' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
     var id = escapeAdminText(ticket.id);
 
     return '<tr class="queue-row' + typeClass + (queueSelection[ticket.id] ? ' selected' : '') + '" data-ticket="' + id + '" onclick="toggleQueueSelection(\'' + id + '\', event)">' +

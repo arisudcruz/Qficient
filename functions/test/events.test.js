@@ -1,6 +1,6 @@
 // Pure logic tests; no emulator needed:  node test/events.test.js
 const assert = require("assert");
-const { describeChange, onlyChanged, affectsQueueFront, compareQueueOrder, ticketLane } = require("../lib/events");
+const { describeChange, onlyChanged, affectsQueueFront, compareQueueOrder } = require("../lib/events");
 
 const notify = { serving: true, recall: true, skipped: true, lastCall: true, next: true, transferred: true, voided: true, enrollmentNext: true };
 const ctx = { stationName: (id) => (id === "registrar" ? "Registrar" : "Cashier"), voidMinutes: 2 };
@@ -61,11 +61,6 @@ test("enrollment: the next-step alert can be switched off", () => assert.strictE
   Object.assign({}, enrolling, { stationId: "registrar", enrollmentStep: 1, status: "waiting" }), Object.assign({}, notify, { enrollmentNext: false })), null));
 test("enrollment: a regular transfer is still 'transferred'", () => assert.strictEqual(type(Object.assign({}, base, { status: "serving" }), Object.assign({}, base, { stationId: "registrar", status: "waiting" })), "transferred"));
 test("enrollment: being called works as before", () => assert.strictEqual(type(enrolling, Object.assign({}, enrolling, { status: "serving" })), "serving"));
-test("lanes: enrollment tickets are in their own line", () => {
-  assert.strictEqual(ticketLane(enrolling), "enrollment");
-  assert.strictEqual(ticketLane(base), "regular");
-  assert.strictEqual(ticketLane(Object.assign({}, base, { enrollment: false })), "regular");
-});
 
 test("onlyChanged ignores the listed bookkeeping field", () => assert.ok(onlyChanged(base, Object.assign({}, base, { nextNotified: "cashier" }), ["nextNotified"])));
 test("onlyChanged notices any other change", () => assert.ok(!onlyChanged(base, Object.assign({}, base, { nextNotified: "cashier", status: "serving" }), ["nextNotified"])));

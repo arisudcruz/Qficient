@@ -5,7 +5,6 @@ const { setGlobalOptions } = require("firebase-functions/v2");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 
 const config = require("./config");
@@ -13,7 +12,7 @@ const { describeChange, onlyChanged, affectsQueueFront } = require("./lib/events
 const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
-const { createSmsSender, SMS_SECRETS } = require("./lib/sms");
+const { redeemWalkinPass } = require("./lib/walkin");
 const messages = require("./lib/messages");
 
 initializeApp();
@@ -21,20 +20,8 @@ const db = getFirestore();
 
 setGlobalOptions({ region: config.region, maxInstances: config.maxInstances });
 
-// SMS secrets are only needed (and only asked for at deploy time) once a real provider is switched on.
-const smsSecrets = (SMS_SECRETS[config.sms && config.sms.provider] || []).map(function (name) { return defineSecret(name); });
-
-const sms = createSmsSender({
-  db, FieldValue, config,
-  secret: function (name) {
-    const param = smsSecrets.find(function (s) { return s.name === name; });
-    return param ? param.value() : "";
-  },
-  log: function (message) { logger.info(message); }
-});
-
 const pusher = createPusher({
-  db, FieldValue, Timestamp, config, sms,
+  db, FieldValue, Timestamp, config,
   messaging: getMessaging(),
   log: function (message) { logger.info(message); }
 });
@@ -52,7 +39,7 @@ async function voidMinutes() {
 
 // Runs whenever a ticket is created or changed: tells the student what happened and, when the front of a
 // queue may have changed, tells the next student in line.
-exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{ticketId}" }, smsSecrets.length ? { secrets: smsSecrets } : {}), async function (event) {
+exports.onTicketWritten = onDocumentWritten("tickets/{ticketId}", async function (event) {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after = event.data.after.exists ? event.data.after.data() : null;
   if (!after) return;
@@ -64,16 +51,9 @@ exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{
 
   const enrolling = after.enrollment === true;
 
-  // A walk-in ticket made by the Queue Enforcer: text them their ticket number.
-  if (!before && after.manual && after.status === "waiting" && config.notify.manualCreated) {
-    const place = await pusher.placeInLine(after.stationId, ticket.id, Date.now());
-    const station = await stationNameOf(after.stationId);
-    const message = enrolling ? messages.enrollmentManualCreated(ticket, station, place) : messages.manualCreated(ticket, station, place);
-    await pusher.pushOnce(event.id + ":created", ticket, message, ticket.id + ":created");
-  }
-
-  // The student's own history: they joined, or their transaction (or whole enrollment) is done. (No push; they saw it happen.)
-  if (!before && !after.manual && after.status === "waiting") {
+  // The student's (or walk-in's) own history: they joined, or their transaction (or whole enrollment) is done.
+  // (No push; they saw it happen.)
+  if (!before && after.status === "waiting") {
     const place = await pusher.placeInLine(after.stationId, ticket.id, Date.now());
     const station = await stationNameOf(after.stationId);
     await pusher.recordOnce(event.id + ":joined", ticket,
@@ -81,9 +61,8 @@ exports.onTicketWritten = onDocumentWritten(Object.assign({ document: "tickets/{
   }
   if (before && after.status === "completed" && before.status !== "completed") {
     if (enrolling && config.notify.enrollmentNext) {
-      // The last enrollment station: tell walk-ins by SMS too.
       await pusher.pushOnce(event.id + ":enrollmentCompleted", ticket, messages.enrollmentCompleted(ticket), ticket.id + ":enrollmentCompleted");
-    } else if (!after.manual) {
+    } else {
       await pusher.recordOnce(event.id + ":completed", ticket, messages.completed(ticket, await stationNameOf(after.stationId)), "completed");
     }
   }
@@ -131,7 +110,7 @@ exports.dailyCleanup = onSchedule({ schedule: "5 0 * * *", timeZone: "Asia/Manil
   logger.info("daily cleanup voided " + cleaned + " leftover ticket(s)");
 });
 
-// Students and guests join the queue through this function instead of writing tickets themselves, so the
+// Students join the queue through this function instead of writing tickets themselves, so the
 // one-ticket-per-person and rate limits can't be skipped from the browser.
 exports.joinQueue = onCall(async function (request) {
   try {
@@ -140,5 +119,16 @@ exports.joinQueue = onCall(async function (request) {
     if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
     logger.error("joinQueue failed: " + (error && error.stack ? error.stack : error));
     throw new HttpsError("internal", "Something went wrong while joining the queue. Please try again.");
+  }
+});
+
+// A walk-in's phone opens the Queue Enforcer's QR code: this checks the one-time pass and creates their ticket.
+exports.redeemWalkinPass = onCall(async function (request) {
+  try {
+    return await redeemWalkinPass({ db, FieldValue, config }, request.auth, request.data);
+  } catch (error) {
+    if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
+    logger.error("redeemWalkinPass failed: " + (error && error.stack ? error.stack : error));
+    throw new HttpsError("internal", "Something went wrong while getting your ticket. Please try again.");
   }
 });

@@ -72,19 +72,14 @@ function isTodayTicket(ticket) {
   return createdMs >= startOfTodayMs();
 }
 
-/* ---------- Lines: every station has a regular line and an enrollment line ---------- */
+/* ---------- Enrollment: one ticket that moves through several stations ---------- */
 
 // Enrollment tickets move through several stations in an order set per student type (Enrollment Settings). At each
-// station they wait in their own line with their own "now serving", apart from everyone else; both lines share the
-// station's ticket counter, so numbers never repeat. A ticket keeps the order of stations it started with.
+// station they wait in the same line as everyone else and get a new number there. A ticket keeps the order of
+// stations it started with.
 var ENROLLMENT_PURPOSE = "Enrollment";
 var ENROLLMENT_TYPES = ["regular", "transferee", "freshman"];
-var LANE_POINTER = { regular: "nowServingId", enrollment: "enrollmentServingId" };
 var enrollmentSettings = { flows: {} }; // settings/enrollment, kept current by js/firebase.js
-
-function ticketLane(ticket) {
-  return ticket && ticket.enrollment === true ? "enrollment" : "regular";
-}
 
 // The stations a student type goes through, in order, as set now.
 function enrollmentFlowFor(studentType) {
@@ -117,15 +112,13 @@ function stationNameById(stationId) {
   return station ? station.name : "";
 }
 
-// The ticket a station is serving in one line ("regular" unless said otherwise). The pointer alone isn't trusted:
-// the ticket must still be serving, today, at this station and in this line.
-function servingTicketOf(station, lane) {
-  lane = lane || "regular";
-  var id = station ? station[LANE_POINTER[lane]] : null;
+// The ticket a station is serving. The pointer alone isn't trusted: the ticket must still be serving, today,
+// at this station.
+function servingTicketOf(station) {
+  var id = station ? station.nowServingId : null;
   if (!id) return null;
   var ticket = tickets.find(function (t) { return t.id === id; });
-  return ticket && ticket.status === "serving" && ticket.stationId === station.id && ticketLane(ticket) === lane &&
-    isTodayTicket(ticket) ? ticket : null;
+  return ticket && ticket.status === "serving" && ticket.stationId === station.id && isTodayTicket(ticket) ? ticket : null;
 }
 
 function countStationTicketsToday(stationId) {
@@ -271,8 +264,7 @@ function joinQueue(stationId, purpose, options) {
   return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
     stationId: stationId,
     purpose: purpose,
-    enrollment: !!options.enrollment,
-    guestName: user.type === "guest" ? user.name : ""
+    enrollment: !!options.enrollment
   }).then(function (response) {
     var result = response.data || {};
     // Hold the lock briefly so the new ticket reaches the snapshot before another join is allowed.
@@ -323,22 +315,18 @@ function compareQueueOrder(a, b) {
   return timestampToMs(a.createdAt, 0) - timestampToMs(b.createdAt, 0);
 }
 
-function getNextWaitingTicket(stationId, lane) {
-  lane = lane || "regular";
+function getNextWaitingTicket(stationId) {
   return tickets
-    .filter(function (t) { return t.stationId === stationId && t.status === "waiting" && ticketLane(t) === lane && isTodayTicket(t); })
+    .filter(function (t) { return t.stationId === stationId && t.status === "waiting" && isTodayTicket(t); })
     .sort(compareQueueOrder)[0] || null;
 }
 
-// Calls the next waiting ticket of one line (or empties that line's serving window), in one write.
-function advanceStation(stationId, lane) {
-  lane = lane || "regular";
-  var next = getNextWaitingTicket(stationId, lane);
+// Calls the next waiting ticket (or empties the serving window), in one write.
+function advanceStation(stationId) {
+  var next = getNextWaitingTicket(stationId);
   var batch = db.batch();
-  var pointer = {};
-  pointer[LANE_POINTER[lane]] = next ? next.id : null;
 
-  batch.update(db.collection("stations").doc(stationId), pointer);
+  batch.update(db.collection("stations").doc(stationId), { nowServingId: next ? next.id : null });
   if (next) {
     batch.update(db.collection("tickets").doc(next.id), {
       status: "serving",
@@ -350,21 +338,19 @@ function advanceStation(stationId, lane) {
   });
 }
 
-function callNextTicket(stationId, lane) {
-  lane = lane || "regular";
+function callNextTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
   var station = stations.find(function (s) { return s.id === stationId; });
   if (!station) return;
 
   // Only a ticket that is still being served gets completed; a cancelled or stale one must keep its status.
-  var current = servingTicketOf(station, lane);
+  var current = servingTicketOf(station);
 
-  // In the enrollment line the current student is sent on to their next station (or finishes) instead.
-  if (lane === "enrollment") {
-    var moveOn = current ? proceedEnrollmentTicket(stationId, { quiet: true }) : Promise.resolve(true);
-    return moveOn.then(function (ok) {
-      if (ok) return advanceStation(stationId, lane);
+  // An enrollment student at the counter is sent on to their next station (or finishes) instead.
+  if (current && current.enrollment === true) {
+    return proceedEnrollmentTicket(stationId, { quiet: true }).then(function (ok) {
+      if (ok) return advanceStation(stationId);
     });
   }
 
@@ -376,17 +362,16 @@ function callNextTicket(stationId, lane) {
     Promise.resolve();
 
   finish.then(function () {
-    advanceStation(stationId, lane);
+    advanceStation(stationId);
   }).catch(function (err) {
     say("Could not call next ticket: " + err.message);
   });
 }
 
-function skipCurrentTicket(stationId, lane) {
-  lane = lane || "regular";
+function skipCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }), lane);
+  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
     say("No ticket is currently being served.");
     return;
@@ -396,7 +381,7 @@ function skipCurrentTicket(stationId, lane) {
     status: "skipped",
     skippedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
-    advanceStation(stationId, lane);
+    advanceStation(stationId);
   }).catch(function (err) {
     say("Could not put the ticket on hold: " + err.message);
   });
@@ -404,25 +389,25 @@ function skipCurrentTicket(stationId, lane) {
 
 // Finishes the transaction at the counter: the ticket is marked completed and the serving window is cleared,
 // so nobody is being served until the next call.
-function completeCurrentTicket(stationId, lane) {
-  lane = lane || "regular";
+function completeCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }), lane);
+  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
     say("No ticket is currently being served.");
     return;
   }
-
-  var pointer = {};
-  pointer[LANE_POINTER[lane]] = null;
+  if (serving.enrollment === true) {
+    say("Enrollment tickets are sent on with Proceed to Next Station.");
+    return;
+  }
 
   var batch = db.batch();
   batch.update(db.collection("tickets").doc(serving.id), {
     status: "completed",
     completedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  batch.update(db.collection("stations").doc(stationId), pointer);
+  batch.update(db.collection("stations").doc(stationId), { nowServingId: null });
 
   return batch.commit().catch(function (err) {
     say("Could not end the transaction: " + err.message);
@@ -430,7 +415,7 @@ function completeCurrentTicket(stationId, lane) {
 }
 
 // Sends the enrollment student being served at this station on to the next station of their process, with a new
-// number there at the back of its enrollment line, or finishes their enrollment at the last station. The serving
+// number there at the back of its line, or finishes their enrollment at the last station. The serving
 // window is left empty (Call Next fills it). Resolves true when it went through.
 function proceedEnrollmentTicket(sourceStationId, opts) {
   opts = opts || {};
@@ -440,9 +425,9 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
   }
 
   var station = stations.find(function (s) { return s.id === sourceStationId; });
-  var serving = servingTicketOf(station, "enrollment");
-  if (!serving) {
-    say("No ticket is currently being served.");
+  var serving = servingTicketOf(station);
+  if (!serving || serving.enrollment !== true) {
+    say("No enrollment ticket is currently being served.");
     return Promise.resolve(false);
   }
 
@@ -455,7 +440,7 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
   if (!nextId) {
     var batch = db.batch();
     batch.update(ticketRef, { status: "completed", completedAt: now });
-    batch.update(stationRef, { enrollmentServingId: null });
+    batch.update(stationRef, { nowServingId: null });
     return batch.commit().then(function () {
       if (!opts.quiet) sayDone("Enrollment complete for " + serving.ticketNo + ".");
       return true;
@@ -490,7 +475,6 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
       }
       if ((Number(ticket.enrollmentStep) || 0) !== step) throw new Error("This ticket has already moved on.");
 
-      // The next station's counter is shared by both of its lines, so numbers never repeat there.
       var today = queueDayKey(Date.now());
       var isNewDay = destData.countDay !== today;
       var newCount = isNewDay ? 1 : (destData.count || 0) + 1;
@@ -514,7 +498,7 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
         prioritizedAt: remove,
         nextNotified: remove
       });
-      transaction.update(stationRef, { enrollmentServingId: null });
+      transaction.update(stationRef, { nowServingId: null });
 
       return { ticketNo: ticketNo, stationName: destData.name };
     });
@@ -527,11 +511,10 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
   });
 }
 
-function removeCurrentTicket(stationId, lane) {
-  lane = lane || "regular";
+function removeCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }), lane);
+  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
     say("No ticket is currently being served.");
     return;
@@ -541,7 +524,7 @@ function removeCurrentTicket(stationId, lane) {
     status: "void",
     voidedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
-    advanceStation(stationId, lane);
+    advanceStation(stationId);
   }).catch(function (err) {
     say("Could not remove ticket: " + err.message);
   });
@@ -562,7 +545,7 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
     return Promise.resolve(null);
   }
   if (serving.enrollment) {
-    say("Enrollment tickets move on from the Enrollment page.");
+    say("Enrollment tickets are sent on with Proceed to Next Station.");
     return Promise.resolve(null);
   }
   if (!destStation || destStation.id === sourceStationId) {
@@ -588,7 +571,7 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
 
       if (!dest || dest.active === false) throw new Error("That station is currently unavailable.");
       if (!ticket || ticket.status !== "serving") throw new Error("This ticket is no longer being served.");
-      if (ticket.enrollment) throw new Error("Enrollment tickets move on from the Enrollment page.");
+      if (ticket.enrollment) throw new Error("Enrollment tickets are sent on with Proceed to Next Station.");
 
       var today = queueDayKey(Date.now());
       var isNewDay = dest.countDay !== today;
@@ -629,83 +612,6 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
   });
 }
 
-// Staff create a ticket for someone who can't do it on their own device (Queue Enforcer).
-// The contact email is kept in an admin-only collection, not on the ticket that every signed-in user can read.
-function createManualTicket(details) {
-  if (adminRole !== "admin" && adminRole !== "enforcer") {
-    say("Only an administrator or a Queue Enforcer can create manual tickets.");
-    return Promise.resolve(null);
-  }
-
-  // An enrollment walk-in starts at the first station of their student type's process.
-  var flow = details.enrollment ? enrollmentFlowFor(details.studentType).slice() : null;
-  if (details.enrollment && !flow.length) {
-    say("Enrollment isn't set up for " + (STUDENT_TYPE_LABELS[details.studentType] || "this student type") + " students yet.");
-    return Promise.resolve(null);
-  }
-
-  var stationId = flow ? flow[0] : details.stationId;
-  var station = stations.find(function (s) { return s.id === stationId; });
-
-  if (!station || station.active === false) {
-    say((flow && station ? station.name + ", the first enrollment station," : "That station") + " is currently unavailable.");
-    return Promise.resolve(null);
-  }
-  if (station.maxQueue > 0 && countStationTicketsToday(station.id) >= station.maxQueue) {
-    say("This station has reached its daily queue limit.");
-    return Promise.resolve(null);
-  }
-
-  var stationRef = db.collection("stations").doc(station.id);
-  var ticketRef = db.collection("tickets").doc();
-  var contactRef = db.collection("ticketContacts").doc(ticketRef.id);
-  var createdBy = adminUser ? staffKey(adminUser.email) : "";
-
-  return db.runTransaction(function (transaction) {
-    return transaction.get(stationRef).then(function (doc) {
-      var data = doc.data();
-      if (!data || data.active === false) throw new Error("That station is currently unavailable.");
-
-      var today = queueDayKey(Date.now());
-      var isNewDay = data.countDay !== today;
-      var newCount = isNewDay ? 1 : (data.count || 0) + 1;
-      var ticketNo = formatTicketNo(data.code || stationCodeOf(station.id), newCount);
-      var now = firebase.firestore.FieldValue.serverTimestamp();
-
-      transaction.update(stationRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
-      var ticket = {
-        ticketNo: ticketNo,
-        stationId: station.id,
-        ownerId: "manual:" + ticketRef.id,
-        ownerName: details.firstName + " " + details.lastName,
-        studentNumber: "",
-        studentType: details.studentType,
-        purpose: flow ? ENROLLMENT_PURPOSE : details.purpose,
-        status: "waiting",
-        verified: false,
-        createdAt: now,
-        manual: true,
-        createdBy: createdBy
-      };
-      if (flow) {
-        ticket.enrollment = true;
-        ticket.enrollmentFlow = flow;
-        ticket.enrollmentStep = 0;
-      }
-      transaction.set(ticketRef, ticket);
-      // The mobile number receives the ticket and its alerts by SMS; it stays in this admin-only record.
-      var contact = { mobile: details.mobile, createdBy: createdBy, createdAt: now };
-      if (details.email) contact.email = details.email;
-      transaction.set(contactRef, contact);
-
-      return { ticketNo: ticketNo, stationName: data.name };
-    });
-  }).catch(function (err) {
-    say("Could not create the ticket: " + err.message);
-    return null;
-  });
-}
-
 /* Actions on tickets picked from the queued list */
 
 function reportQueueAction(promise, errorLabel) {
@@ -726,8 +632,7 @@ function batchUpdateTickets(ticketIds, data) {
 }
 
 // Serves a chosen ticket now, ahead of the rest of the queue. A ticket that is still being served is completed first.
-function callSelectedTicket(stationId, ticketId, lane) {
-  lane = lane || "regular";
+function callSelectedTicket(stationId, ticketId) {
   if (!canServeStation(stationId)) {
     refuseStation();
     return Promise.resolve(false);
@@ -736,16 +641,17 @@ function callSelectedTicket(stationId, ticketId, lane) {
   var station = stations.find(function (s) { return s.id === stationId; });
   var ticket = tickets.find(function (t) { return t.id === ticketId; });
 
-  if (!station || !ticket || ticket.stationId !== stationId || ticketLane(ticket) !== lane ||
+  if (!station || !ticket || ticket.stationId !== stationId ||
       (ticket.status !== "waiting" && ticket.status !== "skipped")) {
     say("That ticket can't be called right now.");
     return Promise.resolve(false);
   }
 
-  var current = servingTicketOf(station, lane);
+  var current = servingTicketOf(station);
+  var enrolling = !!current && current.enrollment === true;
 
   // An enrollment student still at the counter is sent on (or finishes) first, never just closed.
-  var before = lane === "enrollment" && current ? proceedEnrollmentTicket(stationId, { quiet: true }) : Promise.resolve(true);
+  var before = enrolling ? proceedEnrollmentTicket(stationId, { quiet: true }) : Promise.resolve(true);
 
   return before.then(function (ok) {
     if (!ok) return false;
@@ -753,10 +659,8 @@ function callSelectedTicket(stationId, ticketId, lane) {
     var now = firebase.firestore.FieldValue.serverTimestamp();
     var remove = firebase.firestore.FieldValue.delete();
     var batch = db.batch();
-    var pointer = {};
-    pointer[LANE_POINTER[lane]] = ticket.id;
 
-    if (current && lane === "regular") {
+    if (current && !enrolling) {
       batch.update(db.collection("tickets").doc(current.id), { status: "completed", completedAt: now });
     }
     batch.update(db.collection("tickets").doc(ticket.id), {
@@ -766,7 +670,7 @@ function callSelectedTicket(stationId, ticketId, lane) {
       lastCalled: remove,
       lastCallAt: remove
     });
-    batch.update(db.collection("stations").doc(stationId), pointer);
+    batch.update(db.collection("stations").doc(stationId), { nowServingId: ticket.id });
 
     return reportQueueAction(batch.commit(), "call that ticket");
   });

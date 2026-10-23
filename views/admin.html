@@ -1,5 +1,13 @@
 <div class="page dashboard-page" id="pageAdmin">
   <div class="admin-shell">
+    <div class="admin-topbar">
+      <button type="button" class="admin-menu-btn" onclick="openAdminNav()" aria-label="Open menu" title="Menu">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <img src="/assets/qficient-logo-white.png" alt="" width="26" height="26">
+      <span class="admin-topbar-name">QFicient</span>
+    </div>
+    <div class="sidebar-backdrop" onclick="closeAdminNav()" aria-hidden="true"></div>
     <aside class="sidebar">
       <div class="brand-row">
         <div class="brand-badge"><img src="/assets/qficient-logo-white.png" alt=""></div>
@@ -20,10 +28,6 @@
         <button type="button" class="nav-item" data-section="queue" title="Queue Management" onclick="setAdminSection('queue')">
           <span class="nav-icon">◌</span>
           <span class="nav-text">Queue Management</span>
-        </button>
-        <button type="button" class="nav-item" data-section="enrollment" title="Enrollment" onclick="setAdminSection('enrollment')">
-          <span class="nav-icon">◎</span>
-          <span class="nav-text">Enrollment</span>
         </button>
         <button type="button" class="nav-item" data-section="enforcer" title="Queue Enforcer" onclick="setAdminSection('enforcer')">
           <span class="nav-icon">◈</span>
@@ -65,7 +69,6 @@
       <div id="adminServerBanner" class="server-banner" style="display: none"></div>
       <div id="adminArea"></div>
       <div id="adminQueueArea" style="display: none"></div>
-      <div id="adminEnrollmentArea" style="display: none"></div>
       <div id="adminEnforcerArea" style="display: none"></div>
       <div id="adminNotificationsArea" style="display: none"></div>
       <div id="adminLiveBoardArea" style="display: none"></div>

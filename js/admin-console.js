@@ -1,5 +1,3 @@
-var adminTrafficStation = "all";
-
 function closeConfirmModal() {
   var overlay = document.getElementById("confirmModal");
   if (overlay) overlay.remove();
@@ -78,14 +76,17 @@ var QUEUE_TYPE_FILTERS = [
   { value: "regular", label: "Regular" },
   { value: "transferee", label: "Transferee / Irregular" },
   { value: "freshman", label: "Incoming Freshman" },
-  { value: "guest", label: "Guest" }
+  { value: "guest", label: "Guest" },
+  { value: "enrollment", label: "Enrollment" }
 ];
 
 function ticketTypeOf(ticket) {
   return ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest" ? ticket.studentType : "regular";
 }
 
+// "enrollment" picks enrollment tickets of any student type.
 function ticketMatchesTypeFilter(ticket, filter) {
+  if (filter === "enrollment") return ticket.enrollment === true;
   return !filter || ticketTypeOf(ticket) === filter;
 }
 
@@ -111,7 +112,7 @@ function escapeAdminText(value) {
     .replace(/'/g, "&#039;");
 }
 
-// Dates on the dashboard are Philippine queue days (UTC+8), whatever timezone the staff computer is set to.
+// Dates on the dashboard and in Reports are Philippine queue days (UTC+8), whatever timezone the staff computer is set to.
 function getAdminToday() {
   return queueDayKey(Date.now());
 }
@@ -131,59 +132,9 @@ function getTicketDate(ticket) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getAdminFilters() {
-  var startInput = document.getElementById("trafficStartDate");
-  var endInput = document.getElementById("trafficEndDate");
-  var today = getAdminToday();
-  var startValue = startInput && startInput.value ? startInput.value : today;
-  var endValue = endInput && endInput.value ? endInput.value : startValue;
-  var start = getAdminDate(startValue, false);
-  var end = getAdminDate(endValue, true);
-
-  if (!start || !end || start > end) {
-    startValue = today;
-    endValue = today;
-    start = getAdminDate(today, false);
-    end = getAdminDate(today, true);
-  }
-
-  return { startValue: startValue, endValue: endValue, start: start, end: end };
-}
-
-function getFilteredTickets(filters) {
-  return (tickets || []).filter(function (ticket) {
-    var createdAt = getTicketDate(ticket);
-    return createdAt && createdAt >= filters.start && createdAt <= filters.end && canViewStationData(ticket.stationId);
-  });
-}
-
 function getStationName(stationId) {
   var station = (stations || []).find(function (item) { return item.id === stationId; });
   return station ? station.name : stationId || "Unknown";
-}
-
-function getTrafficData(filteredTickets) {
-  var traffic = (stations || []).filter(function (station) {
-    return canViewStationData(station.id);
-  }).map(function (station) {
-    return { id: station.id, name: station.name, value: 0 };
-  });
-
-  filteredTickets.forEach(function (ticket) {
-    var item = traffic.find(function (station) { return station.id === ticket.stationId; });
-    if (!item) {
-      item = { id: ticket.stationId || "unknown", name: getStationName(ticket.stationId), value: 0 };
-      traffic.push(item);
-    }
-    item.value += 1;
-  });
-
-  return traffic;
-}
-
-function formatAdminTime(ticket) {
-  var date = getTicketDate(ticket);
-  return date ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "-";
 }
 
 function formatAdminStatus(status) {
@@ -191,81 +142,20 @@ function formatAdminStatus(status) {
   return (status || "waiting").replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
 }
 
-function selectTrafficStation(stationId) {
-  adminTrafficStation = stationId;
-  updateAdmin();
+// Phones and tablets (up to 1180px): the sidebar is a drawer opened from the menu button in the top bar.
+function openAdminNav() {
+  var shell = document.querySelector("#pageAdmin .admin-shell");
+  if (shell) shell.classList.add("nav-open");
 }
 
-function updateAdmin() {
-  if (typeof backfillStationCodes === "function") backfillStationCodes();
-
-  var area = document.getElementById("adminArea");
-  if (!area) return;
-
-  var filters = getAdminFilters();
-  var filteredTickets = getFilteredTickets(filters);
-  var traffic = getTrafficData(filteredTickets);
-  var maxTraffic = Math.max.apply(null, traffic.map(function (item) { return item.value; }).concat([1]));
-  var visibleTickets = adminTrafficStation === "all" ? filteredTickets : filteredTickets.filter(function (ticket) {
-    return ticket.stationId === adminTrafficStation;
-  });
-  var dateLabel = filters.startValue === filters.endValue ? filters.startValue : filters.startValue + " to " + filters.endValue;
-
-  var stats = [
-    { label: "Total Queued", value: filteredTickets.length, change: dateLabel, tone: "amber", icon: "↗" },
-    { label: "Completed", value: filteredTickets.filter(function (ticket) { return ticket.status === "completed"; }).length, change: dateLabel, tone: "blue", icon: "↗" },
-    { label: "Waiting", value: filteredTickets.filter(function (ticket) { return ticket.status === "waiting"; }).length, change: dateLabel, tone: "green", icon: "↗" },
-    { label: "Cancelled", value: filteredTickets.filter(function (ticket) { return ticket.status === "cancelled"; }).length, change: dateLabel, tone: "navy", icon: "↗" }
-  ];
-
-  var cardsHtml = stats.map(function (item) {
-    return '<article class="stat-card ' + item.tone + '">' +
-      '<div class="stat-top"><span class="stat-label">' + item.label + '</span><span class="stat-icon">' + item.icon + '</span></div>' +
-      '<div class="stat-value">' + item.value + '</div>' +
-      '<div class="stat-meta"><span class="stat-dot"></span> ' + escapeAdminText(item.change) + '</div>' +
-    '</article>';
-  }).join("");
-
-  var trafficHtml = '<div class="traffic-filters">' +
-    '<label>From <input id="trafficStartDate" type="date" value="' + filters.startValue + '" onchange="updateAdmin()"></label>' +
-    '<label>To <input id="trafficEndDate" type="date" value="' + filters.endValue + '" onchange="updateAdmin()"></label>' +
-    '<button type="button" class="traffic-reset" onclick="selectTrafficStation(\'all\')">All stations</button>' +
-  '</div>' +
-  '<div class="chart-grid">' +
-    '<div class="chart-axis"><span>' + maxTraffic + '</span><span>' + Math.round(maxTraffic * 0.75) + '</span><span>' + Math.round(maxTraffic * 0.5) + '</span><span>' + Math.round(maxTraffic * 0.25) + '</span><span>0</span></div>' +
-    '<div class="chart-bars">' + traffic.map(function (item) {
-      var height = item.value ? Math.max(8, (item.value / maxTraffic) * 100) : 2;
-      var selected = adminTrafficStation === item.id ? " selected" : "";
-      return '<button type="button" class="chart-group' + selected + '" title="' + escapeAdminText(item.name + ': ' + item.value + ' transaction' + (item.value === 1 ? '' : 's')) + '" onclick="selectTrafficStation(\'' + escapeAdminText(item.id) + '\')">' +
-        '<span class="bar-fill" style="height:' + height + '%"></span><span class="bar-label">' + escapeAdminText(item.name) + '</span><span class="bar-value">' + item.value + '</span></button>';
-    }).join("") + '</div>' +
-  '</div>';
-
-  var rowsHtml = visibleTickets.slice().sort(function (first, second) {
-    var firstDate = getTicketDate(first) || 0;
-    var secondDate = getTicketDate(second) || 0;
-    return secondDate - firstDate;
-  }).map(function (ticket) {
-    var status = formatAdminStatus(ticket.status);
-    var statusClass = (ticket.status || "waiting").toLowerCase().replace(/\s+/g, '-');
-    return '<tr><td>' + escapeAdminText(ticket.ticketNo || "-") + '</td>' +
-      '<td>' + escapeAdminText(ticket.ownerName || "-") + '</td>' +
-      '<td>' + escapeAdminText(ticket.purpose || "-") + '</td>' +
-      '<td>' + escapeAdminText(getStationName(ticket.stationId)) + '</td>' +
-      '<td><span class="status-badge ' + statusClass + '">' + escapeAdminText(status) + '</span></td>' +
-      '<td>' + escapeAdminText(formatAdminTime(ticket)) + '</td></tr>';
-  }).join("");
-
-  if (!rowsHtml) rowsHtml = '<tr><td colspan="6" class="empty-row">No queue transactions found for this filter.</td></tr>';
-
-  var greeting = adminKind() === "enforcer" ? "Hello Enforcer" :
-    adminKind() === "station" ? "Hello " + getStationName(adminRole) + " Staff" : "Hello Admin";
-
-  area.innerHTML = '<div class="dashboard-header"><div class="header-greeting">' + escapeAdminText(greeting) + '</div>' + adminHeaderRightHtml() + '</div>' +
-    '<section class="stats-grid">' + cardsHtml + '</section>' +
-    '<section class="panel chart-panel"><div class="panel-header"><h2>Station Traffic Analysis</h2><span class="traffic-selection">' + escapeAdminText(adminTrafficStation === "all" ? "All stations" : getStationName(adminTrafficStation)) + '</span></div>' + trafficHtml + '</section>' +
-    '<section class="panel table-panel"><div class="panel-header table-header"><h2>Queue Transactions</h2><span class="traffic-selection">' + escapeAdminText(dateLabel) + '</span></div><div class="table-wrap"><table class="queue-table"><thead><tr><th>Queue No.</th><th>Student</th><th>Purpose</th><th>Station</th><th>Status</th><th>Time</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>';
+function closeAdminNav() {
+  var shell = document.querySelector("#pageAdmin .admin-shell");
+  if (shell) shell.classList.remove("nav-open");
 }
+
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape") closeAdminNav();
+});
 
 function toggleSidebar() {
   var shell = document.querySelector("#pageAdmin .admin-shell");
@@ -279,7 +169,6 @@ function toggleSidebar() {
 var ADMIN_SECTION_AREAS = {
   dashboard: "adminArea",
   queue: "adminQueueArea",
-  enrollment: "adminEnrollmentArea",
   enforcer: "adminEnforcerArea",
   notifications: "adminNotificationsArea",
   liveboard: "adminLiveBoardArea",
@@ -293,9 +182,9 @@ var ADMIN_SECTION_AREAS = {
 // Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
 // (their own station only); both can read the Rules but never open Settings.
 var ADMIN_ROLE_SECTIONS = {
-  admin: ["dashboard", "queue", "enrollment", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings"],
+  admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings"],
   enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules"],
-  station: ["dashboard", "queue", "enrollment", "notifications", "liveboard", "reports", "rules"]
+  station: ["dashboard", "queue", "notifications", "liveboard", "reports", "rules"]
 };
 
 // Where each kind of account lands after signing in.
@@ -303,15 +192,14 @@ var ADMIN_HOME_SECTION = { admin: "dashboard", enforcer: "enforcer", station: "q
 
 // Forget what the previous person had open (tabs, filters, drafts) so the next person on this browser starts clean.
 function resetAdminPageState() {
+  dashStation = "all";
   rulesActiveTab = "general";
   enforcerFilter = "";
   enforcerSelection = {};
   enforcerDraft = emptyEnforcerDraft("");
-  useQueueLane("regular");
   queueSelection = {};
   queueTypeFilter = "";
   resetQueueTransfer();
-  savedQueueState = {};
   enrollmentFlowDrafts = {};
   enrollmentSettingsType = "regular";
   settingsSelectedRole = "admin";
@@ -351,6 +239,7 @@ function applyAdminAccess() {
 
 function setAdminSection(section) {
   if (!canOpenSection(section)) section = ADMIN_HOME_SECTION[adminKind()];
+  closeAdminNav();
 
   Object.keys(ADMIN_SECTION_AREAS).forEach(function (key) {
     var area = document.getElementById(ADMIN_SECTION_AREAS[key]);
@@ -363,9 +252,7 @@ function setAdminSection(section) {
 
   if (typeof syncRoute === "function") syncRoute(false);
 
-  // Queue Management and Enrollment are the same page running a station's regular or enrollment line.
-  if (section === "queue" || section === "enrollment") {
-    useQueueLane(section === "enrollment" ? "enrollment" : "regular");
+  if (section === "queue") {
     renderQueueManagement();
     startAutoVoidWatcher();
     return;
@@ -390,7 +277,3 @@ function setAdminSection(section) {
     updateAdmin();
   }
 }
-
-window.addEventListener('DOMContentLoaded', function () {
-  updateAdmin();
-});

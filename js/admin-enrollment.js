@@ -1,6 +1,6 @@
-// The Enrollment page (#/admin/enrollment). It is the Queue Management page (js/admin-queue.js) running the
-// stations' enrollment lines: instead of End Transaction, the student being served is sent on to the next station
-// of their enrollment process ("Proceed to Next Station"), or finishes at the last one ("Complete Enrollment").
+// Enrollment tickets in Queue Management (js/admin-queue.js): while one is being served, End Transaction and Transfer
+// give way to sending the student on to the next station of their enrollment process ("Proceed to Next Station"),
+// or finishing at the last one ("Complete Enrollment").
 
 // "Step 2 of 3 · next: Assessment"
 function enrollmentStepText(ticket) {
@@ -35,15 +35,15 @@ function enrollmentProceedHtml(stationId, serving) {
 }
 
 function confirmProceed(stationId) {
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }), "enrollment");
-  if (!serving) return;
+  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  if (!serving || serving.enrollment !== true) return;
 
   var nextId = nextEnrollmentStationId(serving);
   var nextName = stationNameById(nextId);
 
   showConfirmModal(nextId ? {
     title: "Send " + serving.ticketNo + " to " + (nextName || "the next station") + "?",
-    message: serving.ownerName + " joins the back of " + (nextName || "the next station") + "'s enrollment line with a new number there. They are told where to go next.",
+    message: serving.ownerName + " joins the back of " + (nextName || "the next station") + "'s line with a new number there. They are told where to go next.",
     confirmLabel: "Proceed",
     tone: "primary",
     onConfirm: function () { return proceedEnrollmentTicket(stationId); }

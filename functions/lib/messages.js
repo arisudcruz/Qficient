@@ -41,11 +41,6 @@ module.exports = {
     body: "Ticket " + t.ticketNo + " at " + station + " is almost up. Please stay nearby."
   }),
 
-  manualCreated: (t, station, place) => ({
-    title: "Your ticket is " + t.ticketNo,
-    body: "You are in line at " + station + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + ". We'll text you when it's almost your turn. Please keep this message."
-  }),
-
   // History only (no push): the student joined, or their transaction finished.
   joined: (t, station, place) => ({
     title: "You're in line",
@@ -71,11 +66,6 @@ module.exports = {
   enrollmentCompleted: (t) => ({
     title: "Enrollment complete",
     body: "You've finished every enrollment step. Thank you!"
-  }),
-
-  enrollmentManualCreated: (t, station, place) => ({
-    title: "Your ticket is " + t.ticketNo,
-    body: "Your enrollment starts at " + station + (place > 0 ? " (" + ordinal(place) + " in line)" : "") + ". We'll text you at each step. Please keep this message."
   }),
 
   next: (t, station) => ({

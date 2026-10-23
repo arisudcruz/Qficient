@@ -66,19 +66,6 @@ function tvRowHtml(ticket, position) {
   return '<b>' + escapeHtml(ticket.ticketNo) + '</b><i>→</i><b>' + position + '</b>';
 }
 
-// Stations in the enrollment process also show their enrollment line (now serving and next) in a small box.
-function tvEnrollmentHtml(station) {
-  if (enrollmentStationIds().indexOf(station.id) === -1) return "";
-  var serving = servingTicketOf(station, "enrollment");
-  var next = waitingTicketsOf(station.id, "enrollment")[0];
-
-  return '<div class="tv-enroll" data-station="' + escapeHtml(station.id) + '::enrollment">' +
-      '<span class="tv-enroll-label">Enrollment</span>' +
-      '<span class="tv-enroll-now"><small>Now</small><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></span>' +
-      '<span class="tv-enroll-next"><small>Next</small><b>' + escapeHtml(next ? next.ticketNo : "—") + '</b></span>' +
-    '</div>';
-}
-
 function tvColumnHtml(station) {
   var serving = servingTicketOf(station);
   var line = waitingTicketsOf(station.id);
@@ -90,7 +77,6 @@ function tvColumnHtml(station) {
     '<div class="tv-col-tab">' + escapeHtml(station.name) + '</div>' +
     '<div class="tv-col-body">' +
       '<div class="tv-now" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
-      tvEnrollmentHtml(station) +
       '<p class="tv-label">Next in Line</p>' +
       (next ? '<div class="tv-row tv-next">' + tvRowHtml(next, 1) + '</div>' : '<p class="tv-none">No one is waiting.</p>') +
       (waiting.length ?
@@ -113,7 +99,6 @@ function tvMiniHtml(station) {
       '<div class="tv-now-mini" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
       '<div class="tv-mini-next"><span>Next in Line</span><b>' + escapeHtml(next ? next.ticketNo : "—") + (next ? '<small>↑</small>' : '') + '</b></div>' +
     '</div>' +
-    tvEnrollmentHtml(station) +
   '</div>';
 }
 
@@ -146,18 +131,15 @@ function renderTvBoard() {
         (sidePages > 1 ? '<div class="tv-side-pages">' + (tvSidePage + 1) + ' / ' + sidePages + '</div>' : '') +
       '</aside>' : '');
 
-  // Flash a station's "Now Serving" (either line) when it calls a new number.
+  // Flash a station's "Now Serving" when it calls a new number.
   list.forEach(function (station) {
-    ["regular", "enrollment"].forEach(function (lane) {
-      var key = station.id + (lane === "enrollment" ? "::enrollment" : "");
-      var serving = servingTicketOf(station, lane);
-      var number = serving ? serving.ticketNo : "";
-      if (tvLastServing[key] !== undefined && tvLastServing[key] !== number && number) {
-        var box = board.querySelector('[data-station="' + key.replace(/"/g, "") + '"]');
-        if (box) box.classList.add("tv-flash");
-      }
-      tvLastServing[key] = number;
-    });
+    var serving = servingTicketOf(station);
+    var number = serving ? serving.ticketNo : "";
+    if (tvLastServing[station.id] !== undefined && tvLastServing[station.id] !== number && number) {
+      var box = board.querySelector('[data-station="' + station.id.replace(/"/g, "") + '"]');
+      if (box) box.classList.add("tv-flash");
+    }
+    tvLastServing[station.id] = number;
   });
 
   ensureTvSideRotation(sidePages > 1);

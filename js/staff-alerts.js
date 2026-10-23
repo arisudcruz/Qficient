@@ -86,7 +86,7 @@ function checkStaffAlerts() {
 
   tickets.forEach(function (ticket) {
     if (!isTodayTicket(ticket)) return;
-    now[ticket.id] = { status: ticket.status, stationId: ticket.stationId, lane: ticketLane(ticket) };
+    now[ticket.id] = { status: ticket.status, stationId: ticket.stationId };
     if (!known || !staffWatchesStation(ticket.stationId)) return;
 
     var before = known[ticket.id];
@@ -95,10 +95,8 @@ function checkStaffAlerts() {
 
     if (arrived && !mine) {
       // Was anyone already waiting there before this update?
-      // (Each line counts on its own: a station's regular line and its enrollment line.)
       var othersWaiting = Object.keys(known).some(function (id) {
-        return id !== ticket.id && known[id].status === "waiting" && known[id].stationId === ticket.stationId &&
-          known[id].lane === ticketLane(ticket);
+        return id !== ticket.id && known[id].status === "waiting" && known[id].stationId === ticket.stationId;
       });
       if (othersWaiting) heard.arrival = true;
       else heard.firstInLine = true;

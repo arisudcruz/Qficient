@@ -67,10 +67,10 @@ service cloud.firestore {
     }
 
     // ---------- Stations ----------
-    // Public to read (students pick a station). Only admins manage them. Console staff creating a ticket
-    // by hand or transferring one may bump the ticket counter by exactly one, or restart it at 1 for the
-    // first ticket of a new day (Philippine time, UTC+8). Students never write here: the joinQueue
-    // function does it for them.
+    // Public to read (students pick a station). Only admins manage them. Station staff transferring a ticket
+    // (or sending an enrollment student on) may bump the ticket counter by exactly one, or restart it at 1 for
+    // the first ticket of a new day (Philippine time, UTC+8). Students and walk-ins never write here: the
+    // joinQueue and redeemWalkinPass functions do it for them.
 
     function today() {
       let t = request.time + duration.value(8, 'h');
@@ -91,20 +91,16 @@ service cloud.firestore {
         resource.data.get('countDay', '') != today();
     }
 
-    // The station's staff may move a "now serving" pointer, but only onto a ticket of that same station and line:
-    // nowServingId for the regular line, enrollmentServingId for the enrollment line.
-    function pointsAtLineTicket(stationId, field, enrollment) {
-      let id = request.resource.data[field];
+    // The station's staff may move its "now serving" pointer, but only onto a ticket of that same station
+    // (regular or enrollment: they share one line).
+    function pointsAtStationTicket(stationId) {
+      let id = request.resource.data.nowServingId;
       return id == null ||
-        (id is string &&
-         get(/databases/$(database)/documents/tickets/$(id)).data.stationId == stationId &&
-         get(/databases/$(database)/documents/tickets/$(id)).data.get('enrollment', false) == enrollment);
+        (id is string && get(/databases/$(database)/documents/tickets/$(id)).data.stationId == stationId);
     }
 
     function isStationStaffPointer(stationId) {
-      return isStationStaffOf(stationId) &&
-        ((changedKeys().hasOnly(['nowServingId']) && pointsAtLineTicket(stationId, 'nowServingId', false)) ||
-         (changedKeys().hasOnly(['enrollmentServingId']) && pointsAtLineTicket(stationId, 'enrollmentServingId', true)));
+      return isStationStaffOf(stationId) && changedKeys().hasOnly(['nowServingId']) && pointsAtStationTicket(stationId);
     }
 
     match /stations/{stationId} {
@@ -112,7 +108,7 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin() ||
         isStationStaffPointer(stationId) ||
-        (hasConsoleAccess() && (isCounterBump() || isDailyCounterReset()));
+        (isStationStaff() && (isCounterBump() || isDailyCounterReset()));
     }
 
     // ---------- System settings ----------
@@ -146,51 +142,12 @@ service cloud.firestore {
 
     // ---------- Tickets ----------
     // Readable by any signed-in user (the live board and queue counts need all
-    // tickets). Anyone signed in may create their own waiting ticket at an
-    // active station and cancel it until staff start serving it. Everything
-    // else is admin-only.
+    // tickets). Students and walk-ins get theirs from the Cloud Functions (joinQueue,
+    // redeemWalkinPass) and may cancel it until staff start serving it.
 
     function stationIsOpen(stationId) {
       let path = /databases/$(database)/documents/stations/$(stationId);
       return exists(path) && get(path).data.get('active', true) != false;
-    }
-
-    function isEnforcerNewTicket() {
-      let d = request.resource.data;
-      return isEnforcer() &&
-        d.keys().hasOnly(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentNumber', 'studentType',
-                          'purpose', 'status', 'verified', 'createdAt', 'manual', 'createdBy',
-                          'enrollment', 'enrollmentFlow', 'enrollmentStep']) &&
-        d.keys().hasAll(['ticketNo', 'stationId', 'ownerId', 'ownerName', 'studentType', 'purpose',
-                         'status', 'verified', 'createdAt', 'manual', 'createdBy']) &&
-        d.manual == true &&
-        d.createdBy == userEmail() &&
-        d.ownerId is string && d.ownerId.matches('manual:.+') &&
-        d.status == 'waiting' &&
-        d.verified == false &&
-        d.createdAt == request.time &&
-        d.studentType in ['regular', 'transferee', 'freshman', 'guest'] &&
-        d.studentNumber == '' &&
-        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
-        d.stationId is string &&
-        d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
-        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
-        stationIsOpen(d.stationId) &&
-        isValidNewEnrollment(d);
-    }
-
-    // An enrollment ticket starts at the first station of its student type's process, with a copy of that process.
-    // A regular ticket carries none of the enrollment fields.
-    function isValidNewEnrollment(d) {
-      return !('enrollment' in d) ?
-        !('enrollmentFlow' in d) && !('enrollmentStep' in d) :
-        d.enrollment == true &&
-        d.enrollmentStep == 0 &&
-        d.purpose == 'Enrollment' &&
-        d.studentType in ['regular', 'transferee', 'freshman'] &&
-        d.enrollmentFlow is list && d.enrollmentFlow.size() > 0 &&
-        d.enrollmentFlow == get(/databases/$(database)/documents/settings/enrollment).data.flows[d.studentType] &&
-        d.stationId == d.enrollmentFlow[0];
     }
 
     // The only changes an enforcer may make to an existing ticket, and only while it is still waiting
@@ -303,8 +260,9 @@ service cloud.firestore {
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      // Students and guests join through the joinQueue Cloud Function, which creates their ticket on the server.
-      allow create: if isAdmin() || isEnforcerNewTicket();
+      // Students join through the joinQueue Cloud Function and walk-ins through redeemWalkinPass, which create
+      // the ticket on the server.
+      allow create: if isAdmin();
       allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
         isStationStaffEnrollmentStep() || (signedIn() && isOwnerCancelling());
       allow delete: if false;
@@ -390,22 +348,43 @@ service cloud.firestore {
         request.resource.data.token.size() <= 4096;
     }
 
-    // ---------- Contact details for manually created tickets ----------
-    // Queue Enforcer keeps the walk-in's mobile number (and optional email) here, not on the ticket that every
-    // signed-in user can read. Written once by an admin or enforcer, never changed,
-    // and readable by admins only.
+    // ---------- Walk-in QR passes ----------
+    // The Queue Enforcer (or an admin) fills in a walk-in's details and shows a one-time QR code. Only the SHA-256
+    // of the code's secret is stored. The walk-in's phone redeems it through the redeemWalkinPass Cloud Function,
+    // which creates the ticket; nobody changes or deletes a pass from the browser. The creator watches it to see
+    // when it has been scanned.
 
-    match /ticketContacts/{ticketId} {
-      allow read: if isAdmin();
-      allow create: if (isAdmin() || isEnforcer()) &&
-        request.resource.data.keys().hasOnly(['mobile', 'email', 'createdBy', 'createdAt']) &&
-        request.resource.data.mobile is string &&
-        request.resource.data.mobile.matches('^[+]639[0-9]{9}$') &&
-        (!('email' in request.resource.data) ||
-          (request.resource.data.email is string &&
-           request.resource.data.email.size() >= 3 && request.resource.data.email.size() <= 254)) &&
-        request.resource.data.createdAt == request.time;
-      allow update, delete: if false;
+    function isWalkinPassEnrollment(d) {
+      return !('enrollment' in d) ?
+        !('enrollmentFlow' in d) :
+        d.enrollment == true &&
+        d.purpose == 'Enrollment' &&
+        d.studentType in ['regular', 'transferee', 'freshman'] &&
+        d.enrollmentFlow is list && d.enrollmentFlow.size() > 0 &&
+        d.enrollmentFlow == get(/databases/$(database)/documents/settings/enrollment).data.flows[d.studentType] &&
+        d.stationId == d.enrollmentFlow[0];
+    }
+
+    function isNewWalkinPass() {
+      let d = request.resource.data;
+      return (isAdmin() || isEnforcer()) &&
+        d.keys().hasOnly(['ownerName', 'studentType', 'stationId', 'purpose', 'enrollment', 'enrollmentFlow',
+                          'secretHash', 'createdBy', 'createdAt']) &&
+        d.keys().hasAll(['ownerName', 'studentType', 'stationId', 'purpose', 'secretHash', 'createdBy', 'createdAt']) &&
+        d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
+        d.studentType in ['regular', 'transferee', 'freshman', 'guest'] &&
+        d.stationId is string && stationIsOpen(d.stationId) &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        d.secretHash is string && d.secretHash.matches('^[0-9a-f]{64}$') &&
+        d.createdBy == userEmail() &&
+        d.createdAt == request.time &&
+        isWalkinPassEnrollment(d);
+    }
+
+    match /walkinPasses/{passId} {
+      allow get: if isAdmin() || (isEnforcer() && resource.data.createdBy == userEmail());
+      allow create: if isNewWalkinPass();
+      allow list, update, delete: if false;
     }
 
     // ---------- Student notification history ----------

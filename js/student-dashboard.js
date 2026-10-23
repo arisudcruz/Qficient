@@ -218,11 +218,10 @@ function joinPurposesFor(stationId) {
   return station && Array.isArray(station.purposes) && station.purposes.length ? station.purposes : queueMgmtPurposes;
 }
 
-// A station's waiting line: the regular one unless "enrollment" is asked for.
-function waitingTicketsOf(stationId, lane) {
-  lane = lane || "regular";
+// A station's waiting line, in queue order.
+function waitingTicketsOf(stationId) {
   return tickets.filter(function (item) {
-    return item.stationId === stationId && item.status === "waiting" && ticketLane(item) === lane && isTodayTicket(item);
+    return item.stationId === stationId && item.status === "waiting" && isTodayTicket(item);
   }).sort(compareQueueOrder);
 }
 
@@ -264,8 +263,8 @@ function toggleThemeFromMenu() {
 function logoutFromMenu() {
   closeUserMenu();
 
-  // An old guest session with a live ticket has its own warning (its ticket is cancelled on logout).
-  if (user && user.type === "guest" && myTicket()) {
+  // A walk-in with a live ticket has its own warning (their ticket is cancelled when they leave).
+  if (user && user.type === "walkin" && myTicket()) {
     studentLogout();
     return;
   }
@@ -398,6 +397,7 @@ function startEnrollment() {
 }
 
 function backToStations() {
+  if (user && user.type === "walkin") return viewMyTicket(); // a walk-in only follows their own ticket
   dashBrowsing = !!(user && myTicket());
   dashView = "stations";
   dashStationId = "";
@@ -490,13 +490,8 @@ function boardNowText() {
   }
 }
 
-var BOARD_ENROLLMENT_SUFFIX = "::enrollment";
-var boardLane = "regular";
-
 function setBoardStation(value) {
-  var enrollment = value.slice(-BOARD_ENROLLMENT_SUFFIX.length) === BOARD_ENROLLMENT_SUFFIX;
-  boardStationId = enrollment ? value.slice(0, -BOARD_ENROLLMENT_SUFFIX.length) : value;
-  boardLane = enrollment ? "enrollment" : "regular";
+  boardStationId = value;
   boardPage = 0;
   renderLiveBoard();
 }
@@ -517,21 +512,13 @@ function renderLiveBoard() {
   var open = boardStations();
   var mine = user ? myTicket() : null;
 
-  if (!open.some(function (station) { return station.id === boardStationId; }) || (boardLane === "enrollment" && enrollmentStationIds().indexOf(boardStationId) === -1)) {
+  if (!open.some(function (station) { return station.id === boardStationId; })) {
     var preferred = mine && open.some(function (station) { return station.id === mine.stationId; }) ? mine.stationId : "";
     boardStationId = preferred || (open[0] ? open[0].id : "");
-    boardLane = preferred ? ticketLane(mine) : "regular";
     boardPage = 0;
   }
 
-  // Each station, and (for stations in the enrollment process) its enrollment line.
-  var boardChoices = [];
-  open.forEach(function (station) {
-    boardChoices.push({ value: station.id, label: station.name });
-    if (enrollmentStationIds().indexOf(station.id) !== -1) {
-      boardChoices.push({ value: station.id + BOARD_ENROLLMENT_SUFFIX, label: station.name + " · Enrollment" });
-    }
-  });
+  var boardChoices = open.map(function (station) { return { value: station.id, label: station.name }; });
 
   // The header (with the station dropdown) is built once so a live update never closes an open dropdown.
   var shellKey = boardChoices.map(function (c) { return c.value + ":" + c.label; }).join("|");
@@ -552,8 +539,7 @@ function renderLiveBoard() {
   }
 
   var select = document.getElementById("udBoardStation");
-  var chosen = boardStationId + (boardLane === "enrollment" ? BOARD_ENROLLMENT_SUFFIX : "");
-  if (select && select.value !== chosen) select.value = chosen;
+  if (select && select.value !== boardStationId) select.value = boardStationId;
 
   var firstName = user && user.name ? friendlyName(user.name).split(" ")[0] : "";
   setText("udGreeting", "Good Day, " + (firstName || "User"));
@@ -565,10 +551,10 @@ function renderLiveBoard() {
     return;
   }
 
-  var serving = servingTicketOf(station, boardLane);
-  var line = waitingTicketsOf(station.id, boardLane);
+  var serving = servingTicketOf(station);
+  var line = waitingTicketsOf(station.id);
   var served = tickets.filter(function (item) {
-    return item.stationId === station.id && ticketLane(item) === boardLane && item.status === "completed" && isTodayTicket(item);
+    return item.stationId === station.id && item.status === "completed" && isTodayTicket(item);
   }).length;
 
   var pages = Math.max(1, Math.ceil(line.length / BOARD_PAGE_SIZE));
@@ -609,7 +595,7 @@ function renderLiveBoard() {
 
 function renderHeader() {
   var name = user ? friendlyName(user.name) : "";
-  var meta = user ? (user.studentNumber || (user.type === "guest" ? "Guest" : "")) : "";
+  var meta = user ? (user.studentNumber || (user.type === "walkin" ? "Walk-in" : "")) : "";
   var typeLabel = user && user.type === "student" ? (STUDENT_TYPE_LABELS[user.studentType] || "") : "";
 
   setText("dashAvatar", user ? getInitials(user.name) : "?");
@@ -626,6 +612,9 @@ function renderHeader() {
 
   var themeBtn = document.getElementById("udMenuTheme");
   if (themeBtn) themeBtn.textContent = document.body.classList.contains("dark") ? "Light mode" : "Dark mode";
+
+  var logoutBtn = document.getElementById("udMenuLogout");
+  if (logoutBtn) logoutBtn.textContent = user && user.type === "walkin" ? "End visit" : "Log out";
 }
 
 // The wide Enrollment card above the stations: how many are enrolling and the latest enrollment number called.
@@ -777,9 +766,9 @@ function renderTicketCard(ticket) {
       '<p class="ud-ticket-alert" id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + escapeHtml(ticketCountdownText(skip.phase, skip.remainingMs)) + '</p>';
   }
 
-  var lane = ticketLane(ticket);
-  var servingTicket = servingTicketOf(ticketStation, lane);
-  var place = waitingTicketsOf(ticket.stationId, lane).findIndex(function (item) { return item.id === ticket.id; });
+  var enrolling = ticket.enrollment === true;
+  var servingTicket = servingTicketOf(ticketStation);
+  var place = waitingTicketsOf(ticket.stationId).findIndex(function (item) { return item.id === ticket.id; });
 
   var posBig;
   var posLabel;
@@ -800,20 +789,20 @@ function renderTicketCard(ticket) {
   if (notice) {
     notice.hidden = !!skip;
     notice.textContent = ticket.status === "serving" ?
-      (lane === "enrollment" ? "It's your turn! Your enrollment is now being processed at " + (ticketStation ? ticketStation.name : "the counter") + "." : "It's your turn. Please proceed to the counter.") :
-      (lane === "enrollment" ?
+      (enrolling ? "It's your turn! Your enrollment is now being processed at " + (ticketStation ? ticketStation.name : "the counter") + "." : "It's your turn. Please proceed to the counter.") :
+      (enrolling ?
         "Please go to " + (ticketStation ? ticketStation.name : "the next station") + " and wait for your number." + (place >= 0 ? " You're " + ordinalWord(place + 1) + " in line." : "") :
         "Queue joined. We'll let you know when it's your turn.");
   }
 
   // The enrollment ticket follows its own design: "ENROLLMENT" over the number, a yellow "Now Serving" badge,
   // and no position boxes (the banner above says where they stand).
-  if (lane === "enrollment" && ticket.status === "serving") statusClass = "ud-status";
+  if (enrolling && ticket.status === "serving") statusClass = "ud-status";
 
   document.getElementById("ticketArea").innerHTML =
     '<div class="ud-ticket' + (typeLabel ? ' ticket-type-' + ticket.studentType : '') + '">' +
       '<div class="ud-ticket-head">' +
-        '<p class="ud-ticket-station">' + escapeHtml(lane === "enrollment" ? "Enrollment" : (ticketStation ? ticketStation.name : "")) + '</p>' +
+        '<p class="ud-ticket-station">' + escapeHtml(enrolling ? "Enrollment" : (ticketStation ? ticketStation.name : "")) + '</p>' +
         '<p class="ud-ticket-no">' + escapeHtml(ticket.ticketNo) + '</p>' +
       '</div>' +
       alertHtml +
@@ -828,7 +817,7 @@ function renderTicketCard(ticket) {
         '<div><span>Purpose</span><b>' + escapeHtml(ticket.purpose || "—") + '</b></div>' +
         (typeLabel ? '<div><span>Student Type</span><b>' + escapeHtml(typeLabel) + '</b></div>' : '') +
       '</div>' +
-      (lane === "enrollment" ? '' :
+      (enrolling ? '' :
       '<div class="ud-ticket-pos">' +
         '<div class="ud-pos-box"><b>' + escapeHtml(posBig) + '</b><span>' + escapeHtml(posLabel) + '</span></div>' +
         '<div class="ud-pos-box"><b>' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</b><span>Now serving</span></div>' +
@@ -882,6 +871,14 @@ function renderDashboard() {
   if (ticket) {
     checkTicketAlerts(ticket);
     watchTicketEvents(ticket);
+  } else if (user.type === "walkin") {
+    // A walk-in's access lasts as long as their ticket (js/walkin.js); they never browse the stations.
+    endWalkinVisitIfOver();
+    hero.hidden = true;
+    stationsHost.innerHTML = "";
+    stationView.hidden = true;
+    if (back) back.hidden = true;
+    return;
   } else {
     ticketEnded();
   }
@@ -917,7 +914,7 @@ function renderDashboard() {
   hero.hidden = inStation;
   stationsHost.hidden = inStation;
   stationView.hidden = !inStation;
-  if (back) back.hidden = !inStation || currentDashboardTab() !== "queue";
+  if (back) back.hidden = !inStation || currentDashboardTab() !== "queue" || user.type === "walkin";
 
   if (!inStation) {
     ensureSkipCountdownWatcher(false);

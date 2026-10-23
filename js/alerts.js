@@ -65,7 +65,7 @@ function ordinalWord(n) {
 
 function placeInLine(ticket) {
   if (ticket.status !== "waiting") return 0;
-  return waitingTicketsOf(ticket.stationId, ticketLane(ticket)).findIndex(function (item) { return item.id === ticket.id; }) + 1;
+  return waitingTicketsOf(ticket.stationId).findIndex(function (item) { return item.id === ticket.id; }) + 1;
 }
 
 function stationNameOf(stationId) {
@@ -78,7 +78,7 @@ function watchTicketEvents(ticket) {
   var place = placeInLine(ticket);
   var stationName = stationNameOf(ticket.stationId);
   var station = stations.find(function (s) { return s.id === ticket.stationId; });
-  var someoneServed = !!servingTicketOf(station, ticketLane(ticket));
+  var someoneServed = !!servingTicketOf(station);
 
   // First look at this ticket (just joined, or the page was reopened): note where it stands, without alerts.
   if (!ticketWatch || ticketWatch.id !== ticket.id) {
