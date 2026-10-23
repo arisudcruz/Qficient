@@ -52,7 +52,7 @@ db.collection("settings").doc("enrollment").onSnapshot(function (doc) {
 var ticketsUnsubscribe = null;
 var ticketsLoaded = false; // true once the first list of tickets has arrived
 
-// Students, guests and enforcers only ever use today's tickets, so that is all they download. Admins keep
+// Students, walk-ins and enforcers only ever use today's tickets, so that is all they download. Admins keep
 // a longer window for the dashboard, analytics and the notification inbox.
 var ADMIN_HISTORY_DAYS = 60;
 var ticketsScopeDays = 1;

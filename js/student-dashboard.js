@@ -263,8 +263,8 @@ function toggleThemeFromMenu() {
 function logoutFromMenu() {
   closeUserMenu();
 
-  // An old guest session with a live ticket has its own warning (its ticket is cancelled on logout).
-  if (user && user.type === "guest" && myTicket()) {
+  // A walk-in with a live ticket has its own warning (their ticket is cancelled when they leave).
+  if (user && user.type === "walkin" && myTicket()) {
     studentLogout();
     return;
   }
@@ -397,6 +397,7 @@ function startEnrollment() {
 }
 
 function backToStations() {
+  if (user && user.type === "walkin") return viewMyTicket(); // a walk-in only follows their own ticket
   dashBrowsing = !!(user && myTicket());
   dashView = "stations";
   dashStationId = "";
@@ -594,7 +595,7 @@ function renderLiveBoard() {
 
 function renderHeader() {
   var name = user ? friendlyName(user.name) : "";
-  var meta = user ? (user.studentNumber || (user.type === "guest" ? "Guest" : "")) : "";
+  var meta = user ? (user.studentNumber || (user.type === "walkin" ? "Walk-in" : "")) : "";
   var typeLabel = user && user.type === "student" ? (STUDENT_TYPE_LABELS[user.studentType] || "") : "";
 
   setText("dashAvatar", user ? getInitials(user.name) : "?");
@@ -611,6 +612,9 @@ function renderHeader() {
 
   var themeBtn = document.getElementById("udMenuTheme");
   if (themeBtn) themeBtn.textContent = document.body.classList.contains("dark") ? "Light mode" : "Dark mode";
+
+  var logoutBtn = document.getElementById("udMenuLogout");
+  if (logoutBtn) logoutBtn.textContent = user && user.type === "walkin" ? "End visit" : "Log out";
 }
 
 // The wide Enrollment card above the stations: how many are enrolling and the latest enrollment number called.
@@ -867,6 +871,14 @@ function renderDashboard() {
   if (ticket) {
     checkTicketAlerts(ticket);
     watchTicketEvents(ticket);
+  } else if (user.type === "walkin") {
+    // A walk-in's access lasts as long as their ticket (js/walkin.js); they never browse the stations.
+    endWalkinVisitIfOver();
+    hero.hidden = true;
+    stationsHost.innerHTML = "";
+    stationView.hidden = true;
+    if (back) back.hidden = true;
+    return;
   } else {
     ticketEnded();
   }
@@ -902,7 +914,7 @@ function renderDashboard() {
   hero.hidden = inStation;
   stationsHost.hidden = inStation;
   stationView.hidden = !inStation;
-  if (back) back.hidden = !inStation || currentDashboardTab() !== "queue";
+  if (back) back.hidden = !inStation || currentDashboardTab() !== "queue" || user.type === "walkin";
 
   if (!inStation) {
     ensureSkipCountdownWatcher(false);

@@ -11,6 +11,7 @@ var appScripts = [
   "js/notif-dropdown.js",
   "js/navigation.js",
   "js/auth.js",
+  "js/walkin.js",
   "js/queue.js",
   "js/student-dashboard.js",
   "js/alerts.js",

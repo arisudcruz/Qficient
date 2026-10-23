@@ -1,4 +1,5 @@
-// Queue Enforcer: staff create a ticket for someone who can't do it on their own device.
+// Queue Enforcer: staff fill in a walk-in's details and show a one-time QR code. The walk-in scans it with their
+// phone, which gets the ticket and follows it in the app until it's done (js/walkin.js, functions/lib/walkin.js).
 var ENFORCER_TYPES = ["regular", "transferee", "freshman", "guest"];
 
 // Kept here so the form survives switching sections and the list refreshing underneath it.
@@ -23,12 +24,8 @@ function enforcerFormNeedsFlows() {
   return !!area && area.style.display !== "none" && !!document.getElementById("enforcerStation");
 }
 
-var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "", mobile: "", email: "" };
+var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "" };
 var enforcerFilter = "";
-
-// Whether walk-ins really get text messages. Off while functions/config.js has sms.provider "log" (test mode);
-// set to true together with a real SMS provider, so the form tells staff the ticket is texted.
-var WALKIN_SMS_ENABLED = true;
 var enforcerTypeFilter = ""; // "" = all student types
 
 function setEnforcerTypeFilter(value) {
@@ -38,24 +35,7 @@ function setEnforcerTypeFilter(value) {
 }
 
 function emptyEnforcerDraft(stationId) {
-  return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "", mobile: "", email: "" };
-}
-
-// A Philippine mobile number in any common form (0917 123 4567, 917-123-4567, +63 917 123 4567) becomes
-// +639171234567. Anything else gives "".
-function normalizePhMobile(value) {
-  var digits = String(value || "").replace(/[\s\-().]/g, "");
-  if (/^\+639\d{9}$/.test(digits)) return digits;
-  if (/^639\d{9}$/.test(digits)) return "+" + digits;
-  if (/^09\d{9}$/.test(digits)) return "+63" + digits.slice(1);
-  if (/^9\d{9}$/.test(digits)) return "+63" + digits;
-  return "";
-}
-
-// +639171234567 -> 0917 123 4567, for showing back to staff.
-function formatPhMobile(mobile) {
-  var local = String(mobile).replace(/^\+63/, "0");
-  return local.slice(0, 4) + " " + local.slice(4, 7) + " " + local.slice(7);
+  return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "" };
 }
 
 function getEnforcerStations() {
@@ -148,56 +128,201 @@ function enforcerFormProblem() {
   }
   if (!d.purpose) return "Please select the purpose.";
   if (d.purpose === ENFORCER_OTHER_PURPOSE && !/[\p{L}\p{N}]/u.test(d.purposeOther)) return "Please specify the purpose.";
-
-  if (!d.mobile.trim()) return WALKIN_SMS_ENABLED ? "Please enter the mobile number. The ticket number and alerts are sent there by SMS." : "Please enter the mobile number.";
-  if (!normalizePhMobile(d.mobile)) return "Please enter a valid Philippine mobile number, like 0917 123 4567.";
-
-  // Email is optional, but if it's filled in it has to be a real address.
-  if (!d.email.trim()) return "";
-  var emailProblem = guestEmailProblem(d.email.trim());
-  return emailProblem ? emailProblem.replace("Enter", "Please enter") : "";
+  return "";
 }
 
-function confirmCreateManualTicket() {
+/* ---------- Walk-in QR pass ---------- */
+
+var WALKIN_PASS_MINUTES = 10; // keep in step with walkinPassMinutes in functions/config.js
+var QR_LIB = { src: "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js", integrity: "sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1" };
+
+// The pass on screen: { passId, details, createdMs, unsubscribe, timer }.
+var walkinPassView = null;
+
+function loadQrLib() {
+  if (typeof qrcode === "function") return Promise.resolve();
+  return new Promise(function (resolve, reject) {
+    var script = document.createElement("script");
+    script.src = QR_LIB.src;
+    script.integrity = QR_LIB.integrity;
+    script.crossOrigin = "anonymous";
+    script.onload = resolve;
+    script.onerror = function () { script.remove(); reject(new Error("the QR code tool could not be downloaded. Check the connection.")); };
+    document.head.appendChild(script);
+  });
+}
+
+// 16 random bytes as URL-safe text: the part of the QR code that only the walk-in's phone ever sees.
+function randomPassSecret() {
+  var bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function sha256Hex(text) {
+  return crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)).then(function (buffer) {
+    return Array.prototype.map.call(new Uint8Array(buffer), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+  });
+}
+
+// Saves the pass (only the secret's hash is stored) and gives back what goes into the QR code.
+function createWalkinPass(details) {
+  if (adminRole !== "admin" && adminRole !== "enforcer") {
+    say("Only an administrator or a Queue Enforcer can make walk-in tickets.");
+    return Promise.resolve(null);
+  }
+
+  var secret = randomPassSecret();
+  var ref = db.collection("walkinPasses").doc();
+
+  return sha256Hex(secret).then(function (hash) {
+    var pass = {
+      ownerName: details.ownerName,
+      studentType: details.studentType,
+      stationId: details.stationId,
+      purpose: details.purpose,
+      secretHash: hash,
+      createdBy: staffKey(adminUser.email),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (details.enrollmentFlow) {
+      pass.enrollment = true;
+      pass.enrollmentFlow = details.enrollmentFlow;
+    }
+    return ref.set(pass);
+  }).then(function () {
+    var base = window.location.origin + window.location.pathname;
+    return { passId: ref.id, url: base + "#/pass/" + ref.id + "." + secret };
+  }).catch(function (err) {
+    say("Could not make the QR code: " + err.message);
+    return null;
+  });
+}
+
+// What the form describes, ready for a pass.
+function enforcerPassDetails() {
+  var d = enforcerDraft;
+  var enrolling = enforcerIsEnrollment();
+  var flow = enrolling ? enrollmentFlowFor(d.studentType).slice() : null;
+  return {
+    ownerName: d.firstName.trim().replace(/\s+/g, " ") + " " + d.lastName.trim().replace(/\s+/g, " "),
+    studentType: d.studentType,
+    stationId: enrolling ? flow[0] : d.stationId,
+    purpose: enrolling ? ENROLLMENT_PURPOSE : enforcerFinalPurpose(),
+    enrollmentFlow: flow
+  };
+}
+
+function generateWalkinQr() {
   var problem = enforcerFormProblem();
   if (problem) {
     say(problem);
     return;
   }
 
-  var d = enforcerDraft;
-  var enrolling = enforcerIsEnrollment();
-  var stationId = enrolling ? enrollmentFlowFor(d.studentType)[0] : d.stationId;
-  var station = stations.find(function (s) { return s.id === stationId; });
-  var name = d.firstName.trim().replace(/\s+/g, " ") + " " + d.lastName.trim().replace(/\s+/g, " ");
-  var where = enrolling ?
-    "It starts their enrollment at " + (station ? station.name : "the first station") + " and" :
-    "It joins the " + (station ? station.name : "") + " queue and";
+  var details = enforcerPassDetails();
+  var button = document.getElementById("enforcerGenerateBtn");
+  setButtonLoading(button, true);
 
-  showConfirmModal({
-    title: "Create Ticket?",
-    message: "The queue entry for " + name + " is ready to be created. " + where + " gets the next queue number" + (WALKIN_SMS_ENABLED ? ", which is texted to " + formatPhMobile(normalizePhMobile(d.mobile)) : "") + ".",
-    confirmLabel: "Create Ticket",
-    tone: "danger",
-    onConfirm: function () {
-      return createManualTicket({
-        firstName: d.firstName.trim().replace(/\s+/g, " "),
-        lastName: d.lastName.trim().replace(/\s+/g, " "),
-        studentType: d.studentType,
-        stationId: d.stationId,
-        enrollment: enrolling,
-        purpose: enforcerFinalPurpose(),
-        mobile: normalizePhMobile(d.mobile),
-        email: d.email.trim()
-      }).then(function (result) {
-        if (!result) return;
-
-        enforcerDraft = emptyEnforcerDraft(enforcerFilter);
-        renderEnforcer();
-        sayDone("Ticket " + result.ticketNo + " created for " + name + " at " + result.stationName + "." + (WALKIN_SMS_ENABLED ? " It is being texted to " + formatPhMobile(normalizePhMobile(d.mobile)) + "." : ""));
-      });
-    }
+  showWalkinPass(details).then(function () {
+    setButtonLoading(button, false);
   });
+}
+
+function showWalkinPass(details) {
+  stopWalkinPassView();
+
+  return Promise.all([loadQrLib(), createWalkinPass(details)]).then(function (results) {
+    var made = results[1];
+    if (!made) return;
+
+    var qr = qrcode(0, "M");
+    qr.addData(made.url);
+    qr.make();
+
+    var station = stations.find(function (s) { return s.id === details.stationId; });
+    var where = details.enrollmentFlow ?
+      "Enrollment · starts at " + (station ? station.name : "the first station") :
+      (station ? station.name : "") + " · " + details.purpose;
+
+    showFormModal("Scan to get the ticket",
+      '<div class="walkin-qr">' +
+        '<div class="walkin-qr-code" aria-label="QR code for the walk-in ticket">' + qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div>' +
+        '<p class="walkin-qr-name">' + escapeAdminText(details.ownerName) + '</p>' +
+        '<p class="walkin-qr-meta">' + escapeAdminText(where) + '</p>' +
+        '<p class="walkin-qr-status" id="walkinQrStatus" role="status">Waiting for scan…</p>' +
+        '<p class="modal-help">Ask the walk-in to scan this with their phone camera. The ticket opens on their phone and they are alerted when it\'s their turn. The code works once and expires in ' + WALKIN_PASS_MINUTES + ' minutes.</p>' +
+        '<div class="settings-actions walkin-qr-actions">' +
+          '<button type="button" class="settings-btn settings-btn-blue" id="walkinQrNew" hidden onclick="renewWalkinPass()">New code</button>' +
+          '<button type="button" class="settings-btn settings-btn-primary" onclick="closeFormModal()">Close</button>' +
+        '</div>' +
+      '</div>');
+
+    walkinPassView = { passId: made.passId, details: details, createdMs: Date.now(), unsubscribe: null, timer: null };
+    var view = walkinPassView;
+
+    view.unsubscribe = db.collection("walkinPasses").doc(made.passId).onSnapshot(function (doc) {
+      var data = doc.exists ? doc.data() : null;
+      if (!data || !data.usedAt || walkinPassView !== view) return;
+      walkinPassScanned(data);
+    }, function (err) {
+      console.error("Could not follow the walk-in pass: " + err.message);
+    });
+
+    view.timer = setInterval(tickWalkinPass, 1000);
+    tickWalkinPass();
+  });
+}
+
+function renewWalkinPass() {
+  if (!walkinPassView) return;
+  showWalkinPass(walkinPassView.details);
+}
+
+function stopWalkinPassView() {
+  if (!walkinPassView) return;
+  if (walkinPassView.unsubscribe) walkinPassView.unsubscribe();
+  clearInterval(walkinPassView.timer);
+  walkinPassView = null;
+}
+
+function tickWalkinPass() {
+  var status = document.getElementById("walkinQrStatus");
+  // The dialog was closed: stop following the pass.
+  if (!status) {
+    stopWalkinPassView();
+    return;
+  }
+  if (status.classList.contains("is-done")) return;
+
+  var remaining = WALKIN_PASS_MINUTES * 60 * 1000 - (Date.now() - walkinPassView.createdMs);
+  if (remaining > 0) {
+    status.textContent = "Waiting for scan… expires in " + formatCountdown(remaining);
+    return;
+  }
+
+  status.textContent = "This code has expired. Make a new one if they still need a ticket.";
+  status.classList.add("is-expired");
+  document.querySelector(".walkin-qr-code").classList.add("is-expired");
+  var renew = document.getElementById("walkinQrNew");
+  if (renew) renew.hidden = false;
+  if (walkinPassView.unsubscribe) walkinPassView.unsubscribe();
+  clearInterval(walkinPassView.timer);
+}
+
+function walkinPassScanned(pass) {
+  var status = document.getElementById("walkinQrStatus");
+  if (status) {
+    status.textContent = "✓ Ticket " + pass.ticketNo + " is on their phone.";
+    status.classList.add("is-done");
+  }
+  var code = document.querySelector(".walkin-qr-code");
+  if (code) code.classList.add("is-used");
+  clearInterval(walkinPassView.timer);
+  if (walkinPassView.unsubscribe) walkinPassView.unsubscribe();
+
+  enforcerDraft = emptyEnforcerDraft(enforcerFilter);
+  renderEnforcer();
 }
 
 function enforcerStatusClass(status) {
@@ -236,11 +361,11 @@ function getSelectedEnforcerTickets() {
   });
 }
 
-// Small tags next to the name: who created it (manual), the student type when not Regular, and priority.
+// Small tags next to the name: a walk-in (made with a QR code), the student type when not Regular, and priority.
 function enforcerTagsHtml(ticket) {
   var tags = "";
 
-  if (ticket.manual === true) tags += ' <span class="type-tag manual-tag">Manual</span>';
+  if (ticket.manual === true) tags += ' <span class="type-tag manual-tag">Walk-in</span>';
   if (ticket.enrollment === true) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
@@ -364,7 +489,7 @@ function confirmEnforcerAction(kind) {
   } else if (kind === "recall") {
     options = {
       title: "Recall " + noun + "?",
-      message: "Students using the app are notified to go to the counter. Walk-ins have no device registered, so they are not alerted.",
+      message: "They are notified on their phone to go to the counter (walk-ins too, on the phone that scanned their QR code).",
       confirmLabel: "Recall",
       tone: "primary",
       run: function () { return recallTickets(ids); }
@@ -438,28 +563,26 @@ function renderEnforcer() {
     '</div>' +
 
     '<div class="enforcer-title-row">' +
-      '<h2 class="settings-title">Create Manual Queue Ticket</h2>' +
+      '<h2 class="settings-title">Walk-in Ticket</h2>' +
       '<select class="enforcer-station-select" aria-label="Station" onchange="onEnforcerFilter(this.value)">' + stationOptions("All Stations", enforcerFilter) + '</select>' +
     '</div>' +
 
     '<div class="enforcer-layout">' +
       '<div class="enforcer-main">' +
         '<section class="panel settings-panel enforcer-panel">' +
-          '<div class="panel-header"><h2>Manual Queue Form</h2></div>' +
-          '<p class="settings-help">Manually create a queue entry for students who are unable to create one through their device due to technical issues or system problems. The manually created queue entry is added to the active queue and assigned a queue number by the system.</p>' +
+          '<div class="panel-header"><h2>Walk-in Form</h2></div>' +
+          '<p class="settings-help">For walk-ins who can\'t get a ticket on their own. Fill in their details and press Generate QR: they scan it with their phone camera, and the ticket (with its queue number) opens on their phone until their visit is done.</p>' +
           '<div class="enforcer-form-grid">' +
             '<div class="enforcer-field"><label for="enforcerFirstName">First Name*</label><input type="text" id="enforcerFirstName" placeholder="First Name" maxlength="50" value="' + escapeAdminText(d.firstName) + '" oninput="onEnforcerInput(\'firstName\', this.value)"></div>' +
             '<div class="enforcer-field"><label for="enforcerLastName">Last Name*</label><input type="text" id="enforcerLastName" placeholder="Last Name" maxlength="50" value="' + escapeAdminText(d.lastName) + '" oninput="onEnforcerInput(\'lastName\', this.value)"></div>' +
             '<div class="enforcer-field"><label for="enforcerType">Student Type*</label><select id="enforcerType" onchange="onEnforcerInput(\'studentType\', this.value)">' + typeOptions + '</select></div>' +
             '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId).replace(/^(<option value="">[^<]*<\/option>)/, "$1" + enforcerEnrollmentOptionHtml()) + '</select></div>' +
             '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId && !enforcerIsEnrollment() ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
-            '<div class="enforcer-field"><label for="enforcerMobile">Mobile Number*</label><input type="tel" id="enforcerMobile" inputmode="tel" autocomplete="off" placeholder="e.g. 0917 123 4567" maxlength="20" value="' + escapeAdminText(d.mobile) + '" oninput="onEnforcerInput(\'mobile\', this.value)"></div>' +
-            '<div class="enforcer-field enforcer-span-2"><label for="enforcerEmail">Email (optional)</label><input type="email" id="enforcerEmail" placeholder="e.g. kimfrane@gmail.com" maxlength="254" value="' + escapeAdminText(d.email) + '" oninput="onEnforcerInput(\'email\', this.value)"></div>' +
             '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +
           '</div>' +
           '<div class="settings-actions enforcer-form-actions">' +
             '<button type="button" class="settings-btn settings-btn-blue enforcer-clear" onclick="clearEnforcerForm()">Clear All</button>' +
-            '<button type="button" class="settings-btn settings-btn-primary" onclick="confirmCreateManualTicket()">Create Ticket</button>' +
+            '<button type="button" class="settings-btn settings-btn-primary" id="enforcerGenerateBtn" onclick="generateWalkinQr()">Generate QR</button>' +
           '</div>' +
         '</section>' +
 

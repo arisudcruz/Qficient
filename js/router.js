@@ -2,13 +2,14 @@
 //
 //   #/                         home
 //   #/login                    home with the Microsoft Sign In card open
-//   #/dashboard                student/guest station list
+//   #/dashboard                student station list (a walk-in only sees their ticket)
 //   #/dashboard/board          live board
 //   #/dashboard/notifications  the student's notification history
 //   #/dashboard/<station id>   a station's join page (or your ticket)
 //   #/admin                    admin sign-in
 //   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, liveboard, rules, settings
 //   #/tv                       full-screen Live Board for a TV (needs a staff sign-in)
+//   #/pass/<id>.<secret>       a walk-in's QR code from the Queue Enforcer (js/walkin.js); never kept in the address
 //
 // The screen is still switched by goTo(); this file only keeps the hash in step with it (syncRoute) and
 // turns a hash back into a screen (applyRoute).
@@ -160,7 +161,9 @@ function applyRoute(isFirstLoad) {
   clearPendingRoute();
 
   withRouteLock(function () {
-    if (route.name === "dashboard") {
+    if (route.name === "pass") {
+      redeemWalkinLink(route.sub);
+    } else if (route.name === "dashboard") {
       if (signedStudent) {
         goTo("pageDashboard");
         applyDashboardSub(route.sub);

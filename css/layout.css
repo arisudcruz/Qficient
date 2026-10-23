@@ -2683,3 +2683,72 @@ body.dark .nd-all { background: #263B5C; color: #E6EDF8; }
 body.dark .nd-all:hover { background: #2E4770; }
 body.dark .ud-bell.bell-open,
 body.dark .admin-bell.bell-open { background: #1D3A66; color: #9CC8FA; }
+
+/* ---------- Walk-in QR pass (Queue Enforcer) ---------- */
+
+.walkin-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.walkin-qr-code {
+  width: min(260px, 70vw);
+  padding: 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  background: #fff;
+  transition: opacity 0.2s ease;
+}
+
+.walkin-qr-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.walkin-qr-code.is-expired,
+.walkin-qr-code.is-used {
+  opacity: 0.18;
+}
+
+.walkin-qr-name {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.walkin-qr-meta {
+  margin: 0;
+  color: #64748B;
+  font-size: 0.85rem;
+}
+
+.walkin-qr-status {
+  margin: 8px 0 2px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #EAF1FF;
+  color: #0054A6;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.walkin-qr-status.is-done { background: #DCFCE7; color: #15803D; }
+.walkin-qr-status.is-expired { background: #FEF3C7; color: #B45309; }
+
+.walkin-qr .modal-help { max-width: 340px; }
+
+.walkin-qr-actions {
+  justify-content: center;
+  margin-top: 6px;
+}
+
+body.dark .walkin-qr-code { border-color: #263B5C; }
+body.dark .walkin-qr-meta { color: #94A5C2; }
+body.dark .walkin-qr-status { background: #1D3A66; color: #9CC8FA; }
+body.dark .walkin-qr-status.is-done { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
+body.dark .walkin-qr-status.is-expired { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }

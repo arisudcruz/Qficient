@@ -62,6 +62,34 @@ function wait(ms) {
   return Math.ceil(ms / 1000) + " second" + (Math.ceil(ms / 1000) === 1 ? "" : "s");
 }
 
+// The station's daily cap counts tickets that are still in play today. Shared with walk-in passes (walkin.js).
+async function stationCapReached(db, stationId, dayStart) {
+  const stationPeek = await db.collection("stations").doc(stationId).get();
+  if (!stationPeek.exists) throw new JoinError("not-found", "That station doesn't exist.");
+  const maxQueue = Number(stationPeek.data().maxQueue) || 0;
+  if (maxQueue <= 0) return false;
+
+  const used = await db.collection("tickets")
+    .where("stationId", "==", stationId)
+    .where("status", "in", COUNTED_STATUSES)
+    .where("createdAt", ">=", new Date(dayStart))
+    .count().get();
+  return used.data().count >= maxQueue;
+}
+
+// Takes the station's next ticket number inside a transaction (numbers restart at 001 on a new day).
+async function nextTicketNo(db, tx, stationRef, stationId, station, today) {
+  const newDay = station.countDay !== today;
+  const count = newDay ? 1 : (Number(station.count) || 0) + 1;
+  let code = station.code;
+  if (!code) {
+    const all = await db.collection("stations").get();
+    code = assignStationCodes(all.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }))[stationId];
+  }
+  tx.update(stationRef, newDay ? { count: count, countDay: today } : { count: count });
+  return formatTicketNo(code || ticketPrefix(station.name) + "1", count);
+}
+
 async function joinQueue(deps, auth, data) {
   const { db, FieldValue, config } = deps;
   const now = deps.now ? deps.now() : Date.now();
@@ -72,16 +100,18 @@ async function joinQueue(deps, auth, data) {
   const token = auth.token || {};
   const provider = token.firebase && token.firebase.sign_in_provider;
   if (provider === "password") {
-    throw new JoinError("permission-denied", "Staff accounts can't join the queue. Use a student or guest account.");
+    throw new JoinError("permission-denied", "Staff accounts can't join the queue. Use a student account.");
+  }
+  // Walk-ins (anonymous sign-in) get their ticket only through a Queue Enforcer's QR code (walkin.js).
+  if (provider === "anonymous") {
+    throw new JoinError("permission-denied", "Walk-ins get their ticket from the Queue Enforcer. Please ask them for a QR code.");
   }
 
-  const guest = provider === "anonymous";
   const enrolling = input.enrollment === true;
   let stationId = typeof input.stationId === "string" ? input.stationId.trim() : "";
   let purpose = cleanText(input.purpose, 200);
 
   if (enrolling) {
-    if (guest) throw new JoinError("failed-precondition", "Enrollment is for students. Please sign in with your school account.");
     // The station and purpose come from the enrollment process, not from the request.
     stationId = "pending";
     purpose = ENROLLMENT_PURPOSE;
@@ -90,22 +120,13 @@ async function joinQueue(deps, auth, data) {
   if (!stationId || stationId.length > 100 || stationId.indexOf("/") !== -1) throw new JoinError("invalid-argument", "Please choose a station.");
   if (!/[\p{L}\p{N}]/u.test(purpose)) throw new JoinError("invalid-argument", "Please enter your purpose before joining.");
 
-  let ownerName;
-  let studentNumber = "";
-  let studentType = "guest";
+  const ownerName = cleanText(token.name || token.email, 120);
+  if (!ownerName) throw new JoinError("failed-precondition", "Your account has no name. Please sign in again.");
+  const studentNumber = studentNumberFromEmail(token.email);
 
-  if (guest) {
-    ownerName = cleanText(input.guestName, 120);
-    if (!/\p{L}/u.test(ownerName)) throw new JoinError("invalid-argument", "Your name is missing. Please start the guest form again.");
-  } else {
-    ownerName = cleanText(token.name || token.email, 120);
-    if (!ownerName) throw new JoinError("failed-precondition", "Your account has no name. Please sign in again.");
-    studentNumber = studentNumberFromEmail(token.email);
-
-    const profile = await db.collection("students").doc(auth.uid).get();
-    const saved = profile.exists ? profile.data().studentType : "";
-    studentType = saved === "regular" || saved === "transferee" ? saved : "";
-  }
+  const profile = await db.collection("students").doc(auth.uid).get();
+  const saved = profile.exists ? profile.data().studentType : "";
+  const studentType = saved === "regular" || saved === "transferee" ? saved : "";
 
   // An enrollment starts at the first station of the student type's process, and the ticket keeps a copy of that
   // process so later changes in Enrollment Settings don't move students who are already enrolling.
@@ -127,21 +148,8 @@ async function joinQueue(deps, auth, data) {
   const today = dayKey(config.tzOffsetMs, now);
   const dayStart = startOfTodayMs(config.tzOffsetMs, now);
 
-  // The station's daily cap counts tickets that are still in play today.
-  const stationPeek = await stationRef.get();
-  if (!stationPeek.exists) throw new JoinError("not-found", "That station doesn't exist.");
-  const maxQueue = Number(stationPeek.data().maxQueue) || 0;
-
-  if (maxQueue > 0) {
-    const used = await db.collection("tickets")
-      .where("stationId", "==", stationId)
-      .where("status", "in", COUNTED_STATUSES)
-      .where("createdAt", ">=", new Date(dayStart))
-      .count().get();
-
-    if (used.data().count >= maxQueue) {
-      throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please try again tomorrow.");
-    }
+  if (await stationCapReached(db, stationId, dayStart)) {
+    throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please try again tomorrow.");
   }
 
   return db.runTransaction(async function (tx) {
@@ -179,15 +187,7 @@ async function joinQueue(deps, auth, data) {
       throw new JoinError("resource-exhausted", "You've reached today's limit of " + config.maxJoinsPerDay + " tickets. Please see the front desk.");
     }
 
-    // Ticket numbers restart at 001 on the first join of each day.
-    const newDay = station.countDay !== today;
-    const count = newDay ? 1 : (Number(station.count) || 0) + 1;
-    let code = station.code;
-    if (!code) {
-      const all = await db.collection("stations").get();
-      code = assignStationCodes(all.docs.map(function (doc) { return Object.assign({ id: doc.id }, doc.data()); }))[stationId];
-    }
-    const ticketNo = formatTicketNo(code || ticketPrefix(station.name) + "1", count);
+    const ticketNo = await nextTicketNo(db, tx, stationRef, stationId, station, today);
 
     const ticketRef = db.collection("tickets").doc();
     const ticket = {
@@ -207,7 +207,6 @@ async function joinQueue(deps, auth, data) {
       ticket.enrollmentFlow = enrollmentFlow;
       ticket.enrollmentStep = 0;
     }
-    tx.update(stationRef, newDay ? { count: count, countDay: today } : { count: count });
     tx.set(ticketRef, ticket);
     tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: joinsToday + 1 });
 
@@ -215,4 +214,4 @@ async function joinQueue(deps, auth, data) {
   });
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, nextTicketNo };

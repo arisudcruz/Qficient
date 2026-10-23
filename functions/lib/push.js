@@ -1,7 +1,6 @@
 const messages = require("./messages");
 const { compareQueueOrder } = require("./events");
 const { startOfTodayMs } = require("./time");
-const { smsText } = require("./sms");
 
 function isDeadTokenError(err) {
   const code = err && err.code;
@@ -10,7 +9,7 @@ function isDeadTokenError(err) {
 
 // Sends pushes and keeps them from going out twice. In the emulator nothing is really sent: each push is written
 // to a `testPushLog` collection so tests can check it.
-function createPusher({ db, FieldValue, Timestamp, messaging, config, log, forceReal, sms }) {
+function createPusher({ db, FieldValue, Timestamp, messaging, config, log, forceReal }) {
   const isEmulator = !forceReal && (process.env.FUNCTIONS_EMULATOR === "true" || !!process.env.FIRESTORE_EMULATOR_HOST);
   const writeLog = log || function () {};
 
@@ -56,26 +55,11 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     }
   }
 
-  // A walk-in ticket (made by the Queue Enforcer) is told by SMS, at the number kept in ticketContacts.
-  async function notifyBySms(ticketId, message, tag) {
-    if (!sms) return false;
-    try {
-      const contact = await db.collection("ticketContacts").doc(ticketId).get();
-      const mobile = contact.exists ? contact.data().mobile : null;
-      if (!mobile) return false;
-
-      await sms.send(mobile, smsText(message), tag);
-      return true;
-    } catch (err) {
-      writeLog("sms failed for ticket " + ticketId + ": " + (err && err.message ? err.message : err));
-      return false;
-    }
-  }
-
   // Keeps a copy in the student's notification history (the Notifications tab on their dashboard), whether or not
   // their device can receive pushes. `type` is the kind of event: serving, soon, next, joined, completed...
   async function recordNotification(ticket, message, type) {
-    if (!ticket || ticket.manual || !ticket.ownerId) return false;
+    // Old walk-in tickets from before QR passes ("manual:<id>") have no one to show it to.
+    if (!ticket || !ticket.ownerId || String(ticket.ownerId).indexOf("manual:") === 0) return false;
     try {
       await db.collection("userNotifications").add({
         ownerId: ticket.ownerId,
@@ -95,9 +79,8 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
     }
   }
 
-  // Tells a ticket's owner: push to their device, or SMS for a walk-in ticket.
+  // Tells a ticket's owner (a student, or a walk-in's phone): history plus a push to their device.
   async function notifyTicket(ticket, message, tag) {
-    if (ticket && ticket.manual) return notifyBySms(ticket.id, message, tag);
     await recordNotification(ticket, message, String(tag || "").split(":")[1] || "update");
     return notifyUser(ticket && ticket.ownerId, message, tag);
   }

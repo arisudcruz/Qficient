@@ -45,7 +45,7 @@ async function historyOf(owner) {
 const hasHistory = (owner, type) => async () => (await historyOf(owner)).some((h) => h.type === type);
 
 async function wipe() {
-  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts", "userNotifications"]) {
+  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts", "walkinPasses", "userNotifications"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -155,21 +155,14 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("tickets").doc("t2").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
   check("removed by staff: owner is told", await until(hasPush("t2:void")) && /removed by staff/.test((await pushesFor("t2:void"))[0].body));
 
-  // A walk-in ticket made by the Queue Enforcer gets text messages instead of pushes.
-  const smsFor = async (tag) => (await db.collection("smsLog").where("tag", "==", tag).get()).docs.map((d) => d.data());
-  await db.collection("ticketContacts").doc("w1").set({ mobile: "+639171234567", createdBy: "enf@x.com", createdAt: FieldValue.serverTimestamp() });
-  await ticket("w1", "RE-002", "manual:w1", "registrar", { manual: true, createdBy: "enf@x.com", studentType: "guest" });
-  check("walk-in: the ticket number is texted to their mobile", await until(async () => (await smsFor("w1:created")).length === 1));
-  const created = (await smsFor("w1:created"))[0];
-  check("walk-in: the text goes to the saved number", created && created.to === "+639171234567", created && created.to);
-  check("walk-in: the text names the ticket and the station", created && /RE-002/.test(created.text) && /Registrar/.test(created.text) && /^QFicient: /.test(created.text), created && created.text);
-  check("walk-in: the text uses plain characters only", created && /^[\x20-\x7E]*$/.test(created.text), created && created.text);
+  // A walk-in who scanned the Queue Enforcer's QR code: their phone owns the ticket, so they get pushes and history.
+  await db.collection("deviceTokens").doc("walk1").set({ token: "tok-walk1" });
+  await ticket("w1", "RE-002", "walk1", "registrar", { manual: true, createdBy: "enf@x.com", studentType: "guest" });
+  check("walk-in: the joined entry is in their history", await until(hasHistory("walk1", "joined")));
   await db.collection("tickets").doc("w1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
-  check("walk-in: 'your turn' is texted", await until(async () => (await smsFor("w1:serving")).length === 1));
-  check("walk-in: no push was attempted for the walk-in", (await pushesFor("w1:serving")).length === 0);
+  check("walk-in: 'your turn' is pushed to their phone", await until(hasPush("w1:serving")));
   await db.collection("tickets").doc("w1").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
-  check("walk-in: removal is texted", await until(async () => (await smsFor("w1:void")).length === 1));
-  check("history: walk-in tickets have no app history", (await historyOf("manual:w1")).length === 0);
+  check("walk-in: removal is pushed", await until(hasPush("w1:void")));
 
   // Enrollment: enrollment tickets wait in the station's one line with everyone else, and are told about each next step.
   await db.collection("stations").doc("evaluation").set({ name: "Evaluation", count: 0, nowServingId: null, active: true });
@@ -252,7 +245,14 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("userNotifications").doc("recentHistory").set({ ownerId: "u1", type: "serving", createdAt: ts(2 * 24 * 3600 * 1000) });
   await ticket("oldE", "EV-900", "ghost", "evaluation", Object.assign({}, enrollFields, { status: "serving", createdAt: ts(2 * 24 * 3600 * 1000 + 5000) }));
   await db.collection("stations").doc("evaluation").update({ enrollmentServingId: "oldE" });
+  await db.collection("walkinPasses").doc("oldPass").set({ ownerName: "x", createdAt: ts(2 * 24 * 3600 * 1000) });
+  await db.collection("walkinPasses").doc("todayPass").set({ ownerName: "x", createdAt: FieldValue.serverTimestamp() });
+  await db.collection("ticketContacts").doc("oldContact").set({ mobile: "+639171234567" });
+  await db.collection("smsLog").doc("oldText").set({ to: "+639171234567", text: "x" });
   const cleaned = await cleanStale({ db, FieldValue, Timestamp, config });
+  check("cleanup: walk-in passes from earlier days are deleted", !(await db.collection("walkinPasses").doc("oldPass").get()).exists);
+  check("cleanup: today's walk-in passes are kept", (await db.collection("walkinPasses").doc("todayPass").get()).exists);
+  check("cleanup: old SMS walk-in numbers and the SMS log are deleted", !(await db.collection("ticketContacts").doc("oldContact").get()).exists && !(await db.collection("smsLog").doc("oldText").get()).exists);
   const o1 = (await db.collection("tickets").doc("old1").get()).data();
   const o3 = (await db.collection("tickets").doc("old3").get()).data();
   check("cleanup: leftovers from earlier days are voided", cleaned === 3 && o1.status === "void" && o1.staleCleanup === true, String(cleaned));

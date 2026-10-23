@@ -106,6 +106,18 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
     await batch.commit();
   }
 
+  // Walk-in QR passes only matter on the day they were made. The old SMS walk-in records (mobile numbers in
+  // ticketContacts, the smsLog test log) are no longer used and are personal data, so they go too.
+  const oldPasses = await db.collection("walkinPasses").where("createdAt", "<", Timestamp.fromMillis(todayStart)).get();
+  const leftovers = oldPasses.docs
+    .concat((await db.collection("ticketContacts").get()).docs)
+    .concat((await db.collection("smsLog").get()).docs);
+  for (let i = 0; i < leftovers.length; i += 400) {
+    const batch = db.batch();
+    leftovers.slice(i, i + 400).forEach(function (doc) { batch.delete(doc.ref); });
+    await batch.commit();
+  }
+
   return stale.length;
 }
 

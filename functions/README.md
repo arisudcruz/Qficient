@@ -1,14 +1,14 @@
 # QFicient Cloud Functions
 
-These run on Firebase (Google's servers), so no school PC has to stay on. They do four jobs:
+These run on Firebase (Google's servers), so no school PC has to stay on. They do five jobs:
 
 | Function | When it runs | What it does |
 |---|---|---|
 | `onTicketWritten` | Every time a ticket is created or changed | Sends the student a push: **your turn**, **recall**, **skipped**, **last call**, **transferred**, **voided/removed**, and **you're next in line**. |
 | `sweepExpiredTickets` | Every minute | Voids skipped tickets whose last call has run out (using your Auto-Void minutes setting) and records a heartbeat so the admin console can warn if it stops. |
-| `dailyCleanup` | 12:05 AM Philippine time | Voids leftover tickets from earlier days and frees stations still pointing at them. |
-| *(SMS)* | Inside `onTicketWritten` | Walk-in tickets made by the Queue Enforcer get **text messages** instead of push alerts: their ticket number when it's made, then the same alerts students get. Test mode (`sms.provider: "log"` in `config.js`) only saves them in the `smsLog` collection. To send real SMS through Semaphore: set `sms.provider` to `"semaphore"`, run `firebase functions:secrets:set SMS_API_KEY` and paste your Semaphore API key, then deploy the functions. (Then set `WALKIN_SMS_ENABLED` to `true` in `js/admin-enforcer.js` so the walk-in form says the ticket is texted.) |
-| `joinQueue` | When a student or guest taps Generate Ticket | Creates their ticket on the server: one live ticket per person, a 3-second gap between joins, a 20-second pause after cancelling, 10 tickets per account per day, and the station's daily cap. Limits live in `config.js`. |
+| `dailyCleanup` | 12:05 AM Philippine time | Voids leftover tickets from earlier days, frees stations still pointing at them, and deletes old walk-in passes. |
+| `joinQueue` | When a student taps Generate Ticket | Creates their ticket on the server: one live ticket per person, a 3-second gap between joins, a 20-second pause after cancelling, 10 tickets per account per day, and the station's daily cap. Limits live in `config.js`. |
+| `redeemWalkinPass` | When a walk-in scans the Queue Enforcer's QR code | Checks the one-time pass (`walkinPasses`, valid for `walkinPassMinutes`) and creates the walk-in's ticket, owned by their phone's temporary (anonymous) sign-in, so they get the same alerts as students. Needs **Anonymous** sign-in turned on (Firebase console → Authentication → Sign-in method). |
 
 Tickets are voided up to about a minute after their last call expires (the admin page still voids them to the second while Queue Management is open).
 

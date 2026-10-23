@@ -264,8 +264,7 @@ function joinQueue(stationId, purpose, options) {
   return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("joinQueue")({
     stationId: stationId,
     purpose: purpose,
-    enrollment: !!options.enrollment,
-    guestName: user.type === "guest" ? user.name : ""
+    enrollment: !!options.enrollment
   }).then(function (response) {
     var result = response.data || {};
     // Hold the lock briefly so the new ticket reaches the snapshot before another join is allowed.
@@ -609,83 +608,6 @@ function transferServingTicket(sourceStationId, destStationId, purpose) {
     return result;
   }).catch(function (err) {
     say("Could not transfer ticket: " + err.message);
-    return null;
-  });
-}
-
-// Staff create a ticket for someone who can't do it on their own device (Queue Enforcer).
-// The contact email is kept in an admin-only collection, not on the ticket that every signed-in user can read.
-function createManualTicket(details) {
-  if (adminRole !== "admin" && adminRole !== "enforcer") {
-    say("Only an administrator or a Queue Enforcer can create manual tickets.");
-    return Promise.resolve(null);
-  }
-
-  // An enrollment walk-in starts at the first station of their student type's process.
-  var flow = details.enrollment ? enrollmentFlowFor(details.studentType).slice() : null;
-  if (details.enrollment && !flow.length) {
-    say("Enrollment isn't set up for " + (STUDENT_TYPE_LABELS[details.studentType] || "this student type") + " students yet.");
-    return Promise.resolve(null);
-  }
-
-  var stationId = flow ? flow[0] : details.stationId;
-  var station = stations.find(function (s) { return s.id === stationId; });
-
-  if (!station || station.active === false) {
-    say((flow && station ? station.name + ", the first enrollment station," : "That station") + " is currently unavailable.");
-    return Promise.resolve(null);
-  }
-  if (station.maxQueue > 0 && countStationTicketsToday(station.id) >= station.maxQueue) {
-    say("This station has reached its daily queue limit.");
-    return Promise.resolve(null);
-  }
-
-  var stationRef = db.collection("stations").doc(station.id);
-  var ticketRef = db.collection("tickets").doc();
-  var contactRef = db.collection("ticketContacts").doc(ticketRef.id);
-  var createdBy = adminUser ? staffKey(adminUser.email) : "";
-
-  return db.runTransaction(function (transaction) {
-    return transaction.get(stationRef).then(function (doc) {
-      var data = doc.data();
-      if (!data || data.active === false) throw new Error("That station is currently unavailable.");
-
-      var today = queueDayKey(Date.now());
-      var isNewDay = data.countDay !== today;
-      var newCount = isNewDay ? 1 : (data.count || 0) + 1;
-      var ticketNo = formatTicketNo(data.code || stationCodeOf(station.id), newCount);
-      var now = firebase.firestore.FieldValue.serverTimestamp();
-
-      transaction.update(stationRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
-      var ticket = {
-        ticketNo: ticketNo,
-        stationId: station.id,
-        ownerId: "manual:" + ticketRef.id,
-        ownerName: details.firstName + " " + details.lastName,
-        studentNumber: "",
-        studentType: details.studentType,
-        purpose: flow ? ENROLLMENT_PURPOSE : details.purpose,
-        status: "waiting",
-        verified: false,
-        createdAt: now,
-        manual: true,
-        createdBy: createdBy
-      };
-      if (flow) {
-        ticket.enrollment = true;
-        ticket.enrollmentFlow = flow;
-        ticket.enrollmentStep = 0;
-      }
-      transaction.set(ticketRef, ticket);
-      // The mobile number receives the ticket and its alerts by SMS; it stays in this admin-only record.
-      var contact = { mobile: details.mobile, createdBy: createdBy, createdAt: now };
-      if (details.email) contact.email = details.email;
-      transaction.set(contactRef, contact);
-
-      return { ticketNo: ticketNo, stationName: data.name };
-    });
-  }).catch(function (err) {
-    say("Could not create the ticket: " + err.message);
     return null;
   });
 }

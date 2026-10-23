@@ -62,19 +62,14 @@ async function station(id, extra) {
   r = await attempt(student("s1"), { stationId: "registrar", purpose: "x1" });
   check("a second ticket is refused while one is waiting", !r.ok && r.code === "failed-precondition" && /already/.test(r.message), JSON.stringify(r));
 
-  // Tickets ending frees the person; guests; rate limits.
+  // Tickets ending frees the person; walk-in phones; rate limits.
   await db.collection("tickets").doc((await db.collection("tickets").where("ownerId", "==", "s1").get()).docs[0].id).update({ status: "completed" });
   advance(10000);
   r = await attempt(student("s1"), { stationId: "cashier", purpose: "Another request" });
   check("after the ticket is completed they can join again", r.ok && r.result.ticketNo === "CA1-002", JSON.stringify(r));
 
   r = await attempt(guest("g1"), { stationId: "cashier", purpose: "Admission", guestName: "Maria Clara" });
-  check("a guest can join and gets the guest type", r.ok, JSON.stringify(r));
-  t = (await db.collection("tickets").doc(r.result.ticketId).get()).data();
-  check("guest ticket uses the supplied name and has no student number", t.ownerName === "Maria Clara" && t.studentType === "guest" && t.studentNumber === "", JSON.stringify(t));
-
-  r = await attempt(guest("g2"), { stationId: "cashier", purpose: "Admission" });
-  check("a guest without a name is refused", !r.ok && r.code === "invalid-argument", JSON.stringify(r));
+  check("a walk-in phone (anonymous) can't join on its own: tickets come from the Queue Enforcer's QR", !r.ok && r.code === "permission-denied" && /Queue Enforcer/.test(r.message), JSON.stringify(r));
 
   r = await attempt(staff("a1"), { stationId: "cashier", purpose: "x1" });
   check("staff accounts can't join", !r.ok && r.code === "permission-denied", JSON.stringify(r));
@@ -187,7 +182,7 @@ async function station(id, extra) {
 
   advance(10000);
   r = await attempt(guest("f4"), { enrollment: true, guestName: "Guest Person" });
-  check("enrollment: guests can't enroll", !r.ok && r.code === "failed-precondition", JSON.stringify(r));
+  check("enrollment: walk-in phones can't enroll on their own", !r.ok && r.code === "permission-denied", JSON.stringify(r));
 
   await db.collection("settings").doc("enrollment").set({ flows: { regular: ["en-a", "en-b"] } });
   await db.collection("students").doc("f5").set({ studentType: "transferee" });

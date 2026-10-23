@@ -4,28 +4,29 @@ function getStudentNumberFromEmail(email) {
   return digits ? "02000" + digits : "";
 }
 
-var GUEST_PROFILE_KEY = "qficient.guestProfile";
+// A walk-in's phone (js/walkin.js) remembers whose ticket it holds, so a refresh brings it back.
+var WALKIN_PROFILE_KEY = "qficient.walkinProfile";
 var startingSession = false;
 var endingStudentSession = false; // this tab is logging the student out itself
 
-function saveGuestProfile(profile) {
+function saveWalkinProfile(profile) {
   try {
-    localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(profile));
+    localStorage.setItem(WALKIN_PROFILE_KEY, JSON.stringify(profile));
   } catch (e) {}
 }
 
-function loadGuestProfile(uid) {
+function loadWalkinProfile(uid) {
   try {
-    var profile = JSON.parse(localStorage.getItem(GUEST_PROFILE_KEY));
+    var profile = JSON.parse(localStorage.getItem(WALKIN_PROFILE_KEY));
     return profile && profile.uid === uid ? profile : null;
   } catch (e) {
     return null;
   }
 }
 
-function clearGuestProfile() {
+function clearWalkinProfile() {
   try {
-    localStorage.removeItem(GUEST_PROFILE_KEY);
+    localStorage.removeItem(WALKIN_PROFILE_KEY);
   } catch (e) {}
 }
 
@@ -73,7 +74,7 @@ function endReplacedStudentSession(firebaseUser) {
   var nowStaff = !!firebaseUser && isPasswordUser(firebaseUser);
 
   user = null;
-  clearGuestProfile();
+  clearWalkinProfile();
   updateDashboard();
 
   if (onStudentScreen && (nowStaff || !firebaseUser)) {
@@ -87,21 +88,20 @@ function endReplacedStudentSession(firebaseUser) {
   return true;
 }
 
-// Brings a signed-in student or guest back after a page refresh.
+// Brings a signed-in student or walk-in back after a page refresh.
 function restoreStudentSession(firebaseUser) {
   if (startingSession || user) return;
   if (!firebaseUser || isPasswordUser(firebaseUser)) return;
 
   if (firebaseUser.isAnonymous) {
-    var profile = loadGuestProfile(firebaseUser.uid);
+    var profile = loadWalkinProfile(firebaseUser.uid);
     if (!profile) {
       firebase.auth().signOut();
       return;
     }
 
-    user = { type: "guest", id: firebaseUser.uid, name: profile.name, email: profile.email, purpose: "" };
-    updateDashboard();
-    goTo("pageDashboard");
+    // The visit ends on its own once their ticket is over (js/walkin.js).
+    startWalkinSession(firebaseUser.uid, profile);
     return;
   }
 
@@ -113,7 +113,7 @@ function restoreStudentSession(firebaseUser) {
 
 function studentLogout() {
   var ticket = user ? myTicket() : null;
-  var isGuest = !!user && user.type === "guest";
+  var isWalkin = !!user && user.type === "walkin";
 
   var finish = function () {
     endingStudentSession = true;
@@ -121,7 +121,7 @@ function studentLogout() {
       return firebase.auth().signOut();
     }).then(function () {
       user = null;
-      clearGuestProfile();
+      clearWalkinProfile();
       updateDashboard();
       goTo("pageHome");
     }).catch(function (error) {
@@ -131,29 +131,30 @@ function studentLogout() {
     });
   };
 
-  if (!isGuest || !ticket) {
+  if (!isWalkin || !ticket) {
     finish();
+    return;
+  }
+
+  if (ticket.status === "serving") {
+    say("You're being served right now. Please finish at the counter first.");
     return;
   }
 
   Swal.fire({
     icon: "warning",
-    title: "Log out?",
-    text: "Guest tickets can't be recovered once you log out, so your queue ticket will be cancelled.",
+    title: "End your visit?",
+    text: "Your ticket will be cancelled and this phone will no longer follow it. To get back in line you'll need a new QR code from the Queue Enforcer.",
     showCancelButton: true,
-    confirmButtonText: "Log out",
+    confirmButtonText: "End visit",
     confirmButtonColor: "#1D2E5B"
   }).then(function (result) {
     if (!result.isConfirmed) return;
 
-    var cancelWrite = ticket.status === "serving" ?
-      Promise.resolve() :
-      db.collection("tickets").doc(ticket.id).update({
-        status: "cancelled",
-        cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-    cancelWrite.then(finish).catch(function (error) {
+    db.collection("tickets").doc(ticket.id).update({
+      status: "cancelled",
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(finish).catch(function (error) {
       say("Could not log out: " + error.message);
     });
   });
@@ -192,12 +193,6 @@ function login() {
 }
 
 
+// Used by Settings when adding staff.
 var EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/;
-
-// Also used by the Queue Enforcer's walk-in form.
-function guestEmailProblem(email) {
-  if (!email) return "Enter your email address.";
-  if (email.length > 254 || !EMAIL_PATTERN.test(email)) return "Enter a valid email address.";
-  return "";
-}
 
