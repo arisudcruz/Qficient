@@ -78,6 +78,16 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   font-variant-numeric: tabular-nums;
 }
 
+/* The clock's colon blinks once a second, like a digital clock. */
+.tv-colon {
+  animation: tv-colon-blink 1s steps(1, end) infinite;
+}
+
+@keyframes tv-colon-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .tv-fullscreen {
   width: 4.6vh;
   height: 4.6vh;
@@ -141,7 +151,8 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tv-sound.needs-tap { animation: none; }
+  .tv-sound.needs-tap,
+  .tv-colon { animation: none; }
 }
 
 /* ---------- Board ---------- */

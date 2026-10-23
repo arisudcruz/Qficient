@@ -57,9 +57,17 @@ function tvClockText() {
   }
 }
 
+// "9:41 AM" with the colon in its own span, so it can blink like a digital clock (css/tvboard.css). Redrawn only
+// when the minute changes, so the blink keeps its rhythm.
 function tickTvClock() {
   var el = document.getElementById("tvClock");
-  if (el) el.textContent = tvClockText();
+  if (!el) return;
+  var text = tvClockText();
+  if (el.getAttribute("data-time") === text) return;
+  el.setAttribute("data-time", text);
+  var colon = text.indexOf(":");
+  el.innerHTML = colon === -1 ? escapeHtml(text) :
+    escapeHtml(text.slice(0, colon)) + '<span class="tv-colon">:</span>' + escapeHtml(text.slice(colon + 1));
 }
 
 function tvRowHtml(ticket, position) {
