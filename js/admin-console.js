@@ -78,14 +78,17 @@ var QUEUE_TYPE_FILTERS = [
   { value: "regular", label: "Regular" },
   { value: "transferee", label: "Transferee / Irregular" },
   { value: "freshman", label: "Incoming Freshman" },
-  { value: "guest", label: "Guest" }
+  { value: "guest", label: "Guest" },
+  { value: "enrollment", label: "Enrollment" }
 ];
 
 function ticketTypeOf(ticket) {
   return ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest" ? ticket.studentType : "regular";
 }
 
+// "enrollment" picks enrollment tickets of any student type.
 function ticketMatchesTypeFilter(ticket, filter) {
+  if (filter === "enrollment") return ticket.enrollment === true;
   return !filter || ticketTypeOf(ticket) === filter;
 }
 
@@ -279,7 +282,6 @@ function toggleSidebar() {
 var ADMIN_SECTION_AREAS = {
   dashboard: "adminArea",
   queue: "adminQueueArea",
-  enrollment: "adminEnrollmentArea",
   enforcer: "adminEnforcerArea",
   notifications: "adminNotificationsArea",
   liveboard: "adminLiveBoardArea",
@@ -293,9 +295,9 @@ var ADMIN_SECTION_AREAS = {
 // Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
 // (their own station only); both can read the Rules but never open Settings.
 var ADMIN_ROLE_SECTIONS = {
-  admin: ["dashboard", "queue", "enrollment", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings"],
+  admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings"],
   enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules"],
-  station: ["dashboard", "queue", "enrollment", "notifications", "liveboard", "reports", "rules"]
+  station: ["dashboard", "queue", "notifications", "liveboard", "reports", "rules"]
 };
 
 // Where each kind of account lands after signing in.
@@ -307,11 +309,9 @@ function resetAdminPageState() {
   enforcerFilter = "";
   enforcerSelection = {};
   enforcerDraft = emptyEnforcerDraft("");
-  useQueueLane("regular");
   queueSelection = {};
   queueTypeFilter = "";
   resetQueueTransfer();
-  savedQueueState = {};
   enrollmentFlowDrafts = {};
   enrollmentSettingsType = "regular";
   settingsSelectedRole = "admin";
@@ -363,9 +363,7 @@ function setAdminSection(section) {
 
   if (typeof syncRoute === "function") syncRoute(false);
 
-  // Queue Management and Enrollment are the same page running a station's regular or enrollment line.
-  if (section === "queue" || section === "enrollment") {
-    useQueueLane(section === "enrollment" ? "enrollment" : "regular");
+  if (section === "queue") {
     renderQueueManagement();
     startAutoVoidWatcher();
     return;

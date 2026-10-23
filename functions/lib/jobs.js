@@ -66,17 +66,16 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
     await batch.commit();
   }
 
-  if (stale.length) {
-    const staleIds = new Set(stale.map(function (doc) { return doc.id; }));
-    const stations = await db.collection("stations").get();
-    // Both lines' "now serving" pointers: regular and enrollment.
-    await Promise.all(stations.docs.map(function (doc) {
-      const fix = {};
-      if (staleIds.has(doc.data().nowServingId)) fix.nowServingId = null;
-      if (staleIds.has(doc.data().enrollmentServingId)) fix.enrollmentServingId = null;
-      return Object.keys(fix).length ? doc.ref.update(fix) : null;
-    }));
-  }
+  // "Now serving" pointers at a voided ticket are cleared. The old separate enrollment line's pointer
+  // (enrollmentServingId) is removed: enrollment tickets now share each station's one line.
+  const staleIds = new Set(stale.map(function (doc) { return doc.id; }));
+  const stations = await db.collection("stations").get();
+  await Promise.all(stations.docs.map(function (doc) {
+    const fix = {};
+    if (staleIds.has(doc.data().nowServingId)) fix.nowServingId = null;
+    if ("enrollmentServingId" in doc.data()) fix.enrollmentServingId = FieldValue.delete();
+    return Object.keys(fix).length ? doc.ref.update(fix) : null;
+  }));
 
   // Device registrations that haven't been refreshed in a month belong to guests who never came back
   // or browsers that were uninstalled. (An active student's page re-saves theirs on every visit.)

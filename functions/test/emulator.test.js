@@ -171,8 +171,8 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   check("walk-in: removal is texted", await until(async () => (await smsFor("w1:void")).length === 1));
   check("history: walk-in tickets have no app history", (await historyOf("manual:w1")).length === 0);
 
-  // Enrollment: a station's enrollment line moves on its own, and students are told about each next step.
-  await db.collection("stations").doc("evaluation").set({ name: "Evaluation", count: 0, nowServingId: null, enrollmentServingId: null, active: true });
+  // Enrollment: enrollment tickets wait in the station's one line with everyone else, and are told about each next step.
+  await db.collection("stations").doc("evaluation").set({ name: "Evaluation", count: 0, nowServingId: null, active: true });
   for (const u of ["u6", "u7", "u8"]) await db.collection("deviceTokens").doc(u).set({ token: "tok-" + u });
   const enrollFields = { enrollment: true, enrollmentFlow: ["evaluation", "registrar"], enrollmentStep: 0, purpose: "Enrollment" };
   await ticket("reg1", "EV-001", "u8", "evaluation");
@@ -182,12 +182,11 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await ticket("en2", "EV-003", "u7", "evaluation", enrollFields);
   await wait(1500);
   await db.collection("tickets").doc("reg1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
-  await until(hasPush("reg1:serving"));
-  await wait(2500);
-  check("lanes: serving a regular ticket doesn't start reminders in the enrollment line", (await pushesFor("en1:next:evaluation")).length === 0);
+  check("one line: serving a regular ticket tells the enrollment student behind them they're next", await until(hasPush("en1:next:evaluation")));
+  await db.collection("tickets").doc("reg1").update({ status: "completed", completedAt: FieldValue.serverTimestamp() });
   await db.collection("tickets").doc("en1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
-  check("lanes: serving in the enrollment line tells the next enrollment student", await until(hasPush("en2:next:evaluation")));
-  check("lanes: the joined entry says where the enrollment starts", (await historyOf("u6")).some((h) => h.type === "joined" && /enrollment has started/i.test(h.title) && /Evaluation/.test(h.body)));
+  check("one line: serving an enrollment ticket moves the same line on", await until(hasPush("en2:next:evaluation")));
+  check("enrollment: the joined entry says where the enrollment starts", (await historyOf("u6")).some((h) => h.type === "joined" && /enrollment has started/i.test(h.title) && /Evaluation/.test(h.body)));
 
   await db.collection("tickets").doc("en1").update({
     stationId: "registrar", ticketNo: "RE-009", status: "waiting", enrollmentStep: 1, transferredFrom: "evaluation",
@@ -259,7 +258,7 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   check("cleanup: leftovers from earlier days are voided", cleaned === 3 && o1.status === "void" && o1.staleCleanup === true, String(cleaned));
   check("cleanup: finished tickets are left alone", o3.status === "completed");
   check("cleanup: a station no longer points at a stale ticket", (await db.collection("stations").doc("cashier").get()).data().nowServingId === null);
-  check("cleanup: an enrollment line no longer points at a stale ticket", (await db.collection("stations").doc("evaluation").get()).data().enrollmentServingId === null);
+  check("cleanup: the old enrollment-line pointer is removed", !("enrollmentServingId" in (await db.collection("stations").doc("evaluation").get()).data()));
   check("cleanup: a device registration untouched for a month is removed", !(await db.collection("deviceTokens").doc("staleDevice").get()).exists);
   check("cleanup: a recently refreshed device registration is kept", (await db.collection("deviceTokens").doc("freshDevice").get()).exists);
   check("cleanup: old de-duplication records are removed", !(await db.collection("pushEvents").doc("ancient").get()).exists);

@@ -107,6 +107,7 @@ function applyDashboardSub(sub) {
 }
 
 function applyAdminSub(sub) {
+  if (sub === "enrollment") sub = "queue"; // the Enrollment page is now part of Queue Management
   var section = ADMIN_SECTION_AREAS[sub] ? sub : ADMIN_HOME_SECTION[adminKind()] || "dashboard";
   setAdminSection(section);
 }

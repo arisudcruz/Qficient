@@ -91,20 +91,16 @@ service cloud.firestore {
         resource.data.get('countDay', '') != today();
     }
 
-    // The station's staff may move a "now serving" pointer, but only onto a ticket of that same station and line:
-    // nowServingId for the regular line, enrollmentServingId for the enrollment line.
-    function pointsAtLineTicket(stationId, field, enrollment) {
-      let id = request.resource.data[field];
+    // The station's staff may move its "now serving" pointer, but only onto a ticket of that same station
+    // (regular or enrollment: they share one line).
+    function pointsAtStationTicket(stationId) {
+      let id = request.resource.data.nowServingId;
       return id == null ||
-        (id is string &&
-         get(/databases/$(database)/documents/tickets/$(id)).data.stationId == stationId &&
-         get(/databases/$(database)/documents/tickets/$(id)).data.get('enrollment', false) == enrollment);
+        (id is string && get(/databases/$(database)/documents/tickets/$(id)).data.stationId == stationId);
     }
 
     function isStationStaffPointer(stationId) {
-      return isStationStaffOf(stationId) &&
-        ((changedKeys().hasOnly(['nowServingId']) && pointsAtLineTicket(stationId, 'nowServingId', false)) ||
-         (changedKeys().hasOnly(['enrollmentServingId']) && pointsAtLineTicket(stationId, 'enrollmentServingId', true)));
+      return isStationStaffOf(stationId) && changedKeys().hasOnly(['nowServingId']) && pointsAtStationTicket(stationId);
     }
 
     match /stations/{stationId} {
