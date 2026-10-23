@@ -365,78 +365,6 @@
   font-size: 0.82rem;
 }
 
-.chart-grid {
-  display: flex;
-  align-items: flex-end;
-  gap: 22px;
-  min-height: 260px;
-  padding: 10px 8px 0 0;
-}
-
-.chart-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 210px;
-  padding-bottom: 42px;
-  color: #7d8598;
-  font-size: 1rem;
-}
-
-.chart-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 80px;
-  flex: 1;
-  height: 220px;
-  padding-bottom: 42px;
-  border-bottom: 1px solid #edf1f7;
-}
-
-.chart-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  height: 100%;
-  position: relative;
-  min-width: 100px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-
-.chart-group:hover .bar-fill,
-.chart-group.selected .bar-fill {
-  background: var(--amberDark);
-}
-
-.bar-fill {
-  width: 176px;
-  background: var(--navy);
-  border-radius: 18px 18px 0 0;
-  min-height: 24px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
-}
-
-.bar-label {
-  margin-top: 16px;
-  color: #596680;
-  font-size: 1.1rem;
-}
-
-.bar-value {
-  margin-top: 4px;
-  color: var(--navyDark);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
 .table-header {
   margin-bottom: 12px;
 }
@@ -851,14 +779,26 @@
     display: none;
   }
 
+  /* The sidebar becomes a drawer, opened from the top bar's menu button. */
   .admin-shell {
     flex-direction: column;
   }
 
   .sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1100;
+    width: min(280px, 84vw);
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 0 40px rgba(15, 23, 42, 0.35);
+  }
+
+  .admin-shell.nav-open .sidebar {
+    transform: none;
   }
 
   .stats-grid {
@@ -901,16 +841,6 @@
 
   .stats-grid {
     grid-template-columns: 1fr;
-  }
-
-  .chart-bars {
-    gap: 24px;
-    overflow-x: auto;
-    justify-content: flex-start;
-  }
-
-  .bar-fill {
-    width: 110px;
   }
 
   .traffic-filters {
@@ -2752,3 +2682,260 @@ body.dark .walkin-qr-meta { color: #94A5C2; }
 body.dark .walkin-qr-status { background: #1D3A66; color: #9CC8FA; }
 body.dark .walkin-qr-status.is-done { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
 body.dark .walkin-qr-status.is-expired { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+
+/* ---------- Admin Dashboard (KPIs) ---------- */
+
+.dash-filters {
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+
+.dash-station {
+  display: block;
+  min-width: 170px;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--text);
+  font: inherit;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 16px 14px;
+  border: 1px solid #e6ebf3;
+  border-left: 4px solid #0054A6;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.kpi-card.kpi-navy { border-left-color: #173772; }
+.kpi-card.kpi-green { border-left-color: #1f9c62; }
+.kpi-card.kpi-amber { border-left-color: #E8A317; }
+.kpi-card.kpi-red { border-left-color: #D64545; }
+.kpi-card.kpi-blue { border-left-color: #0f5de0; }
+
+.kpi-label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kpi-value {
+  color: #0e204d;
+  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-sub {
+  overflow: hidden;
+  color: #6a758d;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-note {
+  margin: 10px 2px 18px;
+  color: #6a758d;
+  font-size: 0.8rem;
+}
+
+.dash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.dash-panel {
+  min-width: 0;
+}
+
+/* Tickets per hour */
+.hour-chart {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: 220px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.hour-bar {
+  display: flex;
+  flex: 1 0 34px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.hour-fill {
+  width: 70%;
+  max-width: 34px;
+  border-radius: 6px 6px 0 0;
+  background: #8FB3E3;
+}
+
+.hour-bar.is-peak .hour-fill { background: #0054A6; }
+
+.hour-value {
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.hour-label {
+  min-height: 2.4em;
+  color: #6a758d;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Enrollment */
+.enroll-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.enroll-stats div {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: 10px;
+  background: #F1F5FB;
+  text-align: center;
+}
+
+.enroll-stats b {
+  color: #0e204d;
+  font-size: 1.5rem;
+}
+
+.enroll-stats span,
+.enroll-types small {
+  color: #6a758d;
+  font-size: 0.75rem;
+}
+
+.enroll-types {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.enroll-types li {
+  display: grid;
+  grid-template-columns: 1fr auto 70px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-top: 1px solid #edf1f7;
+  font-size: 0.88rem;
+}
+
+.enroll-types small { text-align: right; }
+
+.dash-table { width: 100%; }
+.dash-table td:not(:first-child),
+.dash-table th:not(:first-child) { text-align: center; }
+
+/* Phone and tablet top bar with the menu button, and the drawer's backdrop. */
+.admin-topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #004B93;
+  color: #fff;
+}
+
+.admin-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.admin-topbar-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+@media (max-width: 1180px) {
+  .admin-topbar { display: flex; }
+  .admin-shell.nav-open .sidebar-backdrop { display: block; }
+  .dash-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi-card { padding: 12px; }
+
+  /* The station table turns into one card per station. */
+  .dash-table thead { display: none; }
+  .dash-table, .dash-table tbody, .dash-table tr, .dash-table td { display: block; width: 100%; }
+  .dash-table tr { padding: 10px 12px; border-bottom: 1px solid #edf1f7; }
+  .dash-table td { display: flex; justify-content: space-between; padding: 4px 0; border: 0; text-align: right !important; }
+  .dash-table td::before { content: attr(data-label); color: #6a758d; font-weight: 600; text-align: left; }
+  .dash-table td:first-child { font-size: 1rem; }
+  .dash-table td:first-child::before { content: none; }
+  .dash-table td.empty-row::before { content: none; }
+}
+
+body.dark .kpi-card { background: var(--ad-surface); border-color: var(--ad-line); }
+body.dark .kpi-card.kpi-navy { border-left-color: #A9BCE6; }
+body.dark .kpi-value,
+body.dark .enroll-stats b { color: var(--ad-text); }
+body.dark .kpi-sub,
+body.dark .dash-note,
+body.dark .hour-label,
+body.dark .enroll-stats span,
+body.dark .enroll-types small { color: var(--ad-muted); }
+body.dark .hour-fill { background: #2E5A92; }
+body.dark .hour-bar.is-peak .hour-fill { background: #5AA2FF; }
+body.dark .enroll-stats div { background: var(--ad-surface-2); }
+body.dark .enroll-types li,
+body.dark .dash-table tr { border-color: var(--ad-line); }
+body.dark .dash-station { background: var(--ad-field); border-color: var(--ad-line-strong); color: var(--ad-text); }
+body.dark .admin-topbar { background: #0B1A30; }

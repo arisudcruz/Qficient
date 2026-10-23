@@ -106,7 +106,6 @@ body.dark .form-modal-close:hover {
 
 body.dark .table-wrap,
 body.dark .rules-table-wrap,
-body.dark .chart-bars,
 body.dark .rules-tabs {
   border-color: var(--ad-line);
 }
