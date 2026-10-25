@@ -98,11 +98,11 @@ function showStudentToast(text, tone) {
 }
 
 function notifyRecall() {
-  studentAlert("⏰ Please go to the counter. You're being called.", "alert", true);
+  studentAlert("⏰ Please go to the counter. You're being called.", "alert", true, true);
 }
 
 function notifyLastCall() {
-  studentAlert("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true);
+  studentAlert("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true);
 }
 
 function ticketCountdownText(phase, remainingMs) {
