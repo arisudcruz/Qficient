@@ -285,7 +285,6 @@ function openNotification(id) {
   if (canServeStation(item.ticket.stationId) && stations.some(function (station) { return station.id === item.ticket.stationId; })) {
     activeQueueStation = item.ticket.stationId;
     resetQueueTransfer();
-    queueSelection = {};
   }
   setAdminSection("queue");
 }

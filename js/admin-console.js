@@ -197,8 +197,8 @@ function resetAdminPageState() {
   enforcerFilter = "";
   enforcerSelection = {};
   enforcerDraft = emptyEnforcerDraft("");
-  queueSelection = {};
   queueTypeFilter = "";
+  holdTypeFilter = "";
   resetQueueTransfer();
   enrollmentFlowDrafts = {};
   enrollmentSettingsType = "regular";
@@ -231,7 +231,6 @@ function applyAdminAccess() {
   if (kind === "station") {
     activeQueueStation = adminRole;
     resetQueueTransfer();
-    queueSelection = {};
   }
 
   if (kind && kind !== "admin") setAdminSection(ADMIN_HOME_SECTION[kind]);
