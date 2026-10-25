@@ -75,6 +75,10 @@ function loadScriptsInOrder(paths) {
 Promise.all(viewFiles.map(loadTextFile)).then(function (views) {
   document.getElementById("appViews").innerHTML = views.join("\n");
   return loadScriptsInOrder(appScripts);
+}).then(function () {
+  // How long the page took to get every script running, for the page speed check (scripts/page-speed.mjs):
+  // in the browser console, performance.getEntriesByName("qficient-ready")[0].startTime is the time in ms.
+  if (window.performance && performance.mark) performance.mark("qficient-ready");
 }).catch(function (error) {
   var message = document.getElementById("message");
   message.textContent = error.message + ". Start the app through a local web server.";
