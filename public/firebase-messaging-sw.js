@@ -29,7 +29,9 @@ messaging.onBackgroundMessage(function (payload) {
     renotify: !!tag,
     silent: false,
     requireInteraction: urgent,
-    vibrate: urgent ? [300, 120, 300, 120, 500] : [200, 100, 200]
+    // About 3 seconds for "go to the counter", 1.5 for the rest. Keep in step with VIBRATE_URGENT / VIBRATE_NORMAL
+    // in js/alerts.js (a service worker can't share the page's code).
+    vibrate: urgent ? [500, 150, 500, 150, 500, 150, 800] : [400, 150, 400, 150, 400]
   };
   self.registration.showNotification(data.title || "QFicient", options);
 });

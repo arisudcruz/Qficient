@@ -42,9 +42,7 @@ body.dark .admin-login-title,
 body.dark .notif-title,
 body.dark .notif-group-title,
 body.dark .rules-general-title,
-body.dark .transfer-toggle-row,
 body.dark .enforcer-field label,
-body.dark .transfer-form label,
 body.dark .modal-field label,
 body.dark .report-filters label,
 body.dark .traffic-filters label {
@@ -140,7 +138,6 @@ body.dark .report-table tfoot td { border-top-color: var(--ad-line-strong); colo
 body.dark .settings-input,
 body.dark .modal-input,
 body.dark .settings-select,
-body.dark .transfer-form select,
 body.dark .enforcer-station-select,
 body.dark .enforcer-field select,
 body.dark .enforcer-field input,
@@ -207,7 +204,6 @@ body.dark .queue-action-complete:disabled {
   color: #4ADE80;
 }
 
-body.dark .recall-inline-btn { color: var(--ad-accent); }
 
 body.dark .last-call-btn {
   background: rgba(229, 72, 77, 0.14);

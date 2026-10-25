@@ -46,25 +46,39 @@ function loadTextFile(path) {
   });
 }
 
-function loadScript(path) {
+// The scripts start downloading right away, alongside the views, instead of one after another.
+appScripts.forEach(function (path) {
+  var hint = document.createElement("link");
+  hint.rel = "preload";
+  hint.as = "script";
+  hint.href = path;
+  document.head.appendChild(hint);
+});
+
+// All script tags go in at once. async = false makes the browser run them in list order (each file relies on the
+// ones before it) while downloading them in parallel. Resolves when the last one has run.
+function loadScriptsInOrder(paths) {
   return new Promise(function (resolve, reject) {
-    var script = document.createElement("script");
-    script.src = path;
-    script.onload = resolve;
-    script.onerror = function () {
-      reject(new Error("Could not load " + path));
-    };
-    document.body.appendChild(script);
+    paths.forEach(function (path, index) {
+      var script = document.createElement("script");
+      script.src = path;
+      script.async = false;
+      script.onerror = function () {
+        reject(new Error("Could not load " + path));
+      };
+      if (index === paths.length - 1) script.onload = resolve;
+      document.body.appendChild(script);
+    });
   });
 }
 
 Promise.all(viewFiles.map(loadTextFile)).then(function (views) {
   document.getElementById("appViews").innerHTML = views.join("\n");
-  return appScripts.reduce(function (chain, scriptPath) {
-    return chain.then(function () {
-      return loadScript(scriptPath);
-    });
-  }, Promise.resolve());
+  return loadScriptsInOrder(appScripts);
+}).then(function () {
+  // How long the page took to get every script running, for the page speed check (scripts/page-speed.mjs):
+  // in the browser console, performance.getEntriesByName("qficient-ready")[0].startTime is the time in ms.
+  if (window.performance && performance.mark) performance.mark("qficient-ready");
 }).catch(function (error) {
   var message = document.getElementById("message");
   message.textContent = error.message + ". Start the app through a local web server.";

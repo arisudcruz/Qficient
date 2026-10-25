@@ -4,7 +4,7 @@
 // so the walk-in follows it in the app (temporary access) and gets alerts like any student.
 const crypto = require("crypto");
 const { startOfTodayMs, dayKey, toMs } = require("./time");
-const { JoinError, stationCapReached, nextTicketNo } = require("./join");
+const { JoinError, stationCapReached, nextTicketNo, withContentionRetry } = require("./join");
 
 const ACTIVE_STATUSES = ["waiting", "serving", "skipped"];
 const PASS_ID_PATTERN = /^[A-Za-z0-9]{10,40}$/;
@@ -68,14 +68,15 @@ async function redeemWalkinPass(deps, auth, data) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please see the Queue Enforcer.");
   }
 
-  return db.runTransaction(async function (tx) {
-    const [passSnap, stationSnap, stateSnap] = await Promise.all([tx.get(passRef), tx.get(stationRef), tx.get(stateRef)]);
+  // Step 1, this pass and this phone only: the pass is claimed for this phone (so two phones scanning together
+  // can't both get a ticket) and the phone must not already hold a live ticket. This never touches the station.
+  const claim = await withContentionRetry(() => db.runTransaction(async function (tx) {
+    const [passSnap, stateSnap] = await Promise.all([tx.get(passRef), tx.get(stateRef)]);
 
     const fresh = passSnap.data();
-    if (fresh.usedAt) throw new JoinError("failed-precondition", "This QR code has already been used. Ask the Queue Enforcer for a new one.");
-    if (!stationSnap.exists) throw new JoinError("not-found", "That station doesn't exist anymore. Please see the Queue Enforcer.");
-    const station = stationSnap.data();
-    if (station.active === false) throw new JoinError("failed-precondition", "This station is currently unavailable. Please see the Queue Enforcer.");
+    if (fresh.usedAt || (fresh.claimedBy && fresh.claimedBy !== auth.uid)) {
+      throw new JoinError("failed-precondition", "This QR code has already been used. Ask the Queue Enforcer for a new one.");
+    }
 
     // One phone holds one live ticket.
     const state = stateSnap.exists ? stateSnap.data() : {};
@@ -86,34 +87,55 @@ async function redeemWalkinPass(deps, auth, data) {
       }
     }
 
-    const ticketNo = await nextTicketNo(db, tx, stationRef, stationId, station, today);
-    const ticketRef = db.collection("tickets").doc();
-    const ticket = {
-      ticketNo: ticketNo,
-      stationId: stationId,
-      ownerId: auth.uid,
-      ownerName: fresh.ownerName,
-      studentNumber: "",
-      studentType: fresh.studentType,
-      purpose: fresh.purpose,
-      status: "waiting",
-      verified: false,
-      createdAt: FieldValue.serverTimestamp(),
-      manual: true,
-      createdBy: fresh.createdBy
-    };
-    if (fresh.enrollment === true) {
-      ticket.enrollment = true;
-      ticket.enrollmentFlow = fresh.enrollmentFlow;
-      ticket.enrollmentStep = 0;
-    }
+    tx.update(passRef, { claimedBy: auth.uid });
+    return { pass: fresh, joinsToday: state.day === today ? Number(state.joins) || 0 : 0 };
+  }));
 
-    tx.set(ticketRef, ticket);
-    tx.update(passRef, { usedAt: FieldValue.serverTimestamp(), usedBy: auth.uid, ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "" });
-    tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: (state.day === today ? Number(state.joins) || 0 : 0) + 1 });
+  // Step 2, the busy part: take the station's next number and create the ticket. Only the station is read, so its
+  // counter is held as briefly as possible, and a collision with the crowd is simply tried again.
+  const fresh = claim.pass;
+  try {
+    return await withContentionRetry(function () {
+      return db.runTransaction(async function (tx) {
+        const stationSnap = await tx.get(stationRef);
+        if (!stationSnap.exists) throw new JoinError("not-found", "That station doesn't exist anymore. Please see the Queue Enforcer.");
+        const station = stationSnap.data();
+        if (station.active === false) throw new JoinError("failed-precondition", "This station is currently unavailable. Please see the Queue Enforcer.");
 
-    return { ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "", ownerName: fresh.ownerName };
-  });
+        const ticketNo = await nextTicketNo(db, tx, stationRef, stationId, station, today);
+        const ticketRef = db.collection("tickets").doc();
+        const ticket = {
+          ticketNo: ticketNo,
+          stationId: stationId,
+          ownerId: auth.uid,
+          ownerName: fresh.ownerName,
+          studentNumber: "",
+          studentType: fresh.studentType,
+          purpose: fresh.purpose,
+          status: "waiting",
+          verified: false,
+          createdAt: FieldValue.serverTimestamp(),
+          manual: true,
+          createdBy: fresh.createdBy
+        };
+        if (fresh.enrollment === true) {
+          ticket.enrollment = true;
+          ticket.enrollmentFlow = fresh.enrollmentFlow;
+          ticket.enrollmentStep = 0;
+        }
+
+        tx.set(ticketRef, ticket);
+        tx.update(passRef, { usedAt: FieldValue.serverTimestamp(), usedBy: auth.uid, ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "" });
+        tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: claim.joinsToday + 1 });
+
+        return { ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "", ownerName: fresh.ownerName };
+      });
+    });
+  } catch (error) {
+    // No ticket was made: free the pass again, so it can still be scanned while it's valid.
+    await passRef.update({ claimedBy: FieldValue.delete() }).catch(function () {});
+    throw error;
+  }
 }
 
 module.exports = { redeemWalkinPass, hashSecret };

@@ -72,6 +72,21 @@ firebase emulators:exec --only functions,firestore --project demo-qficient "node
 
 The emulator test runs the real functions and checks every notification, the dedupe protection, dead-token cleanup, auto-void and the daily cleanup. In the emulator, pushes are written to a `testPushLog` collection instead of being sent.
 
+## Load and performance tests
+
+These only ever run on this PC (the scripts refuse to run against anything but the local emulator), never on the live project.
+
+```bash
+cd functions && npm run load        # back-end load test + live-update fan-out, in the Firestore emulator
+npm run perf:page                   # from the project folder: page speed of the live site (read-only)
+```
+
+- **Back-end load** (`test/load/backend.load.js`): growing crowds joining one station in the same instant (10, 25, 50, 100, 300) to find where joins start to fail; joins spread over stations while staff press Call Next; 100 walk-in QR scans at once; one QR scanned by 10 phones at once (must give exactly one ticket). Sizes: `LOAD_STUDENTS`, `LOAD_STATIONS`, `LOAD_WALKINS`; the pass mark for one station is `LOAD_MIN_CROWD` (default 25).
+- **Live-update fan-out** (`test/load/fanout.load.js`): 100 open pages watch today's tickets while staff call numbers; checks every page gets every call and counts the reads each page costs, with a day estimate. Sizes: `LOAD_PAGES`, `LOAD_WAITING`, `LOAD_CALLS`, `LOAD_DAY_TICKETS`, `LOAD_DAY_PAGES`, and `READ_PRICE_PER_100K` (set it to the current Firestore price for asia-east2).
+- **Page speed** (`../scripts/page-speed.mjs`): downloads the site the way the browser does and reports time to "app ready" (fails over `--budget`, default 3000 ms). `--compare` also times the old one-by-one script loading; pass a URL (e.g. `http://localhost:5173`) to test another copy. In a real browser, `performance.getEntriesByName("qficient-ready")[0].startTime` gives the same moment including the browser's own work.
+
+The emulator is one process on this PC: its times are for comparing runs (before and after a change), not Google's real speed. Pass/fail is on correctness (everyone got a ticket, no duplicate numbers, every page updated), not on emulator times.
+
 ## Good to know
 
 - Real delivery to a phone can only be verified on a real device.

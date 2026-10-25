@@ -39,7 +39,8 @@ async function voidMinutes() {
 
 // Runs whenever a ticket is created or changed: tells the student what happened and, when the front of a
 // queue may have changed, tells the next student in line.
-exports.onTicketWritten = onDocumentWritten("tickets/{ticketId}", async function (event) {
+// secrets: [] explicitly detaches the old SMS_API_KEY from the deployed function (a plain redeploy kept it attached).
+exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", secrets: [] }, async function (event) {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after = event.data.after.exists ? event.data.after.data() : null;
   if (!after) return;

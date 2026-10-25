@@ -42,15 +42,58 @@ function playChime(urgent) {
   });
 }
 
-function buzz(urgent) {
-  if (navigator.vibrate) navigator.vibrate(urgent ? [300, 120, 300, 120, 500] : [200, 100, 200]);
+// Vibration patterns (ms on, off, on...). "Go to the counter" alerts buzz about 3 seconds, the rest about 1.5.
+// public/firebase-messaging-sw.js uses the same patterns for notifications while the page is closed.
+// (iPhones don't support web vibration; there the phone's own notification settings decide.)
+var VIBRATE_URGENT = [500, 150, 500, 150, 500, 150, 800];
+var VIBRATE_NORMAL = [400, 150, 400, 150, 400];
+
+// Push tags of "go to the counter" messages, as in the service worker.
+function isUrgentPushTag(tag) {
+  return /:(serving|recall|lastCall|skipped)$/.test(String(tag || ""));
 }
 
-// tone: "alert" (red), "info" (blue) or "good" (green).
-function studentAlert(text, tone, urgent) {
+function buzz(urgent) {
+  if (navigator.vibrate) navigator.vibrate(urgent ? VIBRATE_URGENT : VIBRATE_NORMAL);
+}
+
+// For "it's your turn", recall and last call while the page is open: the long buzz repeats every few seconds,
+// for up to a minute, until the student touches the screen (or the ticket ends), so it can't go unnoticed.
+var INSIST_EVERY_MS = 5 * 1000;
+var INSIST_FOR_MS = 60 * 1000;
+var insistTimer = null;
+var insistStartedAt = 0;
+
+function stopInsistentBuzz() {
+  if (!insistTimer) return;
+  clearInterval(insistTimer);
+  insistTimer = null;
+  if (navigator.vibrate) navigator.vibrate(0);
+}
+
+function buzzUntilTouched() {
+  stopInsistentBuzz();
+  buzz(true);
+  insistStartedAt = Date.now();
+  insistTimer = setInterval(function () {
+    if (Date.now() - insistStartedAt >= INSIST_FOR_MS) {
+      stopInsistentBuzz();
+      return;
+    }
+    buzz(true);
+  }, INSIST_EVERY_MS);
+}
+
+["pointerdown", "touchstart", "keydown"].forEach(function (type) {
+  document.addEventListener(type, stopInsistentBuzz, { passive: true });
+});
+
+// tone: "alert" (red), "info" (blue) or "good" (green). insist: keep buzzing until the student touches the screen.
+function studentAlert(text, tone, urgent, insist) {
   showStudentToast(text, tone);
   playChime(!!urgent);
-  buzz(!!urgent);
+  if (insist) buzzUntilTouched();
+  else buzz(!!urgent);
 }
 
 /* ---------- What changed on the student's ticket ---------- */
@@ -100,7 +143,7 @@ function watchTicketEvents(ticket) {
     w.next = place === 1 && someoneServed;
   } else if (ticket.status !== w.status) {
     if (ticket.status === "serving") {
-      studentAlert("🔔 It's your turn! Please go to " + stationName + " now.", "good", true);
+      studentAlert("🔔 It's your turn! Please go to " + stationName + " now.", "good", true, true);
     } else if (ticket.status === "skipped") {
       studentAlert("⏸ Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true);
     }
@@ -160,6 +203,7 @@ function showEndNotice(ticket) {
 
 // Called when the student no longer has a live ticket.
 function ticketEnded() {
+  stopInsistentBuzz();
   if (ticketWatch) {
     var ended = tickets.find(function (t) { return t.id === ticketWatch.id; });
     ticketWatch = null;
@@ -178,6 +222,7 @@ function ticketEnded() {
 }
 
 function resetTicketWatch() {
+  stopInsistentBuzz();
   ticketWatch = null;
   missedNoticeChecked = false;
 }

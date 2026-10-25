@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "node test/events.test.js",
+    "load": "firebase emulators:exec --only firestore --project demo-qficient \"node test/load/run.js\"",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {

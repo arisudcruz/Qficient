@@ -77,6 +77,33 @@ async function stationCapReached(db, stationId, dayStart) {
   return used.data().count >= maxQueue;
 }
 
+// When many people take a number at the same station in the same instant, their transactions collide on the station's
+// counter and Firestore gives up on some of them (ABORTED, gRPC code 10). Those are tried again after a short random
+// pause that grows each time, so the crowd is served one after another instead of colliding again. Anything else
+// (a JoinError, a real failure) is not retried.
+const CONTENTION_RETRY_MS = 20 * 1000;
+
+function isContention(error) {
+  return !!error && !(error instanceof JoinError) &&
+    (error.code === 10 || error.code === "aborted" || /contention|ABORTED/i.test(String(error.message)));
+}
+
+async function withContentionRetry(work) {
+  const started = Date.now();
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await work();
+    } catch (error) {
+      if (!isContention(error)) throw error;
+      if (Date.now() - started > CONTENTION_RETRY_MS) {
+        throw new JoinError("resource-exhausted", "The queue is very busy right now. Please try again in a moment.");
+      }
+      const pause = Math.min(2000, 100 * Math.pow(2, Math.min(attempt, 4))) * (0.5 + Math.random());
+      await new Promise(function (resolve) { setTimeout(resolve, pause); });
+    }
+  }
+}
+
 // Takes the station's next ticket number inside a transaction (numbers restart at 001 on a new day).
 async function nextTicketNo(db, tx, stationRef, stationId, station, today) {
   const newDay = station.countDay !== today;
@@ -152,13 +179,10 @@ async function joinQueue(deps, auth, data) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please try again tomorrow.");
   }
 
-  return db.runTransaction(async function (tx) {
-    const [stationSnap, stateSnap] = await Promise.all([tx.get(stationRef), tx.get(stateRef)]);
-
-    if (!stationSnap.exists) throw new JoinError("not-found", "That station doesn't exist.");
-    const station = stationSnap.data();
-    if (station.active === false) throw new JoinError("failed-precondition", "This station is currently unavailable.");
-
+  // Step 1, this student only: the one-ticket rule and the join limits, then the join is reserved (lastJoinMs) so
+  // a double tap can't make two tickets. Nobody else touches this record, so it never collides with the crowd.
+  const before = await withContentionRetry(() => db.runTransaction(async function (tx) {
+    const stateSnap = await tx.get(stateRef);
     const state = stateSnap.exists ? stateSnap.data() : {};
 
     if (state.ticketId) {
@@ -187,31 +211,51 @@ async function joinQueue(deps, auth, data) {
       throw new JoinError("resource-exhausted", "You've reached today's limit of " + config.maxJoinsPerDay + " tickets. Please see the front desk.");
     }
 
-    const ticketNo = await nextTicketNo(db, tx, stationRef, stationId, station, today);
+    tx.set(stateRef, { ticketId: state.ticketId || null, lastJoinMs: now, day: today, joins: joinsToday + 1 });
+    return stateSnap.exists ? state : null;
+  }));
 
-    const ticketRef = db.collection("tickets").doc();
-    const ticket = {
-      ticketNo: ticketNo,
-      stationId: stationId,
-      ownerId: auth.uid,
-      ownerName: ownerName,
-      studentNumber: studentNumber,
-      studentType: studentType,
-      purpose: purpose,
-      status: "waiting",
-      verified: false,
-      createdAt: FieldValue.serverTimestamp()
-    };
-    if (enrollmentFlow) {
-      ticket.enrollment = true;
-      ticket.enrollmentFlow = enrollmentFlow;
-      ticket.enrollmentStep = 0;
-    }
-    tx.set(ticketRef, ticket);
-    tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: joinsToday + 1 });
+  // Step 2, the busy part: take the station's next number and create the ticket. It only reads the station, so the
+  // counter is held as briefly as possible, and a collision with the crowd is simply tried again.
+  try {
+    return await withContentionRetry(function () {
+      return db.runTransaction(async function (tx) {
+        const stationSnap = await tx.get(stationRef);
+        if (!stationSnap.exists) throw new JoinError("not-found", "That station doesn't exist.");
+        const station = stationSnap.data();
+        if (station.active === false) throw new JoinError("failed-precondition", "This station is currently unavailable.");
 
-    return { ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "" };
-  });
+        const ticketNo = await nextTicketNo(db, tx, stationRef, stationId, station, today);
+
+        const ticketRef = db.collection("tickets").doc();
+        const ticket = {
+          ticketNo: ticketNo,
+          stationId: stationId,
+          ownerId: auth.uid,
+          ownerName: ownerName,
+          studentNumber: studentNumber,
+          studentType: studentType,
+          purpose: purpose,
+          status: "waiting",
+          verified: false,
+          createdAt: FieldValue.serverTimestamp()
+        };
+        if (enrollmentFlow) {
+          ticket.enrollment = true;
+          ticket.enrollmentFlow = enrollmentFlow;
+          ticket.enrollmentStep = 0;
+        }
+        tx.set(ticketRef, ticket);
+        tx.set(stateRef, { ticketId: ticketRef.id }, { merge: true });
+
+        return { ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "" };
+      });
+    });
+  } catch (error) {
+    // No ticket was made: give the reserved join back, so the student can try again right away.
+    await (before ? stateRef.set(before) : stateRef.delete()).catch(function () {});
+    throw error;
+  }
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, nextTicketNo };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, nextTicketNo, withContentionRetry };
