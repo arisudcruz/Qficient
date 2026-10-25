@@ -249,6 +249,20 @@ function enableAlertsFromMenu() {
   enableNotifications();
 }
 
+// Plays the long "go to the counter" buzz once, so a student (or staff checking a phone) can tell whether this
+// phone vibrates for QFicient at all. iPhones and some browsers can't vibrate from a website.
+function testVibrationFromMenu() {
+  closeUserMenu();
+  var played = !!navigator.vibrate && navigator.vibrate(VIBRATE_URGENT);
+  if (played) {
+    showStudentToast("📳 Testing vibration: you should feel a long buzz of about 3 seconds.", "info");
+  } else {
+    sayProblem("This phone can't vibrate for QFicient",
+      "This browser doesn't let websites vibrate the phone (iPhones never do). You'll still get the sound and the on-screen alert, and notifications follow the phone's own settings.",
+      "info");
+  }
+}
+
 function changeStudentTypeFromMenu() {
   closeUserMenu();
   promptStudentType(false);

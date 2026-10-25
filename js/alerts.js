@@ -64,11 +64,13 @@ var INSIST_FOR_MS = 60 * 1000;
 var insistTimer = null;
 var insistStartedAt = 0;
 
-function stopInsistentBuzz() {
+// Stops the repeats. A touch lets the buzz that is already playing finish; when the ticket ends (cutShort) it
+// stops at once.
+function stopInsistentBuzz(cutShort) {
   if (!insistTimer) return;
   clearInterval(insistTimer);
   insistTimer = null;
-  if (navigator.vibrate) navigator.vibrate(0);
+  if (cutShort === true && navigator.vibrate) navigator.vibrate(0);
 }
 
 function buzzUntilTouched() {
@@ -85,7 +87,7 @@ function buzzUntilTouched() {
 }
 
 ["pointerdown", "touchstart", "keydown"].forEach(function (type) {
-  document.addEventListener(type, stopInsistentBuzz, { passive: true });
+  document.addEventListener(type, function () { stopInsistentBuzz(false); }, { passive: true });
 });
 
 // tone: "alert" (red), "info" (blue) or "good" (green). insist: keep buzzing until the student touches the screen.
@@ -203,7 +205,7 @@ function showEndNotice(ticket) {
 
 // Called when the student no longer has a live ticket.
 function ticketEnded() {
-  stopInsistentBuzz();
+  stopInsistentBuzz(true);
   if (ticketWatch) {
     var ended = tickets.find(function (t) { return t.id === ticketWatch.id; });
     ticketWatch = null;
@@ -222,7 +224,7 @@ function ticketEnded() {
 }
 
 function resetTicketWatch() {
-  stopInsistentBuzz();
+  stopInsistentBuzz(true);
   ticketWatch = null;
   missedNoticeChecked = false;
 }
