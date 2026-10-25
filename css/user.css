@@ -1005,8 +1005,35 @@ body.dark .ud-back { color: #7DB4F5; border-color: #3D74BC; }
 
 /* ---------------- Small phones ---------------- */
 
+/* Phones: the station cards keep their design (banner, round icon, name, counts and Queue button) but are
+   compacted to the Enrollment card's size, one per row. */
 @media (max-width: 480px) {
-  .ud-station-top { height: 64px; }
+  .ud-stations-grid {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 16px;
+  }
+
+  .ud-station-top { height: 36px; }
+
+  .ud-station-card .ud-station-icon {
+    width: 48px;
+    height: 48px;
+    margin-top: -24px;
+    border-width: 3px;
+  }
+
+  .ud-station-card .ud-station-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .ud-station-card h3 {
+    margin: 4px 12px 4px;
+  }
+
+  .ud-station-foot {
+    padding: 0 18px 14px;
+  }
 }
 
 @media (max-width: 380px) {
