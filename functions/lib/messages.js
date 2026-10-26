@@ -14,8 +14,30 @@ function minutes(n) {
   return n + (n === 1 ? " minute" : " minutes");
 }
 
+// "Tue, Oct 27, 3:15 PM" in Philippine time.
+function manilaTime(ms) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+  }).format(new Date(ms));
+}
+
 // Each builder returns { title, body }. Keep the wording short: it shows on a lock screen.
 module.exports = {
+  manilaTime: manilaTime,
+
+  // No-show strikes (functions/lib/strikes.js).
+  noShowStrike: (t, strikes, limit, windowDays, blockHours) => ({
+    title: "Missed turn: strike " + strikes + " of " + limit,
+    body: "Ticket " + t.ticketNo + " was voided because you didn't return after the last call. If you miss " + limit +
+      " turns within " + windowDays + " days, you can't queue for " + blockHours + " hours."
+  }),
+
+  noShowBlocked: (untilMs, limit, windowDays) => ({
+    title: "You can't join the queue for now",
+    body: "You missed your turn " + limit + " times in " + windowDays + " days, so you can join again on " + manilaTime(untilMs) +
+      ". Please see the front desk if this is a mistake."
+  }),
+
   serving: (t, station) => ({
     title: "It's your turn!",
     body: "Ticket " + t.ticketNo + " is now being served at " + station + ". Please go to the counter."

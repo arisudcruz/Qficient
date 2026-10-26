@@ -364,12 +364,6 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   color: #1B2740;
 }
 
-.tv-mini-next b small {
-  margin-left: 0.4vw;
-  font-size: 0.6em;
-  color: var(--tv-blue);
-}
-
 .tv-side-pages {
   text-align: center;
   font-size: 1.5vh;

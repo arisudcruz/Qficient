@@ -348,6 +348,22 @@ service cloud.firestore {
         request.resource.data.token.size() <= 4096;
     }
 
+    // ---------- Join limits and no-show blocks ----------
+    // Written by the Cloud Functions (joinQueue, redeemWalkinPass, and the no-show strikes). A student can read
+    // their own record to see a block; admins can list blocked students and lift a block (Settings), nothing else.
+
+    match /joinState/{uid} {
+      allow get: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow list: if isAdmin();
+      allow update: if isAdmin() &&
+        changedKeys().hasOnly(['blockedUntil', 'noShows', 'unblockedBy', 'unblockedAt']) &&
+        request.resource.data.blockedUntil == null &&
+        request.resource.data.noShows == {} &&
+        request.resource.data.unblockedBy == userEmail() &&
+        request.resource.data.unblockedAt == request.time;
+      allow create, delete: if false;
+    }
+
     // ---------- Walk-in QR passes ----------
     // The Queue Enforcer (or an admin) fills in a walk-in's details and shows a one-time QR code. Only the SHA-256
     // of the code's secret is stored. The walk-in's phone redeems it through the redeemWalkinPass Cloud Function,
@@ -368,11 +384,15 @@ service cloud.firestore {
     function isNewWalkinPass() {
       let d = request.resource.data;
       return (isAdmin() || isEnforcer()) &&
-        d.keys().hasOnly(['ownerName', 'studentType', 'stationId', 'purpose', 'enrollment', 'enrollmentFlow',
+        d.keys().hasOnly(['ownerName', 'studentType', 'studentNumber', 'stationId', 'purpose', 'enrollment', 'enrollmentFlow',
                           'secretHash', 'createdBy', 'createdAt']) &&
         d.keys().hasAll(['ownerName', 'studentType', 'stationId', 'purpose', 'secretHash', 'createdBy', 'createdAt']) &&
         d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
         d.studentType in ['regular', 'transferee', 'freshman', 'guest'] &&
+        // Regular and Transferee / Irregular walk-ins carry their student number (02000-XXXXXX); the others don't.
+        (d.studentType in ['regular', 'transferee'] ?
+          (d.get('studentNumber', '') is string && d.get('studentNumber', '').matches('^02000-[0-9]{6}$')) :
+          !('studentNumber' in d)) &&
         d.stationId is string && stationIsOpen(d.stationId) &&
         d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
         d.secretHash is string && d.secretHash.matches('^[0-9a-f]{64}$') &&

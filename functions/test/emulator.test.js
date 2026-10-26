@@ -45,7 +45,7 @@ async function historyOf(owner) {
 const hasHistory = (owner, type) => async () => (await historyOf(owner)).some((h) => h.type === type);
 
 async function wipe() {
-  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts", "walkinPasses", "userNotifications"]) {
+  for (const name of ["tickets", "stations", "settings", "deviceTokens", "serverStatus", "testPushLog", "pushEvents", "smsLog", "ticketContacts", "walkinPasses", "userNotifications", "joinState"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -199,6 +199,22 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
     const types = (await historyOf("u6")).map((h) => h.type);
     return types.indexOf("enrollmentNext") !== -1 && types.indexOf("enrollmentCompleted") !== -1;
   }));
+
+  // No-show strikes: a ticket voided when its last call ran out is a strike; the third blocks joining.
+  await db.collection("deviceTokens").doc("ns1").set({ token: "tok-ns1" });
+  for (const n of [1, 2, 3]) {
+    await ticket("ns" + n, "CA-09" + n, "ns1", "cashier", { status: "skipped", lastCalled: true, lastCallAt: FieldValue.serverTimestamp() });
+    await wait(300);
+    await db.collection("tickets").doc("ns" + n).update({ status: "void", voidedAt: FieldValue.serverTimestamp(), autoVoided: true });
+    if (n < 3) check("no-show: strike " + n + " is noted in the student's history", await until(async () => (await historyOf("ns1")).filter((h) => h.type === "noShowStrike").length === n));
+  }
+  check("no-show: the third strike blocks joining and the student is told", await until(hasPush("ns3:noShowBlocked")) &&
+    (await db.collection("joinState").doc("ns1").get()).data().blockedUntil.toMillis() > Date.now());
+  await ticket("ns4", "CA-094", "ns2", "cashier", { status: "skipped" });
+  await wait(300);
+  await db.collection("tickets").doc("ns4").update({ status: "void", voidedAt: FieldValue.serverTimestamp() });
+  await wait(2500);
+  check("no-show: a ticket removed by staff is not a strike", !(await db.collection("joinState").doc("ns2").get()).exists);
 
   // Nothing went out twice.
   await wait(2000);

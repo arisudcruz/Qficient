@@ -211,6 +211,23 @@ function refuseStation() {
   say("You can only manage your own station.");
 }
 
+function manilaDateTimeText(ms) {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+    }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms).toLocaleString();
+  }
+}
+
+// A student blocked for missing their turn too often (functions/lib/strikes.js) can't join until then.
+function blockedJoinText() {
+  var until = typeof studentBlockedUntilMs === "function" ? studentBlockedUntilMs() : 0;
+  return until ? "You missed your turn 3 times in 7 days, so you can join again on " + manilaDateTimeText(until) +
+    ". Please see the front desk if this is a mistake." : "";
+}
+
 function formatCountdown(ms) {
   var totalSeconds = Math.max(0, Math.ceil(ms / 1000));
   var minutes = Math.floor(totalSeconds / 60);
@@ -238,6 +255,12 @@ function joinQueue(stationId, purpose, options) {
 
   if (myTicket()) {
     say("You already have an active ticket.");
+    return;
+  }
+
+  var blocked = blockedJoinText();
+  if (blocked) {
+    sayProblem("You can't join the queue right now", blocked, "warning");
     return;
   }
 

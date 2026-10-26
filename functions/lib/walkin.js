@@ -109,7 +109,7 @@ async function redeemWalkinPass(deps, auth, data) {
           stationId: stationId,
           ownerId: auth.uid,
           ownerName: fresh.ownerName,
-          studentNumber: "",
+          studentNumber: typeof fresh.studentNumber === "string" ? fresh.studentNumber : "",
           studentType: fresh.studentType,
           purpose: fresh.purpose,
           status: "waiting",
@@ -126,7 +126,7 @@ async function redeemWalkinPass(deps, auth, data) {
 
         tx.set(ticketRef, ticket);
         tx.update(passRef, { usedAt: FieldValue.serverTimestamp(), usedBy: auth.uid, ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "" });
-        tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: claim.joinsToday + 1 });
+        tx.set(stateRef, { ticketId: ticketRef.id, lastJoinMs: now, day: today, joins: claim.joinsToday + 1 }, { merge: true });
 
         return { ticketId: ticketRef.id, ticketNo: ticketNo, stationName: station.name || "", ownerName: fresh.ownerName };
       });

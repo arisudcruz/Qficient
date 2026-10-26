@@ -19,7 +19,9 @@ var USER_NOTIF_ICONS = {
   void: "❌",
   enrollmentNext: "➡️",
   enrollmentCompleted: "🎓",
-  completed: "✅"
+  completed: "✅",
+  noShowStrike: "⚠️",
+  noShowBlocked: "⛔"
 };
 
 // Follows whoever is signed in: starts for a student, stops on logout or when someone else signs in.

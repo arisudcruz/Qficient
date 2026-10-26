@@ -105,7 +105,7 @@ function tvMiniHtml(station) {
     '<h3>' + escapeHtml(station.name) + '</h3>' +
     '<div class="tv-mini-row">' +
       '<div class="tv-now-mini" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
-      '<div class="tv-mini-next"><span>Next in Line</span><b>' + escapeHtml(next ? next.ticketNo : "—") + (next ? '<small>↑</small>' : '') + '</b></div>' +
+      '<div class="tv-mini-next"><span>Next in Line</span><b>' + escapeHtml(next ? next.ticketNo : "—") + '</b></div>' +
     '</div>' +
   '</div>';
 }
