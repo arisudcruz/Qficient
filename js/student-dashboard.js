@@ -218,6 +218,37 @@ function joinPurposesFor(stationId) {
   return station && Array.isArray(station.purposes) && station.purposes.length ? station.purposes : queueMgmtPurposes;
 }
 
+/* ---------- No-show block (functions/lib/strikes.js) ---------- */
+
+// The student's own joinState record says whether they're blocked from joining, and until when.
+var studentBlock = { uid: null, untilMs: 0, unsubscribe: null, timer: null };
+
+function syncStudentBlockListener() {
+  var uid = user && user.type === "student" ? user.id : null;
+  if (uid === studentBlock.uid) return;
+
+  if (studentBlock.unsubscribe) studentBlock.unsubscribe();
+  clearTimeout(studentBlock.timer);
+  studentBlock = { uid: uid, untilMs: 0, unsubscribe: null, timer: null };
+  if (!uid) return;
+
+  studentBlock.unsubscribe = db.collection("joinState").doc(uid).onSnapshot(function (doc) {
+    if (studentBlock.uid !== uid) return;
+    var until = doc.exists ? timestampToMs(doc.data().blockedUntil, 0) : 0;
+    studentBlock.untilMs = until;
+    clearTimeout(studentBlock.timer);
+    // Redraw the moment the block ends, so the Queue buttons come back by themselves.
+    if (until > serverNow()) studentBlock.timer = setTimeout(updateDashboard, Math.min(until - serverNow() + 1000, 2147483000));
+    updateDashboard();
+  }, function (error) {
+    console.error("Could not check the queue block: " + error.message);
+  });
+}
+
+function studentBlockedUntilMs() {
+  return studentBlock.untilMs > serverNow() ? studentBlock.untilMs : 0;
+}
+
 // A station's waiting line, in queue order.
 function waitingTicketsOf(stationId) {
   return tickets.filter(function (item) {
@@ -652,13 +683,16 @@ function enrollmentCardHtml(cooldownMs, ticket) {
         '<p class="ud-serving">Now serving ' + escapeHtml(latest ? latest.ticketNo : "—") + '</p>' +
         (note ? '<p class="ud-enroll-note">' + escapeHtml(note) + '</p>' : '') +
       '</div>' +
-      '<button type="button" class="ud-join" onclick="openEnrollment()"' + (cooldownMs > 0 || ticket || (user.studentType && !typeReady) ? ' disabled' : '') + '>Queue</button>' +
+      '<button type="button" class="ud-join" onclick="openEnrollment()"' + (cooldownMs > 0 || ticket || studentBlockedUntilMs() || (user.studentType && !typeReady) ? ' disabled' : '') + '>Queue</button>' +
     '</div>';
 }
 
 function renderStationCards(cooldownMs, ticket) {
   var host = document.getElementById("udStations");
   if (!host) return;
+
+  // Blocked for missing their turn too often: say so, and keep the Queue buttons off.
+  var blocked = !ticket && blockedJoinText();
 
   var cards = "";
   stations.forEach(function (station) {
@@ -675,12 +709,15 @@ function renderStationCards(cooldownMs, ticket) {
             '<p class="ud-joined">' + waitingTicketsOf(station.id).length + ' waiting</p>' +
             '<p class="ud-serving">Now serving ' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</p>' +
           '</div>' +
-          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket ? ' disabled' : '') + '>Queue</button>' +
+          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket || blocked ? ' disabled' : '') + '>Queue</button>' +
         '</div>' +
       '</div>';
   });
 
   var html = "";
+  if (blocked) {
+    html += '<p class="ud-banner ud-banner-blocked">⛔ ' + escapeHtml(blocked) + '</p>';
+  }
   if (ticket) {
     html += '<p class="ud-banner">You are already in line (' + escapeHtml(ticket.ticketNo) + '). <button type="button" class="ud-link" onclick="viewMyTicket()">View ticket</button></p>';
   }
@@ -865,6 +902,7 @@ function renderDashboard() {
   renderHeader();
   refreshNotificationToggle();
   syncUserNotificationsListener();
+  syncStudentBlockListener();
 
   var hero = document.getElementById("udHero");
   var stationsHost = document.getElementById("udStations");

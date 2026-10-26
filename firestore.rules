@@ -348,6 +348,22 @@ service cloud.firestore {
         request.resource.data.token.size() <= 4096;
     }
 
+    // ---------- Join limits and no-show blocks ----------
+    // Written by the Cloud Functions (joinQueue, redeemWalkinPass, and the no-show strikes). A student can read
+    // their own record to see a block; admins can list blocked students and lift a block (Settings), nothing else.
+
+    match /joinState/{uid} {
+      allow get: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow list: if isAdmin();
+      allow update: if isAdmin() &&
+        changedKeys().hasOnly(['blockedUntil', 'noShows', 'unblockedBy', 'unblockedAt']) &&
+        request.resource.data.blockedUntil == null &&
+        request.resource.data.noShows == {} &&
+        request.resource.data.unblockedBy == userEmail() &&
+        request.resource.data.unblockedAt == request.time;
+      allow create, delete: if false;
+    }
+
     // ---------- Walk-in QR passes ----------
     // The Queue Enforcer (or an admin) fills in a walk-in's details and shows a one-time QR code. Only the SHA-256
     // of the code's secret is stored. The walk-in's phone redeems it through the redeemWalkinPass Cloud Function,

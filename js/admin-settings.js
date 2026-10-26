@@ -45,8 +45,82 @@ function computeSettingsSignature() {
   return JSON.stringify([
     stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
-    systemSettings.autoVoidMinutes
+    systemSettings.autoVoidMinutes,
+    blockedStudents.map(function (b) { return [b.id, b.untilMs]; })
   ]);
+}
+
+/* Blocked Students: students blocked from joining for missing their turn too often (functions/lib/strikes.js).
+   Admins only; lifting a block also clears their strikes (firestore.rules allows exactly that change). */
+
+var blockedStudents = [];
+var blockedUnsubscribe = null;
+
+function startBlockedListener() {
+  if (blockedUnsubscribe) return;
+  blockedUnsubscribe = db.collection("joinState")
+    .where("blockedUntil", ">", firebase.firestore.Timestamp.now())
+    .onSnapshot(function (snapshot) {
+      blockedStudents = snapshot.docs.map(function (doc) {
+        var data = doc.data();
+        return { id: doc.id, name: data.ownerName || "", studentNumber: data.studentNumber || "", untilMs: timestampToMs(data.blockedUntil, 0), reason: data.blockedReason || "" };
+      });
+      refreshSettings();
+    }, function (error) {
+      console.error("Could not load blocked students: " + error.message);
+    });
+}
+
+function stopBlockedListener() {
+  if (blockedUnsubscribe) {
+    blockedUnsubscribe();
+    blockedUnsubscribe = null;
+  }
+  blockedStudents = [];
+}
+
+function blockedStudentsPanelHtml() {
+  var now = serverNow();
+  var rows = blockedStudents.filter(function (b) { return b.untilMs > now; })
+    .sort(function (a, b) { return a.untilMs - b.untilMs; })
+    .map(function (b) {
+      return '<tr><td class="settings-strong">' + escapeAdminText(b.name || "Student") + '</td>' +
+        '<td>' + escapeAdminText(b.studentNumber || "—") + '</td>' +
+        '<td>' + escapeAdminText(manilaDateTimeText(b.untilMs)) + '</td>' +
+        '<td>' + (b.reason === "noShow" ? "Missed their turn 3 times in 7 days" : escapeAdminText(b.reason || "—")) + '</td>' +
+        '<td><button type="button" class="settings-btn settings-btn-blue" onclick="confirmUnblockStudent(\'' + escapeAdminText(b.id) + '\')">Unblock</button></td></tr>';
+    }).join("") || '<tr><td colspan="5" class="empty-row">No students are blocked.</td></tr>';
+
+  return '<section class="panel settings-panel">' +
+    '<div class="panel-header"><h2>Blocked Students</h2></div>' +
+    '<p class="settings-help">Students who miss their turn 3 times within 7 days (the last call ran out each time) can\'t join the queue for 24 hours. Unblock lets them join right away and clears their missed turns.</p>' +
+    '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Student No.</th><th>Blocked Until</th><th>Reason</th><th>Action</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>' +
+  '</section>';
+}
+
+function confirmUnblockStudent(uid) {
+  var blocked = blockedStudents.find(function (b) { return b.id === uid; });
+  if (!blocked) return;
+
+  showConfirmModal({
+    title: "Unblock " + (blocked.name || "this student") + "?",
+    message: "They can join the queue again right away, and their missed turns start from zero.",
+    confirmLabel: "Unblock",
+    tone: "primary",
+    onConfirm: function () {
+      return db.collection("joinState").doc(uid).update({
+        blockedUntil: null,
+        noShows: {},
+        unblockedBy: staffKey(adminUser.email),
+        unblockedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function () {
+        sayDone((blocked.name || "The student") + " can join the queue again.");
+      }).catch(function (error) {
+        say("Could not unblock the student: " + error.message);
+      });
+    }
+  });
 }
 
 // Stations made before ticket codes existed get theirs saved the first time an admin opens the console, so the
@@ -980,6 +1054,8 @@ function renderSettings() {
       '<p class="settings-help">*Controls the number of minutes a queue entry on hold has to return to the counter. Once it runs out, staff can send a last call that gives the entry the same amount of time again. If the last call also runs out, the system automatically marks the queue entry as void.</p>' +
       '<input type="number" id="settingsTimeout" class="settings-input" min="1" max="1440" step="1" value="' + escapeAdminText(timeoutValue) + '" oninput="onTimeoutInput(this.value)">' +
     '</section>' +
+
+    blockedStudentsPanelHtml() +
 
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Service Station</h2>' +

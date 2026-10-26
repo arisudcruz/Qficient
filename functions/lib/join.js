@@ -2,6 +2,7 @@
 // one live ticket per person, a short pause between joins, a pause after cancelling, a daily limit per
 // account and the station's daily queue cap. The app only asks; this file decides.
 const { startOfTodayMs, dayKey, toMs } = require("./time");
+const { manilaTime } = require("./messages");
 
 const ACTIVE_STATUSES = ["waiting", "serving", "skipped"];
 const ENROLLMENT_PURPOSE = "Enrollment";
@@ -185,6 +186,14 @@ async function joinQueue(deps, auth, data) {
     const stateSnap = await tx.get(stateRef);
     const state = stateSnap.exists ? stateSnap.data() : {};
 
+    // Blocked for missing their turn too often (functions/lib/strikes.js).
+    const blockedUntilMs = toMs(state.blockedUntil);
+    if (blockedUntilMs > now) {
+      const rules = config.noShow || {};
+      throw new JoinError("failed-precondition", "You missed your turn " + (rules.limit || 3) + " times in " + (rules.windowDays || 7) +
+        " days, so you can join again on " + manilaTime(blockedUntilMs) + ". Please see the front desk if this is a mistake.");
+    }
+
     if (state.ticketId) {
       const previous = await tx.get(db.collection("tickets").doc(state.ticketId));
       if (previous.exists) {
@@ -211,7 +220,8 @@ async function joinQueue(deps, auth, data) {
       throw new JoinError("resource-exhausted", "You've reached today's limit of " + config.maxJoinsPerDay + " tickets. Please see the front desk.");
     }
 
-    tx.set(stateRef, { ticketId: state.ticketId || null, lastJoinMs: now, day: today, joins: joinsToday + 1 });
+    // merge: the record also holds no-show strikes and any block (lib/strikes.js), which a join must keep.
+    tx.set(stateRef, { ticketId: state.ticketId || null, lastJoinMs: now, day: today, joins: joinsToday + 1 }, { merge: true });
     return stateSnap.exists ? state : null;
   }));
 
@@ -253,7 +263,11 @@ async function joinQueue(deps, auth, data) {
     });
   } catch (error) {
     // No ticket was made: give the reserved join back, so the student can try again right away.
-    await (before ? stateRef.set(before) : stateRef.delete()).catch(function () {});
+    // Only the join fields are put back, so strikes or a block recorded meanwhile stay.
+    const undo = before ?
+      { ticketId: before.ticketId || null, lastJoinMs: Number(before.lastJoinMs) || 0, day: before.day || null, joins: Number(before.joins) || 0 } :
+      { ticketId: null, lastJoinMs: 0, day: null, joins: 0 };
+    await stateRef.set(undo, { merge: true }).catch(function () {});
     throw error;
   }
 }

@@ -109,6 +109,7 @@ function deactivateAdminSession() {
   adminRole = null;
   setTicketsScope(1);
   stopStaffListener();
+  stopBlockedListener();
   stopServerStatusListener();
   stopNotificationsListener();
 }
@@ -138,6 +139,7 @@ function activateAdminSession(firebaseUser) {
         // The staff list and server status stay with full admins.
         if (role === "admin") {
           startStaffListener();
+          startBlockedListener();
           startServerStatusListener();
         }
         applyAdminAccess();

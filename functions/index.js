@@ -13,6 +13,7 @@ const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
 const { redeemWalkinPass } = require("./lib/walkin");
+const { isNoShow, recordNoShow } = require("./lib/strikes");
 const messages = require("./lib/messages");
 
 initializeApp();
@@ -80,6 +81,20 @@ exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", se
       // Each enrollment step is its own alert (the same tag would replace the previous one on the phone).
       const tag = ticket.id + ":" + change.type + (change.type === "enrollmentNext" ? ":" + after.enrollmentStep : "");
       await pusher.pushOnce(event.id + ":" + change.type, ticket, change.message, tag);
+    }
+  }
+
+  // A no-show (the Last Call ran out): a strike, and at the limit a block from joining. The void itself was
+  // already pushed above, so a strike is only noted in the history; a block is pushed too.
+  if (isNoShow(before, after)) {
+    const rules = config.noShow;
+    const result = await recordNoShow({ db, Timestamp, config }, ticket, Date.now());
+    if (result.counted && result.blockedUntilMs) {
+      await pusher.pushOnce(event.id + ":noShowBlocked", ticket,
+        messages.noShowBlocked(result.blockedUntilMs, rules.limit, rules.windowDays), ticket.id + ":noShowBlocked");
+    } else if (result.counted) {
+      await pusher.recordOnce(event.id + ":noShowStrike", ticket,
+        messages.noShowStrike(ticket, result.strikes, rules.limit, rules.windowDays, rules.blockHours), "noShowStrike");
     }
   }
 

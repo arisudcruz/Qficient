@@ -310,6 +310,14 @@ body[data-page="pageDashboard"] .themeToggle { display: none; }
 
 body.dark .ud-link { color: #7DB4F5; }
 
+/* Blocked from joining for missing their turn too often */
+.ud-banner.ud-banner-blocked {
+  border-color: #EF9C97;
+  background: var(--app-danger-bg, #FDECEC);
+  color: var(--app-danger, #C2362F);
+  font-weight: 600;
+}
+
 .ud-stations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

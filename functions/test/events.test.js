@@ -74,4 +74,18 @@ test("queue order: arrival order", () => assert.ok(compareQueueOrder({ createdAt
 test("queue order: prioritized first", () => assert.ok(compareQueueOrder({ createdAt: ts(9), prioritizedAt: ts(5) }, { createdAt: ts(1) }) < 0));
 test("queue order: earliest prioritized first", () => assert.ok(compareQueueOrder({ createdAt: ts(9), prioritizedAt: ts(5) }, { createdAt: ts(1), prioritizedAt: ts(6) }) < 0));
 
+// No-show strikes (lib/strikes.js)
+const { isNoShow } = require("../lib/strikes");
+const messages = require("../lib/messages");
+const held = Object.assign({}, base, { status: "skipped", lastCalled: true });
+const autoVoid = Object.assign({}, base, { status: "void", autoVoided: true });
+test("no-show: a ticket voided when the last call ran out counts", () => assert.ok(isNoShow(held, autoVoid)));
+test("no-show: a ticket removed by staff doesn't count", () => assert.ok(!isNoShow(held, Object.assign({}, base, { status: "void" }))));
+test("no-show: the nightly cleanup of earlier days doesn't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { staleCleanup: true }))));
+test("no-show: walk-in tickets don't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { manual: true }))));
+test("no-show: old walk-in owners (manual:) don't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { ownerId: "manual:x" }))));
+test("no-show: a ticket that was already void doesn't count again", () => assert.ok(!isNoShow(autoVoid, Object.assign({}, autoVoid, { recallCount: 1 }))));
+test("no-show: the block message gives the time in Manila", () => assert.ok(/Tue, Oct 27, 3:15 PM/.test(messages.noShowBlocked(Date.UTC(2026, 9, 27, 7, 15), 3, 7).body)));
+test("no-show: the strike message says how many are left", () => assert.ok(/strike 2 of 3/.test(messages.noShowStrike(base, 2, 3, 7, 24).title)));
+
 console.log("\n" + passed + " passed" + (process.exitCode ? ", with failures" : ""));
