@@ -101,6 +101,12 @@ const SECRET = "Abc123_-xyzXYZ789secret";
   const e = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
   check("an enrollment pass starts the enrollment at its first station", r.ok && e.enrollment === true && e.enrollmentStep === 0 && JSON.stringify(e.enrollmentFlow) === JSON.stringify(["registrar", "cashier"]) && e.stationId === "registrar" && e.ticketNo === "RE1-001", JSON.stringify(e));
 
+  // A Regular / Transferee walk-in's student number goes on the ticket.
+  await makePass("passNumber1", SECRET, { studentType: "regular", studentNumber: "02000-123456" });
+  r = await attempt(phone("w7"), { passId: "passNumber1", secret: SECRET });
+  const numbered = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
+  check("a Regular walk-in's ticket shows their student number", r.ok && numbered.studentNumber === "02000-123456" && numbered.studentType === "regular", JSON.stringify(numbered));
+
   // The daily cap.
   await db.collection("stations").doc("cashier").update({ maxQueue: 1 });
   await makePass("passFull001", SECRET);

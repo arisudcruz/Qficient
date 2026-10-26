@@ -109,7 +109,7 @@ async function redeemWalkinPass(deps, auth, data) {
           stationId: stationId,
           ownerId: auth.uid,
           ownerName: fresh.ownerName,
-          studentNumber: "",
+          studentNumber: typeof fresh.studentNumber === "string" ? fresh.studentNumber : "",
           studentType: fresh.studentType,
           purpose: fresh.purpose,
           status: "waiting",

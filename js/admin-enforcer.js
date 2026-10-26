@@ -24,7 +24,7 @@ function enforcerFormNeedsFlows() {
   return !!area && area.style.display !== "none" && !!document.getElementById("enforcerStation");
 }
 
-var enforcerDraft = { firstName: "", lastName: "", studentType: "", stationId: "", purpose: "", purposeOther: "" };
+var enforcerDraft = { firstName: "", lastName: "", studentType: "", studentNumber: "", stationId: "", purpose: "", purposeOther: "" };
 var enforcerFilter = "";
 var enforcerTypeFilter = ""; // "" = all student types
 
@@ -35,7 +35,34 @@ function setEnforcerTypeFilter(value) {
 }
 
 function emptyEnforcerDraft(stationId) {
-  return { firstName: "", lastName: "", studentType: "", stationId: stationId || "", purpose: "", purposeOther: "" };
+  return { firstName: "", lastName: "", studentType: "", studentNumber: "", stationId: stationId || "", purpose: "", purposeOther: "" };
+}
+
+// Regular and Transferee / Irregular walk-ins are enrolled students, so their student number goes on the ticket.
+var ENFORCER_NUMBERED_TYPES = ["regular", "transferee"];
+
+function enforcerNeedsStudentNumber() {
+  return ENFORCER_NUMBERED_TYPES.indexOf(enforcerDraft.studentType) !== -1;
+}
+
+// "02000-123456", "02000123456" or "02000 123456" become "02000-123456"; anything else gives "".
+function normalizeStudentNumber(value) {
+  var digits = String(value || "").replace(/[\s-]/g, "");
+  return /^02000\d{6}$/.test(digits) ? "02000-" + digits.slice(5) : "";
+}
+
+function syncEnforcerStudentNumberField() {
+  var field = document.getElementById("enforcerStudentNoField");
+  if (field) field.style.display = enforcerNeedsStudentNumber() ? "" : "none";
+}
+
+// Tidies a valid number into 02000-XXXXXX when the box is left.
+function onEnforcerStudentNumberBlur(input) {
+  var tidy = normalizeStudentNumber(input.value);
+  if (tidy) {
+    input.value = tidy;
+    enforcerDraft.studentNumber = tidy;
+  }
 }
 
 function getEnforcerStations() {
@@ -70,6 +97,8 @@ function syncEnforcerOtherField() {
 function onEnforcerInput(field, value) {
   enforcerDraft[field] = value;
 
+  if (field === "studentType") syncEnforcerStudentNumberField();
+
   if (field === "stationId") {
     enforcerDraft.purpose = value === ENFORCER_ENROLLMENT ? ENROLLMENT_PURPOSE : "";
     enforcerDraft.purposeOther = "";
@@ -96,19 +125,15 @@ function enforcerFinalPurpose() {
     enforcerDraft.purpose;
 }
 
-// The station picker above the form narrows the list and pre-selects that station in the form.
+// The station picker in the Queue List header only narrows the list; the Walk-in Form has its own Station field.
 function onEnforcerFilter(stationId) {
   enforcerFilter = stationId;
-  if (stationId) {
-    enforcerDraft.stationId = stationId;
-    enforcerDraft.purpose = "";
-    enforcerDraft.purposeOther = "";
-  }
-  renderEnforcer();
+  enforcerSelection = {};
+  refreshEnforcerList();
 }
 
 function clearEnforcerForm() {
-  enforcerDraft = emptyEnforcerDraft(enforcerFilter);
+  enforcerDraft = emptyEnforcerDraft("");
   renderEnforcer();
 }
 
@@ -118,6 +143,10 @@ function enforcerFormProblem() {
   if (!/\p{L}/u.test(d.firstName.trim())) return "Please enter the first name.";
   if (!/\p{L}/u.test(d.lastName.trim())) return "Please enter the last name.";
   if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
+  if (enforcerNeedsStudentNumber()) {
+    if (!d.studentNumber.trim()) return "Please enter the student number (02000-XXXXXX).";
+    if (!normalizeStudentNumber(d.studentNumber)) return "Please enter a valid student number, like 02000-123456.";
+  }
   if (!d.stationId) return "Please select the station.";
   if (d.stationId === ENFORCER_ENROLLMENT) {
     if (ENROLLMENT_TYPES.indexOf(d.studentType) === -1) return "Enrollment is for Regular, Transferee / Irregular and Incoming Freshman students.";
@@ -185,6 +214,7 @@ function createWalkinPass(details) {
       createdBy: staffKey(adminUser.email),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
+    if (details.studentNumber) pass.studentNumber = details.studentNumber;
     if (details.enrollmentFlow) {
       pass.enrollment = true;
       pass.enrollmentFlow = details.enrollmentFlow;
@@ -207,6 +237,7 @@ function enforcerPassDetails() {
   return {
     ownerName: d.firstName.trim().replace(/\s+/g, " ") + " " + d.lastName.trim().replace(/\s+/g, " "),
     studentType: d.studentType,
+    studentNumber: enforcerNeedsStudentNumber() ? normalizeStudentNumber(d.studentNumber) : "",
     stationId: enrolling ? flow[0] : d.stationId,
     purpose: enrolling ? ENROLLMENT_PURPOSE : enforcerFinalPurpose(),
     enrollmentFlow: flow
@@ -321,7 +352,7 @@ function walkinPassScanned(pass) {
   clearInterval(walkinPassView.timer);
   if (walkinPassView.unsubscribe) walkinPassView.unsubscribe();
 
-  enforcerDraft = emptyEnforcerDraft(enforcerFilter);
+  enforcerDraft = emptyEnforcerDraft("");
   renderEnforcer();
 }
 
@@ -564,7 +595,6 @@ function renderEnforcer() {
 
     '<div class="enforcer-title-row">' +
       '<h2 class="settings-title">Walk-in Ticket</h2>' +
-      '<select class="enforcer-station-select" aria-label="Station" onchange="onEnforcerFilter(this.value)">' + stationOptions("All Stations", enforcerFilter) + '</select>' +
     '</div>' +
 
     '<div class="enforcer-layout">' +
@@ -578,6 +608,7 @@ function renderEnforcer() {
             '<div class="enforcer-field"><label for="enforcerType">Student Type*</label><select id="enforcerType" onchange="onEnforcerInput(\'studentType\', this.value)">' + typeOptions + '</select></div>' +
             '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId).replace(/^(<option value="">[^<]*<\/option>)/, "$1" + enforcerEnrollmentOptionHtml()) + '</select></div>' +
             '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId && !enforcerIsEnrollment() ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
+            '<div class="enforcer-field" id="enforcerStudentNoField"' + (enforcerNeedsStudentNumber() ? '' : ' style="display: none"') + '><label for="enforcerStudentNo">Student Number*</label><input type="text" id="enforcerStudentNo" inputmode="numeric" autocomplete="off" placeholder="02000-XXXXXX" maxlength="13" value="' + escapeAdminText(d.studentNumber) + '" oninput="onEnforcerInput(\'studentNumber\', this.value)" onblur="onEnforcerStudentNumberBlur(this)"></div>' +
             '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +
           '</div>' +
           '<div class="settings-actions enforcer-form-actions">' +
@@ -588,7 +619,9 @@ function renderEnforcer() {
 
         '<section class="panel settings-panel">' +
           '<div class="panel-header"><h2>Queue List</h2>' +
-            '<div class="queued-tools">' + queueTypeFilterHtml(enforcerTypeFilter, "setEnforcerTypeFilter(this.value)") +
+            '<div class="queued-tools">' +
+              '<select class="queue-type-filter" aria-label="Show station" onchange="onEnforcerFilter(this.value)">' + stationOptions("All Stations", enforcerFilter) + '</select>' +
+              queueTypeFilterHtml(enforcerTypeFilter, "setEnforcerTypeFilter(this.value)") +
               '<button type="button" id="enforcerActionBtn" class="settings-btn settings-btn-primary" style="display: none" onclick="openEnforcerActionsModal()">Action</button></div></div>' +
           '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr>' +
             '<th class="queue-select-cell"><span class="visually-hidden">Select</span></th>' +
