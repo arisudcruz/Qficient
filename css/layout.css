@@ -2985,28 +2985,6 @@ body.dark .admin-topbar { background: #0B1A30; }
 .qm-main-btn.queue-action-complete:hover:not(:disabled) { background: #15803d; }
 .qm-main-btn.queue-action-complete:disabled { background: #dcfce7; color: #16a34a; }
 
-.qm-transfer-title {
-  margin: 0 0 12px;
-  color: #172033;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.qm-select {
-  width: 100%;
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  border: 1px solid #C8D5E5;
-  border-radius: 8px;
-  background: var(--white);
-  color: var(--text);
-  font-size: 0.85rem;
-}
-
-.qm-transfer-btn {
-  width: 100%;
-}
-
 /* The two lists */
 .qm-lists {
   display: flex;
@@ -3126,13 +3104,11 @@ body.dark .admin-topbar { background: #0B1A30; }
 
 body.dark .qm-list-head h2,
 body.dark .qm-value,
-body.dark .qm-transfer-title,
 body.dark .qm-status { color: var(--ad-text); }
 body.dark .qm-label,
 body.dark .qm-sub,
 body.dark .qm-idle,
 body.dark .qm-list-count { color: var(--ad-muted); }
-body.dark .qm-select { background: var(--ad-field); border-color: var(--ad-line-strong); color: var(--ad-text); }
 body.dark .qm-filter { background: var(--ad-field); border-color: var(--ad-line-strong); color: var(--ad-muted); }
 body.dark .qm-row-btn { background: transparent; border-color: #5AA2FF; color: #9CC8FA; }
 body.dark .qm-row-btn:hover:not(:disabled) { background: #1D3A66; color: #fff; }
