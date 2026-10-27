@@ -160,38 +160,9 @@
   text-transform: uppercase;
 }
 
-.admin-user-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.08);
-}
-
-.user-badge {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.14);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.user-meta {
-  flex: 1;
-  font-size: 0.95rem;
-}
-
-.caret {
-  font-size: 1.2rem;
-}
-
 .dashboard-main {
   flex: 1;
+  min-width: 0;
   padding: 26px 28px 32px;
 }
 
@@ -702,9 +673,7 @@
 
   .admin-shell.sidebar-collapsed .brand-name,
   .admin-shell.sidebar-collapsed .nav-text,
-  .admin-shell.sidebar-collapsed .tool-label,
-  .admin-shell.sidebar-collapsed .user-meta,
-  .admin-shell.sidebar-collapsed .caret {
+  .admin-shell.sidebar-collapsed .tool-label {
     display: none;
   }
 
@@ -713,11 +682,6 @@
     justify-content: center;
     gap: 0;
     padding: 12px 0;
-  }
-
-  .admin-shell.sidebar-collapsed .admin-user-row {
-    justify-content: center;
-    padding: 10px 0;
   }
 }
 
@@ -2076,6 +2040,104 @@ button.is-loading::after {
 
 .report-filters-spacer { flex: 1 1 auto; }
 
+/* The "Include in report" checklist, between the filters and the buttons. */
+.report-include-label {
+  margin: 18px 0 10px;
+  padding-top: 16px;
+  border-top: 1px solid #eef2f7;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+
+.report-include {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 16px 32px;
+}
+
+.report-include-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+.report-include-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #172033;
+}
+
+.report-include-links {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.report-include-links button {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: #0054A6;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.report-include-links button:hover { text-decoration: underline; }
+
+.report-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px 16px;
+}
+
+.report-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+}
+
+.report-check input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #0054A6;
+  cursor: pointer;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #eef2f7;
+}
+
+.report-include-note {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b45309;
+}
+
+@media (max-width: 760px) {
+  .report-include { grid-template-columns: 1fr; }
+  .report-checks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .report-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -2086,8 +2148,11 @@ button.is-loading::after {
 .report-cards .stat-card { min-height: 0; }
 .report-cards .stat-value { font-size: 2.2rem; margin: 6px 0 0; }
 
-.report-table th,
+/* With many data columns ticked, a report table scrolls sideways inside its panel instead of widening the page. */
+.report-table-wrap { overflow-x: auto; }
+
 .report-table td { white-space: nowrap; }
+.report-table th { min-width: 72px; vertical-align: bottom; }
 
 .report-table tfoot td {
   font-weight: 700;
