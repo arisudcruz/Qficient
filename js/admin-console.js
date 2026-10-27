@@ -222,11 +222,6 @@ function applyAdminAccess() {
   var toolLabel = document.querySelector("#pageAdmin .tool-label");
   if (toolLabel) toolLabel.style.display = canOpenSection("rules") || canOpenSection("settings") ? "" : "none";
 
-  var badge = document.querySelector("#pageAdmin .user-badge");
-  var meta = document.querySelector("#pageAdmin .user-meta");
-  if (badge) badge.textContent = kind === "enforcer" ? "QE" : (kind === "station" ? getStationName(adminRole).slice(0, 2).toUpperCase() : "AU");
-  if (meta) meta.textContent = kind === "enforcer" ? "Queue Enforcer" : (kind === "station" ? getStationName(adminRole) + " Staff" : "Admin User");
-
   if (kind === "station") {
     activeQueueStation = adminRole;
   }

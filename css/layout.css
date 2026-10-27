@@ -160,36 +160,6 @@
   text-transform: uppercase;
 }
 
-.admin-user-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.08);
-}
-
-.user-badge {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.14);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.user-meta {
-  flex: 1;
-  font-size: 0.95rem;
-}
-
-.caret {
-  font-size: 1.2rem;
-}
-
 .dashboard-main {
   flex: 1;
   padding: 26px 28px 32px;
@@ -702,9 +672,7 @@
 
   .admin-shell.sidebar-collapsed .brand-name,
   .admin-shell.sidebar-collapsed .nav-text,
-  .admin-shell.sidebar-collapsed .tool-label,
-  .admin-shell.sidebar-collapsed .user-meta,
-  .admin-shell.sidebar-collapsed .caret {
+  .admin-shell.sidebar-collapsed .tool-label {
     display: none;
   }
 
@@ -713,11 +681,6 @@
     justify-content: center;
     gap: 0;
     padding: 12px 0;
-  }
-
-  .admin-shell.sidebar-collapsed .admin-user-row {
-    justify-content: center;
-    padding: 10px 0;
   }
 }
 
