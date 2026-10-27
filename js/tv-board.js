@@ -3,6 +3,7 @@
 // when signed in. The admin console's "Live Board" page opens it in its own window.
 
 var TV_MAIN_COLUMNS = 3;       // stations shown as full columns; the rest become compact cards
+var TV_MAIN_STATIONS = ["admission", "cashier", "registrar"]; // these take the full columns first, in this order
 var TV_SIDE_PER_PAGE = 3;      // compact cards on screen at once; more than this take turns
 var TV_SIDE_PAGE_MS = 10 * 1000;
 var TV_WAITING_ROWS = 4;
@@ -44,9 +45,14 @@ function openTvBoard() {
 
 /* ---------- The board ---------- */
 
+// Open stations: the main ones first (TV_MAIN_STATIONS order), then the rest by name.
 function tvStations() {
+  function rank(station) {
+    var i = TV_MAIN_STATIONS.indexOf(station.id);
+    return i === -1 ? TV_MAIN_STATIONS.length : i;
+  }
   return stations.filter(function (station) { return station.active !== false; })
-    .sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+    .sort(function (a, b) { return rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)); });
 }
 
 function tvClockText() {

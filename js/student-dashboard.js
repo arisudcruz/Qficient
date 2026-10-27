@@ -280,20 +280,6 @@ function enableAlertsFromMenu() {
   enableNotifications();
 }
 
-// Plays the long "go to the counter" buzz once, so a student (or staff checking a phone) can tell whether this
-// phone vibrates for QFicient at all. iPhones and some browsers can't vibrate from a website.
-function testVibrationFromMenu() {
-  closeUserMenu();
-  var played = !!navigator.vibrate && navigator.vibrate(VIBRATE_URGENT);
-  if (played) {
-    showStudentToast("📳 Testing vibration: you should feel a long buzz of about 3 seconds.", "info");
-  } else {
-    sayProblem("This phone can't vibrate for QFicient",
-      "This browser doesn't let websites vibrate the phone (iPhones never do). You'll still get the sound and the on-screen alert, and notifications follow the phone's own settings.",
-      "info");
-  }
-}
-
 function changeStudentTypeFromMenu() {
   closeUserMenu();
   promptStudentType(false);
@@ -598,9 +584,6 @@ function renderLiveBoard() {
 
   var serving = servingTicketOf(station);
   var line = waitingTicketsOf(station.id);
-  var served = tickets.filter(function (item) {
-    return item.stationId === station.id && item.status === "completed" && isTodayTicket(item);
-  }).length;
 
   var pages = Math.max(1, Math.ceil(line.length / BOARD_PAGE_SIZE));
   boardPage = Math.min(Math.max(boardPage, 0), pages - 1);
@@ -623,7 +606,6 @@ function renderLiveBoard() {
         '<div class="ud-next ud-third"><span>Waiting</span><b>' + escapeHtml(line[1] ? line[1].ticketNo : "—") + '</b></div>' +
       '</div>' +
       boardStat("Total Waiting", String(line.length)) +
-      boardStat("Served Today", String(served)) +
     '</div>' +
     '<div class="ud-q-top"><h3>Queues</h3><span class="ud-q-date"><i class="live-dot-pulse"></i>' + escapeHtml(boardNowText()) + '</span></div>' +
     '<div class="ud-q-table">' +

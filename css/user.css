@@ -745,7 +745,7 @@ body.dark .ud-pos-box { color: #9CC8FA; border-color: #3D74BC; }
 
 .ud-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -935,7 +935,7 @@ body.dark .ud-q-row { color: #9CC8FA; }
 
 @media (min-width: 720px) {
   .ud-board-head { margin-bottom: 20px; }
-  .ud-stats { grid-template-columns: 1.7fr 1fr 1fr; gap: 16px; }
+  .ud-stats { grid-template-columns: 1.7fr 1fr; gap: 16px; }
   .ud-stat-queue { grid-column: auto; gap: 26px; padding: 16px 20px; }
   .ud-third { display: flex; }
   .ud-lbl-long { display: none; }
