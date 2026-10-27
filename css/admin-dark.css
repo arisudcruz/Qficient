@@ -133,6 +133,15 @@ body.dark .queue-row-freshman td {
 
 body.dark .report-table tfoot td { border-top-color: var(--ad-line-strong); color: var(--ad-text); }
 
+body.dark .report-include-label,
+body.dark .report-actions { border-top-color: var(--ad-line); }
+body.dark .report-include-label { color: var(--ad-muted); }
+body.dark .report-include-title { color: var(--ad-text); }
+body.dark .report-check { color: var(--ad-text-2); }
+body.dark .report-check input { accent-color: var(--ad-accent); }
+body.dark .report-include-links button { color: var(--ad-accent); }
+body.dark .report-include-note { color: #F7C35F; }
+
 /* ---------- Fields ---------- */
 
 body.dark .settings-input,
