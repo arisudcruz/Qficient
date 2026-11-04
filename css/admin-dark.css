@@ -119,9 +119,7 @@ body.dark .queue-table thead th {
   color: var(--ad-muted);
 }
 
-body.dark .settings-row-selected td,
-body.dark .queue-row.selected td,
-body.dark .queue-row.selected td:not(.queue-row-no) {
+body.dark .settings-row-selected td {
   background: var(--ad-selected);
 }
 

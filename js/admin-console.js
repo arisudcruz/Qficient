@@ -195,7 +195,6 @@ function resetAdminPageState() {
   dashStation = "all";
   rulesActiveTab = "general";
   enforcerFilter = "";
-  enforcerSelection = {};
   enforcerDraft = emptyEnforcerDraft("");
   queueTypeFilter = "";
   holdTypeFilter = "";
