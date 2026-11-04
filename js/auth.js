@@ -94,6 +94,9 @@ function restoreStudentSession(firebaseUser) {
   if (!firebaseUser || isPasswordUser(firebaseUser)) return;
 
   if (firebaseUser.isAnonymous) {
+    // A QR code is being opened: it decides whether this phone's earlier walk-in visit goes on (js/walkin.js).
+    if (openingWalkinLink()) return;
+
     var profile = loadWalkinProfile(firebaseUser.uid);
     if (!profile) {
       firebase.auth().signOut();

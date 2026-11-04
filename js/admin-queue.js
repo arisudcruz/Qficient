@@ -42,11 +42,6 @@ function queueTicketsWithStatus(status) {
   }).sort(compareQueueOrder);
 }
 
-function queueActionButtonHtml(label, onclick, disabled, title) {
-  return '<button type="button" class="queue-action-btn"' + (disabled ? ' disabled' : '') +
-    (title ? ' title="' + escapeAdminText(title) + '"' : '') + ' onclick="' + onclick + '">' + label + '</button>';
-}
-
 // Icons for the buttons (24x24, drawn with the text colour).
 var QM_ICONS = {
   call: '<path d="M3 5h18v12H3z"/><circle cx="9" cy="10" r="2"/><path d="M5.5 15c.7-1.6 2-2.3 3.5-2.3s2.8.7 3.5 2.3M15 9h3M15 12h3M8 21h8"/>',
@@ -62,11 +57,12 @@ function qmIcon(name) {
   return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + QM_ICONS[name] + '</svg>';
 }
 
-// One icon button in a list row.
-function qmRowButton(kind, ticket, label, disabledTitle) {
+// One icon button in a list row. `handler` is the function it calls with (kind, ticket id): confirmTicketAction
+// here in Queue Management, confirmEnforcerTicketAction in the Queue Enforcer's list.
+function qmRowButton(kind, ticket, label, disabledTitle, handler) {
   return '<button type="button" class="qm-row-btn' + (kind === "remove" ? ' is-danger' : '') + '" title="' + escapeAdminText(disabledTitle || label) + '"' +
     ' aria-label="' + escapeAdminText(label + " " + ticket.ticketNo) + '"' + (disabledTitle ? ' disabled' : '') +
-    ' onclick="confirmTicketAction(\'' + kind + '\', \'' + escapeAdminText(ticket.id) + '\')">' + qmIcon(kind) + '</button>';
+    ' onclick="' + (handler || "confirmTicketAction") + '(\'' + kind + '\', \'' + escapeAdminText(ticket.id) + '\')">' + qmIcon(kind) + '</button>';
 }
 
 // The buttons in each list row: call this ticket now, prioritize it, recall it, or remove it.
