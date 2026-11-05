@@ -37,11 +37,21 @@ function emptyEnforcerDraft(stationId) {
   return { firstName: "", lastName: "", studentType: "", studentNumber: "", stationId: stationId || "", purpose: "", purposeOther: "" };
 }
 
-// Regular and Transferee / Irregular walk-ins are enrolled students, so their student number goes on the ticket.
+// The student type is asked only for Enrollment, which follows a process per type. Other walk-ins have none.
+// Regular and Transferee / Irregular enrollees are enrolled students, so their student number goes on the ticket.
 var ENFORCER_NUMBERED_TYPES = ["regular", "transferee"];
 
+function enforcerNeedsStudentType() {
+  return enforcerIsEnrollment();
+}
+
 function enforcerNeedsStudentNumber() {
-  return ENFORCER_NUMBERED_TYPES.indexOf(enforcerDraft.studentType) !== -1;
+  return enforcerNeedsStudentType() && ENFORCER_NUMBERED_TYPES.indexOf(enforcerDraft.studentType) !== -1;
+}
+
+function syncEnforcerTypeField() {
+  var field = document.getElementById("enforcerTypeField");
+  if (field) field.style.display = enforcerNeedsStudentType() ? "" : "none";
 }
 
 // "02000-123456", "02000123456" or "02000 123456" become "02000-123456"; anything else gives "".
@@ -99,6 +109,8 @@ function onEnforcerInput(field, value) {
   if (field === "studentType") syncEnforcerStudentNumberField();
 
   if (field === "stationId") {
+    syncEnforcerTypeField();
+    syncEnforcerStudentNumberField();
     enforcerDraft.purpose = value === ENFORCER_ENROLLMENT ? ENROLLMENT_PURPOSE : "";
     enforcerDraft.purposeOther = "";
     var purposeSelect = document.getElementById("enforcerPurpose");
@@ -140,14 +152,14 @@ function enforcerFormProblem() {
 
   if (!/\p{L}/u.test(d.firstName.trim())) return "Please enter the first name.";
   if (!/\p{L}/u.test(d.lastName.trim())) return "Please enter the last name.";
-  if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
-  if (enforcerNeedsStudentNumber()) {
-    if (!d.studentNumber.trim()) return "Please enter the student number (02000-XXXXXX).";
-    if (!normalizeStudentNumber(d.studentNumber)) return "Please enter a valid student number, like 02000-123456.";
-  }
   if (!d.stationId) return "Please select the station.";
   if (d.stationId === ENFORCER_ENROLLMENT) {
+    if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
     if (ENROLLMENT_TYPES.indexOf(d.studentType) === -1) return "Enrollment is for Regular, Transferee / Irregular and Incoming Freshman students.";
+    if (enforcerNeedsStudentNumber()) {
+      if (!d.studentNumber.trim()) return "Please enter the student number (02000-XXXXXX).";
+      if (!normalizeStudentNumber(d.studentNumber)) return "Please enter a valid student number, like 02000-123456.";
+    }
     var flow = enrollmentFlowFor(d.studentType);
     if (!flow.length) return "Enrollment isn't set up for " + STUDENT_TYPE_LABELS[d.studentType] + " students yet.";
     var first = stations.find(function (s) { return s.id === flow[0]; });
@@ -205,13 +217,13 @@ function createWalkinPass(details) {
   return sha256Hex(secret).then(function (hash) {
     var pass = {
       ownerName: details.ownerName,
-      studentType: details.studentType,
       stationId: details.stationId,
       purpose: details.purpose,
       secretHash: hash,
       createdBy: staffKey(adminUser.email),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
+    if (details.studentType) pass.studentType = details.studentType;
     if (details.studentNumber) pass.studentNumber = details.studentNumber;
     if (details.enrollmentFlow) {
       pass.enrollment = true;
@@ -234,7 +246,7 @@ function enforcerPassDetails() {
   var flow = enrolling ? enrollmentFlowFor(d.studentType).slice() : null;
   return {
     ownerName: d.firstName.trim().replace(/\s+/g, " ") + " " + d.lastName.trim().replace(/\s+/g, " "),
-    studentType: d.studentType,
+    studentType: enrolling ? d.studentType : "",
     studentNumber: enforcerNeedsStudentNumber() ? normalizeStudentNumber(d.studentNumber) : "",
     stationId: enrolling ? flow[0] : d.stationId,
     purpose: enrolling ? ENROLLMENT_PURPOSE : enforcerFinalPurpose(),
@@ -391,7 +403,9 @@ function enforcerTagsHtml(ticket) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
   if (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") {
-    tags += ' <span class="type-tag queue-row-' + ticket.studentType + '">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
+    // Colour-coded only for enrollees, whose process depends on the type; a plain label for everyone else.
+    tags += ' <span class="type-tag' + (ticket.enrollment === true ? ' queue-row-' + ticket.studentType : '') + '">' +
+      escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
   }
   if (ticket.prioritizedAt && ticket.status === "waiting") tags += ' <span class="type-tag priority-tag">\u2605 Priority</span>';
 
@@ -532,9 +546,9 @@ function renderEnforcer() {
           '<div class="enforcer-form-grid">' +
             '<div class="enforcer-field"><label for="enforcerFirstName">First Name*</label><input type="text" id="enforcerFirstName" placeholder="First Name" maxlength="50" value="' + escapeAdminText(d.firstName) + '" oninput="onEnforcerInput(\'firstName\', this.value)"></div>' +
             '<div class="enforcer-field"><label for="enforcerLastName">Last Name*</label><input type="text" id="enforcerLastName" placeholder="Last Name" maxlength="50" value="' + escapeAdminText(d.lastName) + '" oninput="onEnforcerInput(\'lastName\', this.value)"></div>' +
-            '<div class="enforcer-field"><label for="enforcerType">Student Type*</label><select id="enforcerType" onchange="onEnforcerInput(\'studentType\', this.value)">' + typeOptions + '</select></div>' +
-            '<div class="enforcer-field enforcer-span-2"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId).replace(/^(<option value="">[^<]*<\/option>)/, "$1" + enforcerEnrollmentOptionHtml()) + '</select></div>' +
-            '<div class="enforcer-field"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId && !enforcerIsEnrollment() ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
+            '<div class="enforcer-field"><label for="enforcerStation">Station*</label><select id="enforcerStation" onchange="onEnforcerInput(\'stationId\', this.value)">' + stationOptions("Select Station", d.stationId).replace(/^(<option value="">[^<]*<\/option>)/, "$1" + enforcerEnrollmentOptionHtml()) + '</select></div>' +
+            '<div class="enforcer-field enforcer-span-2"><label for="enforcerPurpose">Purpose*</label><select id="enforcerPurpose" onchange="onEnforcerInput(\'purpose\', this.value)"' + (d.stationId && !enforcerIsEnrollment() ? '' : ' disabled') + '>' + enforcerPurposeOptionsHtml() + '</select></div>' +
+            '<div class="enforcer-field" id="enforcerTypeField"' + (enforcerNeedsStudentType() ? '' : ' style="display: none"') + '><label for="enforcerType">Student Type*</label><select id="enforcerType" onchange="onEnforcerInput(\'studentType\', this.value)">' + typeOptions + '</select></div>' +
             '<div class="enforcer-field" id="enforcerStudentNoField"' + (enforcerNeedsStudentNumber() ? '' : ' style="display: none"') + '><label for="enforcerStudentNo">Student Number*</label><input type="text" id="enforcerStudentNo" inputmode="numeric" autocomplete="off" placeholder="02000-XXXXXX" maxlength="13" value="' + escapeAdminText(d.studentNumber) + '" oninput="onEnforcerInput(\'studentNumber\', this.value)" onblur="onEnforcerStudentNumberBlur(this)"></div>' +
             '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +
           '</div>' +

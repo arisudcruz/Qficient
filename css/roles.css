@@ -24,8 +24,9 @@
   justify-content: center;
   font-size: 22px;
 }
-.role-icon-student { background: rgba(79, 70, 229, 0.12); }
-.role-icon-guest { background: rgba(255, 122, 69, 0.14); }
+.role-icon-student { background: rgba(79, 70, 229, 0.12); color: #4F46E5; }
+.role-icon-guest { background: rgba(255, 122, 69, 0.14); color: #E8590C; }
+.role-icon svg { display: block; }
 
 .role-copy {
   flex: 1;

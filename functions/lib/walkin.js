@@ -110,7 +110,8 @@ async function redeemWalkinPass(deps, auth, data) {
           ownerId: auth.uid,
           ownerName: fresh.ownerName,
           studentNumber: typeof fresh.studentNumber === "string" ? fresh.studentNumber : "",
-          studentType: fresh.studentType,
+          // Only enrollment passes carry a student type; other walk-ins have none.
+          studentType: typeof fresh.studentType === "string" ? fresh.studentType : "",
           purpose: fresh.purpose,
           status: "waiting",
           verified: false,

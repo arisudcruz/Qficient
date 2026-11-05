@@ -80,8 +80,9 @@ var QUEUE_TYPE_FILTERS = [
   { value: "enrollment", label: "Enrollment" }
 ];
 
+// A ticket's student type, or "unspecified" for one without (walk-ins get a type only when enrolling).
 function ticketTypeOf(ticket) {
-  return ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest" ? ticket.studentType : "regular";
+  return STUDENT_TYPE_LABELS[ticket.studentType] ? ticket.studentType : "unspecified";
 }
 
 // "enrollment" picks enrollment tickets of any student type.

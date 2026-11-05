@@ -278,8 +278,14 @@ function queueRowTagsHtml(ticket) {
   return tags;
 }
 
+// Student-type colours mark enrollees only (their process depends on the type); every other ticket looks the same.
+function enrolleeTypeOf(ticket) {
+  return ticket && ticket.enrollment === true && STUDENT_TYPE_LABELS[ticket.studentType] ? ticket.studentType : "";
+}
+
 function queueRowClass(ticket) {
-  return 'queue-row' + ((ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") ? ' queue-row-' + ticket.studentType : '');
+  var type = enrolleeTypeOf(ticket);
+  return 'queue-row' + (type && type !== "regular" ? ' queue-row-' + type : '');
 }
 
 // One list panel: title, count, its own type filter, and the table.
@@ -320,7 +326,7 @@ function renderQueueManagement() {
 
   /* Left: the person at the counter and what to do with them. */
   var cardHtml =
-    '<div class="serving-card qm-serving-card' + (serving && STUDENT_TYPE_LABELS[serving.studentType] ? ' serving-type-' + serving.studentType : '') + '">' +
+    '<div class="serving-card qm-serving-card' + (enrolleeTypeOf(serving) ? ' serving-type-' + enrolleeTypeOf(serving) : '') + '">' +
       '<div class="serving-card-top">' +
         '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
         (serving && serving.createdAt ?

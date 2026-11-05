@@ -3,10 +3,54 @@
 // "Mark all as read", and "See all notifications" for the full page.
 // The two inboxes (js/user-notifications.js and js/admin-notifications.js) supply the items; this file only shows them.
 
+/* ---------- Notification icons (shared by the dropdown and both Notifications pages) ---------- */
+
+// Line icons on a 24x24 grid, drawn in the text colour.
+var NOTIF_ICON_PATHS = {
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  bellRing: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M4 2C2.8 3.7 2 5.7 2 8M22 8c0-2.3-.8-4.3-2-6"/>',
+  ticket: '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2M13 11v2M13 17v2"/>',
+  hourglass: '<path d="M5 22h14M5 2h14"/><path d="M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/>',
+  next: '<path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/>',
+  megaphone: '<path d="M3 11l18-5v12L3 14z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  pause: '<circle cx="12" cy="12" r="10"/><path d="M10 15V9M14 15V9"/>',
+  alarm: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3L2 6M22 6l-3-3"/>',
+  transfer: '<path d="M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4"/>',
+  removed: '<circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>',
+  nextStation: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8l4 4-4 4"/>',
+  graduate: '<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5M22 10v6"/>',
+  done: '<circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/>',
+  warning: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  blocked: '<circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/>',
+  people: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'
+};
+
+function notifIconSvg(name, size) {
+  return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + (NOTIF_ICON_PATHS[name] || NOTIF_ICON_PATHS.bell) + '</svg>';
+}
+
+// The icon box of one notification: the icon in its tone's colours (info, alert, good, danger).
+function notifIconHtml(boxClass, icon, size) {
+  return '<span class="' + boxClass + ' notif-tone-' + (icon.tone || "info") + '" aria-hidden="true">' + notifIconSvg(icon.name, size) + '</span>';
+}
+
+// Staff inbox items are tickets: an enrollment, a transfer in, or a new ticket.
+function staffNotifIcon(ticket) {
+  if (ticket.enrollment === true) return { name: "graduate", tone: "info" };
+  if (ticket.transferredFrom) return { name: "transfer", tone: "info" };
+  return { name: "people", tone: "info" };
+}
+
+// The big bell over "You're all caught up".
+function notifEmptyIconHtml(size) {
+  return '<span class="notif-empty-icon" aria-hidden="true">' + notifIconSvg("bell", size) + '</span>';
+}
+
 var NOTIF_DROPDOWN_LIMIT = 15;
 var notifDropdown = { kind: "", tab: "all", scroll: 0 };
 
-// What each inbox provides. Items are { id, icon, title, detail, ms, unread }.
+// What each inbox provides. Items are { id, icon: { name, tone }, title, detail, ms, unread }.
 var NOTIF_DROPDOWN_SOURCES = {
   student: {
     bell: function () { return document.getElementById("udNotifBell"); },
@@ -14,7 +58,7 @@ var NOTIF_DROPDOWN_SOURCES = {
     error: function () { return userNotifState.error; },
     items: function () {
       return userNotifState.items.map(function (item) {
-        return { id: item.id, icon: USER_NOTIF_ICONS[item.type] || "🔔", title: item.title || "QFicient", detail: item.body || "", ms: item.ms, unread: !item.read };
+        return { id: item.id, icon: userNotifIcon(item.type), title: item.title || "QFicient", detail: item.body || "", ms: item.ms, unread: !item.read };
       });
     },
     open: function (id) {
@@ -38,7 +82,7 @@ var NOTIF_DROPDOWN_SOURCES = {
         var t = item.ticket;
         return {
           id: item.id,
-          icon: t.enrollment === true ? "🎓" : t.transferredFrom ? "🔀" : "👥",
+          icon: staffNotifIcon(t),
           title: notifTitle(t),
           detail: notifDetail(t),
           ms: item.ms,
@@ -165,13 +209,13 @@ function renderNotifDropdown() {
   } else if (source.error()) {
     bodyHtml = '<p class="nd-empty">' + escapeHtml(source.error()) + '</p>';
   } else if (!groups.length) {
-    bodyHtml = '<p class="nd-empty"><span aria-hidden="true">🔔</span>' + (notifDropdown.tab === "unread" ? "You're all caught up" : "No notifications yet") + '</p>';
+    bodyHtml = '<p class="nd-empty">' + notifEmptyIconHtml(30) + (notifDropdown.tab === "unread" ? "You're all caught up" : "No notifications yet") + '</p>';
   } else {
     bodyHtml = groups.map(function (group) {
       return '<p class="nd-group">' + group.label + '</p>' + group.items.map(function (item) {
         var id = escapeHtml(item.id);
         return '<button type="button" class="nd-item' + (item.unread ? ' is-unread' : '') + '" onclick="notifDropdownOpenItem(\'' + id + '\')">' +
-          '<span class="nd-icon" aria-hidden="true">' + item.icon + '</span>' +
+          notifIconHtml("nd-icon", item.icon, 22) +
           '<span class="nd-copy">' +
             '<span class="nd-title">' + escapeHtml(item.title) + '</span>' +
             '<span class="nd-detail">' + escapeHtml(item.detail) + '</span>' +
