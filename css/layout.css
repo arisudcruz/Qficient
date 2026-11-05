@@ -2474,6 +2474,7 @@ body[data-page="pageAdmin"] .themeToggle { display: none; }
 .nd-list {
   max-height: min(62vh, 480px);
   overflow-y: auto;
+  overscroll-behavior: contain; /* reaching the end doesn't scroll the page (which would close the dropdown) */
   padding: 0 8px;
 }
 
