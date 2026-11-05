@@ -261,28 +261,8 @@ service cloud.firestore {
         !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
     }
 
-    // Sending the ticket being served to another station, as a fresh waiting ticket at the back of that queue.
-    function isStationStaffTransfer() {
-      let r = resource.data;
-      let d = request.resource.data;
-      return isStationStaffOf(r.stationId) &&
-        r.status == 'serving' &&
-        r.get('enrollment', false) != true &&
-        changedKeys().hasOnly(['stationId', 'ticketNo', 'purpose', 'status', 'verified', 'createdAt',
-                               'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
-                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
-        d.stationId is string && d.stationId != r.stationId && stationIsOpen(d.stationId) &&
-        d.status == 'waiting' &&
-        d.verified == false &&
-        d.createdAt == request.time &&
-        d.transferredAt == request.time &&
-        d.transferredFrom == r.stationId &&
-        d.previousTicketNo == r.ticketNo &&
-        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
-        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
-        !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
-        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
-    }
+    // Only enrollment tickets move between stations (isStationStaffEnrollmentStep, along their process). A regular
+    // ticket stays at the station it was issued for: there is no rule for station staff to move one.
 
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
@@ -297,7 +277,7 @@ service cloud.firestore {
       // Students join through the joinQueue Cloud Function and walk-ins through redeemWalkinPass, which create
       // the ticket on the server.
       allow create: if isAdmin();
-      allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
+      allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() ||
         isStationStaffEnrollmentStep() || (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }
