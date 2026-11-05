@@ -991,10 +991,7 @@ body.dark .ud-q-row { color: #9CC8FA; }
 }
 
 .ud-back {
-  position: fixed;
-  left: 16px;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  z-index: 50;
+  margin: 4px 0 12px;
   width: 38px;
   height: 38px;
   display: grid;
@@ -1022,9 +1019,6 @@ body.dark .ud-back { color: #7DB4F5; border-color: #3D74BC; }
   .ud-stations-grid { gap: 22px; margin-top: 28px; }
 }
 
-@media (min-width: 1100px) {
-  .ud-back { left: calc((100vw - 1040px) / 2 + 20px); }
-}
 
 /* ---------------- Small phones ---------------- */
 
