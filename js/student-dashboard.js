@@ -46,11 +46,11 @@ function promptStudentType(isFirstTime) {
       '<p class="app-modal-title">' + (isFirstTime ? "Welcome! What's your student type?" : "Update Student Type") + '</p>' +
       '<p class="app-modal-sub">' + (isFirstTime ? "This helps front-desk staff serve you correctly. You can change this anytime." : "You can change this anytime from your dashboard.") + '</p>' +
       '<button type="button" class="role-card" onclick="selectStudentType(\'regular\')">' +
-        '<span class="role-icon role-icon-student">🎓</span>' +
+        '<span class="role-icon role-icon-student" aria-hidden="true">' + notifIconSvg("graduate", 24) + '</span>' +
         '<span class="role-copy"><span class="role-title">Regular</span><span class="role-desc">Standard enrollment, on-track curriculum.</span></span>' +
       '</button>' +
       '<button type="button" class="role-card" onclick="selectStudentType(\'transferee\')">' +
-        '<span class="role-icon role-icon-guest">🔀</span>' +
+        '<span class="role-icon role-icon-guest" aria-hidden="true">' + notifIconSvg("transfer", 24) + '</span>' +
         '<span class="role-copy"><span class="role-title">Transferee / Irregular</span><span class="role-desc">Transferred or non-standard course load.</span></span>' +
       '</button>' +
       (isFirstTime ? '' : '<button type="button" class="app-btn app-btn-outline" onclick="closeStudentTypeModal()">Cancel</button>') +
@@ -85,10 +85,20 @@ var skipCountdownIntervalId = null;
 
 var TOAST_COLORS = { alert: "#E5484D", info: "#0054A6", good: "#1F9D55" };
 
-function showStudentToast(text, tone) {
+// A pop-up at the top of the page; `icon` is one of the notification icons (NOTIF_ICON_PATHS in js/notif-dropdown.js).
+function showStudentToast(text, tone, icon) {
   if (typeof Toastify === "undefined") return;
+
+  var node = document.createElement("span");
+  node.className = "student-toast-body";
+  if (icon) node.innerHTML = '<span class="student-toast-icon">' + notifIconSvg(icon, 22) + '</span>';
+  var words = document.createElement("span");
+  words.textContent = text;
+  node.appendChild(words);
+
   Toastify({
-    text: text,
+    node: node,
+    className: "student-toast",
     duration: 9000,
     gravity: "top",
     position: "center",
@@ -98,20 +108,30 @@ function showStudentToast(text, tone) {
 }
 
 function notifyRecall() {
-  studentAlert("⏰ Please go to the counter. You're being called.", "alert", true, true);
+  studentAlert("Please go to the counter. You're being called.", "alert", true, true, "megaphone");
 }
 
 function notifyLastCall() {
-  studentAlert("🚨 Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true);
+  studentAlert("Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm");
+}
+
+// A small icon in front of a line of text (banners, the ticket's countdown); icons from js/notif-dropdown.js.
+function inlineIconHtml(name, id) {
+  return '<span class="ud-inline-icon"' + (id ? ' id="' + id + '"' : '') + ' data-icon="' + name + '" aria-hidden="true">' + notifIconSvg(name, 16) + '</span>';
 }
 
 function ticketCountdownText(phase, remainingMs) {
   if (phase === "final") {
     return remainingMs > 0 ?
-      "🚨 Last call! Return to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
-      "⌛ Your ticket has expired. It will be removed from the queue shortly.";
+      "Last call! Return to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
+      "Your ticket has expired. It will be removed from the queue shortly.";
   }
-  return "⚠️ Please return to the counter. " + formatCountdown(remainingMs) + " left.";
+  return "Please return to the counter. " + formatCountdown(remainingMs) + " left.";
+}
+
+function ticketCountdownIcon(phase, remainingMs) {
+  if (phase === "final") return remainingMs > 0 ? "alarm" : "hourglass";
+  return "warning";
 }
 
 function tickTicketCountdown() {
@@ -128,6 +148,13 @@ function tickTicketCountdown() {
     return;
   }
   el.textContent = ticketCountdownText(phase, remaining);
+
+  var icon = document.getElementById("ticketCountdownIcon");
+  var name = ticketCountdownIcon(phase, remaining);
+  if (icon && icon.getAttribute("data-icon") !== name) {
+    icon.setAttribute("data-icon", name);
+    icon.innerHTML = notifIconSvg(name, 16);
+  }
 }
 
 function ensureSkipCountdownWatcher(needsTimer) {
@@ -698,13 +725,13 @@ function renderStationCards(cooldownMs, ticket) {
 
   var html = "";
   if (blocked) {
-    html += '<p class="ud-banner ud-banner-blocked">⛔ ' + escapeHtml(blocked) + '</p>';
+    html += '<p class="ud-banner ud-banner-blocked ud-has-icon">' + inlineIconHtml("blocked") + '<span>' + escapeHtml(blocked) + '</span></p>';
   }
   if (ticket) {
     html += '<p class="ud-banner">You are already in line (' + escapeHtml(ticket.ticketNo) + '). <button type="button" class="ud-link" onclick="viewMyTicket()">View ticket</button></p>';
   }
   if (cooldownMs > 0) {
-    html += '<p class="ud-banner">⏳ Please wait before joining again. <span id="joinCooldownText">You can join again in ' + formatCountdown(cooldownMs) + '</span></p>';
+    html += '<p class="ud-banner ud-has-icon">' + inlineIconHtml("hourglass") + '<span>Please wait before joining again. <span id="joinCooldownText">You can join again in ' + formatCountdown(cooldownMs) + '</span></span></p>';
   }
   html += enrollmentCardHtml(cooldownMs, ticket);
   html += cards ?
@@ -795,8 +822,9 @@ function renderTicketCard(ticket) {
     statusClass += " is-skipped";
     statusText = "On Hold";
     alertHtml = skip.phase === "expired" ?
-      '<p class="ud-ticket-alert">⏳ Your time is up. Please go to the counter now. Staff may give you a last call.</p>' :
-      '<p class="ud-ticket-alert" id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + escapeHtml(ticketCountdownText(skip.phase, skip.remainingMs)) + '</p>';
+      '<p class="ud-ticket-alert ud-has-icon">' + inlineIconHtml("hourglass") + '<span>Your time is up. Please go to the counter now. Staff may give you a last call.</span></p>' :
+      '<p class="ud-ticket-alert ud-has-icon">' + inlineIconHtml(ticketCountdownIcon(skip.phase, skip.remainingMs), "ticketCountdownIcon") +
+        '<span id="ticketCountdownText" data-phase="' + skip.phase + '" data-base-ms="' + skip.baseMs + '">' + escapeHtml(ticketCountdownText(skip.phase, skip.remainingMs)) + '</span></p>';
   }
 
   var enrolling = ticket.enrollment === true;

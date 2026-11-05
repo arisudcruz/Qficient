@@ -310,6 +310,21 @@ body[data-page="pageDashboard"] .themeToggle { display: none; }
 
 body.dark .ud-link { color: #7DB4F5; }
 
+/* A banner or ticket alert with an icon in front (inlineIconHtml in js/student-dashboard.js) */
+.ud-has-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ud-inline-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+
+.ud-inline-icon svg { display: block; }
+
 /* Blocked from joining for missing their turn too often */
 .ud-banner.ud-banner-blocked {
   border-color: #EF9C97;
@@ -1059,6 +1074,43 @@ body.dark .ud-back { color: #7DB4F5; border-color: #3D74BC; }
 
 body.dark .ud-board .board-waiting-chip { color: #9CC8FA; background: rgba(125, 180, 245, 0.16); }
 
+/* ---------------- In-page alert pop-ups (Toastify) ---------------- */
+
+.toastify.student-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-toast .toast-close {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 0 0 4px;
+}
+
+.student-toast-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.student-toast-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.student-toast-icon svg { display: block; }
+
 /* ---------------- Notifications page ---------------- */
 
 .ud-notifs { margin: 6px 0 0; }
@@ -1070,9 +1122,6 @@ body.dark .ud-board .board-waiting-chip { color: #9CC8FA; background: rgba(125, 
 .ud-notifs .notif-card { box-shadow: var(--app-shadow); }
 .ud-notifs .notif-card::before { background: var(--app-primary); }
 .ud-notifs .notif-card.read::before { background: var(--app-line); }
-.ud-notifs .notif-icon { background: rgba(255, 255, 255, 0.8); }
-.ud-notifs .notif-card.read .notif-icon,
-body.dark .ud-notifs .notif-icon { background: var(--ud-soft); }
 .ud-notifs .notif-detail { line-height: 1.4; }
 
 .ud-notif-note {
@@ -1084,7 +1133,6 @@ body.dark .ud-notifs .notif-icon { background: var(--ud-soft); }
 .ud-notif-empty {
   padding: 36px 12px 40px;
   text-align: center;
-  font-size: 2.6rem;
   line-height: 1;
 }
 

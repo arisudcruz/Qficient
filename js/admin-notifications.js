@@ -337,7 +337,7 @@ function renderNotifications() {
   if (!groups.length) {
     bodyHtml =
       '<div class="notif-group-head"><h2 class="notif-group-title">Today</h2>' + controlsHtml + '</div>' +
-      '<div class="settings-empty"><div class="settings-empty-icon">🔔</div><p>' + (wantRead ? 'No read notifications' : 'You\'re all caught up') + '</p></div>';
+      '<div class="settings-empty">' + notifEmptyIconHtml(44) + '<p>' + (wantRead ? 'No read notifications' : 'You\'re all caught up') + '</p></div>';
   } else {
     bodyHtml = groups.map(function (group, index) {
       var cardsHtml = group.items.map(function (item) {
@@ -345,7 +345,7 @@ function renderNotifications() {
         var read = isNotifRead(item);
 
         return '<article class="notif-card' + (read ? ' read' : '') + '" onclick="openNotification(\'' + id + '\')">' +
-          '<span class="notif-icon" aria-hidden="true">👥</span>' +
+          notifIconHtml("notif-icon", staffNotifIcon(item.ticket), 18) +
           '<div class="notif-copy">' +
             '<p class="notif-title">' + escapeAdminText(notifTitle(item.ticket)) + '</p>' +
             '<p class="notif-detail">' + escapeAdminText(notifDetail(item.ticket)) + '</p>' +

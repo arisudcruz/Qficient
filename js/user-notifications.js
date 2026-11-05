@@ -7,22 +7,28 @@ var userNotifState = { uid: null, loaded: false, error: "", items: [], tab: "unr
 var userNotifUnsubscribe = null;
 var userNotifLastUnread = null; // unread count after the last load; null until the first one (which doesn't ring)
 
+// The icon for each kind of notification (paths in js/notif-dropdown.js). Tones: info (blue) for updates, alert
+// (amber) for "go to the counter", good (green) when done, danger (red) when removed or blocked.
 var USER_NOTIF_ICONS = {
-  joined: "🎟️",
-  soon: "📣",
-  next: "⏭️",
-  serving: "🔔",
-  recall: "📢",
-  skipped: "⏸️",
-  lastCall: "⏰",
-  transferred: "🔀",
-  void: "❌",
-  enrollmentNext: "➡️",
-  enrollmentCompleted: "🎓",
-  completed: "✅",
-  noShowStrike: "⚠️",
-  noShowBlocked: "⛔"
+  joined: { name: "ticket", tone: "info" },
+  soon: { name: "hourglass", tone: "info" },
+  next: { name: "next", tone: "info" },
+  serving: { name: "bellRing", tone: "alert" },
+  recall: { name: "megaphone", tone: "alert" },
+  skipped: { name: "pause", tone: "alert" },
+  lastCall: { name: "alarm", tone: "alert" },
+  transferred: { name: "transfer", tone: "info" },
+  void: { name: "removed", tone: "danger" },
+  enrollmentNext: { name: "nextStation", tone: "info" },
+  enrollmentCompleted: { name: "graduate", tone: "good" },
+  completed: { name: "done", tone: "good" },
+  noShowStrike: { name: "warning", tone: "alert" },
+  noShowBlocked: { name: "blocked", tone: "danger" }
 };
+
+function userNotifIcon(type) {
+  return USER_NOTIF_ICONS[type] || { name: "bell", tone: "info" };
+}
 
 // Follows whoever is signed in: starts for a student, stops on logout or when someone else signs in.
 function syncUserNotificationsListener() {
@@ -205,14 +211,14 @@ function renderUserNotifications() {
   if (!groups.length) {
     bodyHtml =
       '<div class="notif-group-head"><h3 class="notif-group-title">Today</h3>' + controlsHtml + '</div>' +
-      '<div class="ud-notif-empty"><div aria-hidden="true">🔔</div><p>' + (wantRead ? 'No read notifications' : 'You\'re all caught up') + '</p></div>';
+      '<div class="ud-notif-empty">' + notifEmptyIconHtml(44) + '<p>' + (wantRead ? 'No read notifications' : 'You\'re all caught up') + '</p></div>';
   } else {
     bodyHtml = groups.map(function (group, index) {
       var cardsHtml = group.items.map(function (item) {
         var id = escapeHtml(item.id);
 
         return '<article class="notif-card' + (item.read ? ' read' : '') + '" onclick="openUserNotification(\'' + id + '\')">' +
-          '<span class="notif-icon" aria-hidden="true">' + (USER_NOTIF_ICONS[item.type] || "🔔") + '</span>' +
+          notifIconHtml("notif-icon", userNotifIcon(item.type), 18) +
           '<div class="notif-copy">' +
             '<p class="notif-title">' + escapeHtml(item.title || "QFicient") + '</p>' +
             '<p class="notif-detail">' + escapeHtml(item.body || "") + '</p>' +

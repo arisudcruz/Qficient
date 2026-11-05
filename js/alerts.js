@@ -91,8 +91,9 @@ function buzzUntilTouched() {
 });
 
 // tone: "alert" (red), "info" (blue) or "good" (green). insist: keep buzzing until the student touches the screen.
-function studentAlert(text, tone, urgent, insist) {
-  showStudentToast(text, tone);
+// icon: the matching notification icon (NOTIF_ICON_PATHS in js/notif-dropdown.js).
+function studentAlert(text, tone, urgent, insist, icon) {
+  showStudentToast(text, tone, icon);
   playChime(!!urgent);
   if (insist) buzzUntilTouched();
   else buzz(!!urgent);
@@ -136,28 +137,28 @@ function watchTicketEvents(ticket) {
 
   if (ticket.stationId !== w.stationId || ticket.ticketNo !== w.ticketNo) {
     if (ticket.enrollment === true) {
-      studentAlert("➡️ Next enrollment step: please go to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", true);
+      studentAlert("Next enrollment step: please go to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", true, false, "nextStation");
     } else {
-      studentAlert("🔀 Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false);
+      studentAlert("Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false, false, "transfer");
     }
     // A new queue: start counting again from where they are now, without a second message straight away.
     w.soon = place > 0 && place <= 3;
     w.next = place === 1 && someoneServed;
   } else if (ticket.status !== w.status) {
     if (ticket.status === "serving") {
-      studentAlert("🔔 It's your turn! Please go to " + stationName + " now.", "good", true, true);
+      studentAlert("It's your turn! Please go to " + stationName + " now.", "good", true, true, "bellRing");
     } else if (ticket.status === "skipped") {
-      studentAlert("⏸ Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true);
+      studentAlert("Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause");
     }
   }
 
   if (ticket.status === "waiting") {
     if (place === 1 && someoneServed && !w.next) {
-      studentAlert("⏭ You're next at " + stationName + ". Please get ready.", "info", true);
+      studentAlert("You're next at " + stationName + ". Please get ready.", "info", true, false, "next");
       w.next = true;
       w.soon = true;
     } else if (place >= 2 && place <= 3 && !w.soon) {
-      studentAlert("📣 You're " + ordinalWord(place) + " in line at " + stationName + ". Please stay nearby.", "info", false);
+      studentAlert("You're " + ordinalWord(place) + " in line at " + stationName + ". Please stay nearby.", "info", false, false, "hourglass");
       w.soon = true;
     }
   }
@@ -197,9 +198,10 @@ function showEndNotice(ticket) {
     }
   } else if (ticket.status === "completed") {
     markEndNoticeSeen(ticket.id);
-    studentAlert(ticket.enrollment === true ?
-      "🎓 Your enrollment is complete. Thank you!" :
-      "✅ Your transaction for ticket " + ticket.ticketNo + " is complete. Thank you!", "good", false);
+    var enrolled = ticket.enrollment === true;
+    studentAlert(enrolled ?
+      "Your enrollment is complete. Thank you!" :
+      "Your transaction for ticket " + ticket.ticketNo + " is complete. Thank you!", "good", false, false, enrolled ? "graduate" : "done");
   }
 }
 
