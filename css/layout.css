@@ -600,9 +600,16 @@
   border-radius: 999px;
 }
 
-.last-call-btn:hover {
+.last-call-btn:hover:not(:disabled) {
   background: #d13e42;
   border-color: #d13e42;
+}
+
+/* Switched off for the role in System Rules (the title says so) */
+.last-call-btn:disabled,
+.settings-btn:disabled:not(.is-loading) {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .switch {
@@ -1695,6 +1702,67 @@ body.dark .notif-empty-icon { color: #6B7C99; }
 
 .rules-table td.rules-action .switch {
   vertical-align: middle;
+}
+
+/* System Rules: the role picker, who a rule applies to, the "Always on" rows, the unsaved-changes bar and the
+   switched-off note */
+.rules-role-select {
+  flex: 0 0 auto;
+  min-width: 200px;
+}
+
+.rules-table th.rules-applies,
+.rules-table td.rules-applies {
+  width: 24%;
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.rules-always-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #E3F6EA;
+  color: #17703D;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rules-save-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 0;
+  padding: 12px 16px;
+  border: 1px solid #F5D77A;
+  border-radius: 12px;
+  background: #FFF8E1;
+  color: #8A6100;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.rules-off-note {
+  margin: 14px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #FDECEC;
+  color: #B42318;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  .rules-table th.rules-applies,
+  .rules-table td.rules-applies {
+    width: 30%;
+  }
 }
 
 /* Currently Serving card colour-codes the ticket owner's type */

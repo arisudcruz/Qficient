@@ -128,6 +128,21 @@ service cloud.firestore {
         isEnrollmentFlow(d.flows, 'freshman');
     }
 
+    // settings/roleRules: what each role may do (System Rules > Role Rules), as
+    // { roles: { enforcer: { recall: false, ... }, <stationId>: { ... } } }. Anything not listed is allowed.
+    function isRoleRulesConfig(d) {
+      return d.keys().hasOnly(['roles', 'updatedAt']) &&
+        d.updatedAt == request.time &&
+        d.roles is map &&
+        d.roles.size() <= 100;
+    }
+
+    // Whether System Rules lets a role (the enforcer, or a station's staff) do something. Admins are never limited.
+    function roleAllows(role, key) {
+      let path = /databases/$(database)/documents/settings/roleRules;
+      return !exists(path) || get(path).data.get('roles', {}).get(role, {}).get(key, true) == true;
+    }
+
     match /settings/{docId} {
       allow read: if true;
       allow create, update: if isAdmin() &&
@@ -136,7 +151,8 @@ service cloud.firestore {
           request.resource.data.autoVoidMinutes is int &&
           request.resource.data.autoVoidMinutes >= 1 &&
           request.resource.data.autoVoidMinutes <= 1440) ||
-         (docId == 'enrollment' && isEnrollmentConfig(request.resource.data)));
+         (docId == 'enrollment' && isEnrollmentConfig(request.resource.data)) ||
+         (docId == 'roleRules' && isRoleRulesConfig(request.resource.data)));
       allow delete: if false;
     }
 
@@ -157,13 +173,30 @@ service cloud.firestore {
         resource.data.status in ['waiting', 'skipped'] &&
         ((resource.data.status == 'waiting' &&
           changedKeys().hasOnly(['prioritizedAt']) &&
-          request.resource.data.prioritizedAt == request.time) ||
+          request.resource.data.prioritizedAt == request.time &&
+          roleAllows('enforcer', 'prioritize')) ||
          (changedKeys().hasOnly(['recalledAt', 'recallCount']) &&
           request.resource.data.recalledAt == request.time &&
-          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1) ||
+          request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1 &&
+          roleAllows('enforcer', 'recall')) ||
          (changedKeys().hasOnly(['status', 'voidedAt']) &&
           request.resource.data.status == 'void' &&
-          request.resource.data.voidedAt == request.time));
+          request.resource.data.voidedAt == request.time &&
+          roleAllows('enforcer', 'remove')));
+    }
+
+    // The actions System Rules can switch off for a station's staff. An auto-void (a last call that ran out) is
+    // not a removal, so expiry keeps working even when Remove is off.
+    function stationStaffActionsAllowed(stationId) {
+      let r = resource.data;
+      let d = request.resource.data;
+      let keys = changedKeys();
+      let autoVoid = d.get('autoVoided', false) == true && r.get('lastCalled', false) == true;
+      return (!keys.hasAny(['recalledAt']) || roleAllows(stationId, 'recall')) &&
+        (!keys.hasAny(['prioritizedAt']) || !('prioritizedAt' in d) || roleAllows(stationId, 'prioritize')) &&
+        (!keys.hasAny(['status']) || d.status != 'skipped' || roleAllows(stationId, 'hold')) &&
+        (!keys.hasAny(['lastCalled']) || d.get('lastCalled', false) != true || roleAllows(stationId, 'lastCall')) &&
+        (!keys.hasAny(['status']) || d.status != 'void' || autoVoid || roleAllows(stationId, 'remove'));
     }
 
     // A timestamp field that is being written must be the server time, or be removed.
@@ -198,7 +231,8 @@ service cloud.firestore {
           request.resource.data.recallCount == resource.data.get('recallCount', 0) + 1) &&
         (resource.data.get('enrollment', false) != true || request.resource.data.status != 'completed' ||
           resource.data.status == 'completed' ||
-          resource.data.enrollmentStep == resource.data.enrollmentFlow.size() - 1);
+          resource.data.enrollmentStep == resource.data.enrollmentFlow.size() - 1) &&
+        stationStaffActionsAllowed(resource.data.stationId);
     }
 
     // Sending an enrollment ticket on to the next station of its process: a new number there, at the back of that
@@ -383,7 +417,7 @@ service cloud.firestore {
 
     function isNewWalkinPass() {
       let d = request.resource.data;
-      return (isAdmin() || isEnforcer()) &&
+      return (isAdmin() || (isEnforcer() && roleAllows('enforcer', 'walkin'))) &&
         d.keys().hasOnly(['ownerName', 'studentType', 'studentNumber', 'stationId', 'purpose', 'enrollment', 'enrollmentFlow',
                           'secretHash', 'createdBy', 'createdAt']) &&
         d.keys().hasAll(['ownerName', 'stationId', 'purpose', 'secretHash', 'createdBy', 'createdAt']) &&

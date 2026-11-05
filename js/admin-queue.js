@@ -59,7 +59,11 @@ function qmIcon(name) {
 
 // One icon button in a list row. `handler` is the function it calls with (kind, ticket id): confirmTicketAction
 // here in Queue Management, confirmEnforcerTicketAction in the Queue Enforcer's list.
+// The System Rules permission behind each row button (js/admin-rules.js); Call now is always allowed.
+var QM_ROW_ROLE_RULES = { prioritize: "prioritize", recall: "recall", remove: "remove" };
+
 function qmRowButton(kind, ticket, label, disabledTitle, handler) {
+  if (!disabledTitle && QM_ROW_ROLE_RULES[kind] && !roleCan(QM_ROW_ROLE_RULES[kind])) disabledTitle = ROLE_RULE_OFF_TITLE;
   return '<button type="button" class="qm-row-btn' + (kind === "remove" ? ' is-danger' : '') + '" title="' + escapeAdminText(disabledTitle || label) + '"' +
     ' aria-label="' + escapeAdminText(label + " " + ticket.ticketNo) + '"' + (disabledTitle ? ' disabled' : '') +
     ' onclick="' + (handler || "confirmTicketAction") + '(\'' + kind + '\', \'' + escapeAdminText(ticket.id) + '\')">' + qmIcon(kind) + '</button>';
@@ -72,6 +76,8 @@ function confirmTicketAction(kind, ticketId) {
     say("That ticket is no longer in this queue.");
     return;
   }
+
+  if (QM_ROW_ROLE_RULES[kind] && roleRuleBlocks(QM_ROW_ROLE_RULES[kind], kind + " tickets")) return;
 
   var stationId = activeQueueStation;
   var options;
@@ -167,6 +173,7 @@ function confirmComplete(stationId) {
 function confirmSkip(stationId) {
   var serving = getServingTicket(stationId);
   if (!serving) return;
+  if (roleRuleBlocks("hold", "put tickets on hold")) return;
 
   showConfirmModal({
     title: "Are you sure you want to put ticket " + serving.ticketNo + " on hold?",
@@ -180,6 +187,7 @@ function confirmSkip(stationId) {
 function confirmRemove(stationId) {
   var serving = getServingTicket(stationId);
   if (!serving) return;
+  if (roleRuleBlocks("remove", "remove tickets")) return;
 
   showConfirmModal({
     title: "Are you sure you want to remove ticket " + serving.ticketNo + "?",
@@ -192,6 +200,7 @@ function confirmRemove(stationId) {
 
 function confirmRecall(ticketId) {
   if (!ticketId) return;
+  if (roleRuleBlocks("recall", "recall tickets")) return;
   var ticket = tickets.find(function (t) { return t.id === ticketId; });
 
   showConfirmModal({
@@ -206,6 +215,7 @@ function confirmRecall(ticketId) {
 function confirmLastCall(ticketId) {
   var ticket = tickets.find(function (t) { return t.id === ticketId; });
   if (!ticket) return;
+  if (roleRuleBlocks("lastCall", "give a last call")) return;
 
   showConfirmModal({
     title: "Last call for ticket " + ticket.ticketNo + "?",
@@ -354,9 +364,9 @@ function renderQueueManagement() {
   var actionsHtml =
     '<div class="serving-actions qm-actions">' +
       mainButton("call", "Call Next", "confirmCallNext('" + station + "')", hasWaiting, "No one is waiting to be called") +
-      mainButton("recall", "Recall", "confirmRecall('" + (serving ? serving.id : '') + "')", !!serving) +
-      mainButton("hold", "On Hold", "confirmSkip('" + station + "')", !!serving) +
-      mainButton("remove", "Remove", "confirmRemove('" + station + "')", !!serving) +
+      mainButton("recall", "Recall", "confirmRecall('" + (serving ? serving.id : '') + "')", !!serving && roleCan("recall"), roleCan("recall") ? "" : ROLE_RULE_OFF_TITLE) +
+      mainButton("hold", "On Hold", "confirmSkip('" + station + "')", !!serving && roleCan("hold"), roleCan("hold") ? "" : ROLE_RULE_OFF_TITLE) +
+      mainButton("remove", "Remove", "confirmRemove('" + station + "')", !!serving && roleCan("remove"), roleCan("remove") ? "" : ROLE_RULE_OFF_TITLE) +
       (isEnrollment ? '' :
         '<button type="button" class="queue-action-btn queue-action-complete qm-main-btn"' + (serving ? '' : ' disabled') +
           ' onclick="confirmComplete(\'' + station + '\')">' + qmIcon("done") + '<span>End Transaction</span></button>') +
@@ -394,7 +404,8 @@ function renderQueueManagement() {
       '<span class="void-countdown" data-phase="initial" data-base-ms="' + skip.baseMs + '">Time left ' + formatCountdown(skip.remainingMs) + '</span>' :
       skip.phase === "final" ?
       '<span class="void-countdown" data-phase="final" data-base-ms="' + skip.baseMs + '">' + (skip.remainingMs > 0 ? 'Voids in ' + formatCountdown(skip.remainingMs) : 'Expired, voiding now') + '</span>' :
-      '<button type="button" class="last-call-btn" onclick="confirmLastCall(\'' + escapeAdminText(t.id) + '\')">Last Call</button>';
+      '<button type="button" class="last-call-btn"' + (roleCan("lastCall") ? '' : ' disabled title="' + ROLE_RULE_OFF_TITLE + '"') +
+        ' onclick="confirmLastCall(\'' + escapeAdminText(t.id) + '\')">Last Call</button>';
     return '<tr class="' + queueRowClass(t) + '">' +
       '<td class="queue-row-no">' + escapeAdminText(t.ticketNo) + '</td>' +
       '<td>' + escapeAdminText(t.ownerName) + queueRowTagsHtml(t) + '</td>' +

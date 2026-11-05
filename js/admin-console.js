@@ -53,12 +53,16 @@ function showConfirmModal(options) {
 function adminHeaderRightHtml() {
   var onInbox = typeof currentAdminSection === "function" && currentAdminSection() === "notifications";
 
-  return '<div class="admin-header-right">' +
-    staffSoundButtonHtml() +
+  // The bell is the Notifications page in small, so it follows the same role rule.
+  var bellHtml = canOpenSection("notifications") ?
     '<button type="button" class="admin-bell' + (onInbox ? ' active' : '') + '" title="Notifications" aria-label="Notifications" aria-haspopup="dialog" onclick="toggleNotifDropdown(\'admin\', event)">' +
       '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>' +
       '<span class="admin-bell-badge" data-notif-badge hidden></span>' +
-    '</button>' +
+    '</button>' : '';
+
+  return '<div class="admin-header-right">' +
+    staffSoundButtonHtml() +
+    bellHtml +
     '<button type="button" class="admin-theme-btn" title="Light / dark mode" aria-label="Switch between light and dark mode" onclick="toggleTheme()">' +
       '<svg class="admin-theme-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>' +
       '<svg class="admin-theme-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>' +
@@ -195,6 +199,8 @@ var ADMIN_HOME_SECTION = { admin: "dashboard", enforcer: "enforcer", station: "q
 function resetAdminPageState() {
   dashStation = "all";
   rulesActiveTab = "general";
+  rulesSelectedRole = "";
+  roleRulesDraft = {};
   enforcerFilter = "";
   enforcerDraft = emptyEnforcerDraft("");
   queueTypeFilter = "";
@@ -207,12 +213,19 @@ function resetAdminPageState() {
   resetReportState();
 }
 
+// Pages an administrator can switch off for a role in System Rules > Role Rules (js/admin-rules.js).
+var PAGE_ROLE_RULES = { dashboard: "page.dashboard", notifications: "page.notifications", liveboard: "page.liveboard", reports: "page.reports" };
+
 function canOpenSection(section) {
   var kind = adminKind();
-  return !kind || ADMIN_ROLE_SECTIONS[kind].indexOf(section) !== -1;
+  if (!kind) return true;
+  if (ADMIN_ROLE_SECTIONS[kind].indexOf(section) === -1) return false;
+  return !PAGE_ROLE_RULES[section] || roleCan(PAGE_ROLE_RULES[section]);
 }
 
-function applyAdminAccess() {
+// stayOnPage: the role rules changed while signed in; keep the current page if it is still allowed (redrawn, so
+// switched-off buttons update), else go to the role's home page.
+function applyAdminAccess(stayOnPage) {
   var kind = adminKind();
 
   document.querySelectorAll("#pageAdmin .nav-item[data-section], #pageAdmin .tool-item[data-section]").forEach(function (item) {
@@ -226,6 +239,10 @@ function applyAdminAccess() {
     activeQueueStation = adminRole;
   }
 
+  if (stayOnPage === true) {
+    if (document.body.getAttribute("data-page") === "pageAdmin") setAdminSection(currentAdminSection());
+    return;
+  }
   if (kind && kind !== "admin") setAdminSection(ADMIN_HOME_SECTION[kind]);
 }
 

@@ -309,6 +309,11 @@ body.dark .rules-readonly {
   color: #CFE0F8;
 }
 
+body.dark .rules-table td.rules-applies { color: var(--ad-muted); }
+body.dark .rules-always-tag { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
+body.dark .rules-save-bar { background: #2B2410; border-color: rgba(242, 193, 78, 0.4); color: #F2C14E; }
+body.dark .rules-off-note { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+
 body.dark .server-banner {
   background: rgba(242, 193, 78, 0.12);
   border-color: rgba(242, 193, 78, 0.4);

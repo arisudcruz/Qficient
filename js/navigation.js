@@ -2,6 +2,10 @@ function goTo(pageId) {
   if ((pageId === "pageAdmin" || pageId === "pageTvBoard") && !isAdminSignedIn()) {
     pageId = "pageAdminLogin";
   }
+  // The TV board belongs to the Live Board, which System Rules can switch off for a role.
+  if (pageId === "pageTvBoard" && typeof canOpenSection === "function" && !canOpenSection("liveboard")) {
+    pageId = "pageAdmin";
+  }
 
   var pages = document.querySelectorAll(".page");
   for (var i = 0; i < pages.length; i++) {

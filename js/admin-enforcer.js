@@ -210,6 +210,7 @@ function createWalkinPass(details) {
     say("Only an administrator or a Queue Enforcer can make walk-in tickets.");
     return Promise.resolve(null);
   }
+  if (roleRuleBlocks("walkin", "make walk-in tickets")) return Promise.resolve(null);
 
   var secret = randomPassSecret();
   var ref = db.collection("walkinPasses").doc();
@@ -255,6 +256,7 @@ function enforcerPassDetails() {
 }
 
 function generateWalkinQr() {
+  if (roleRuleBlocks("walkin", "make walk-in tickets")) return;
   var problem = enforcerFormProblem();
   if (problem) {
     say(problem);
@@ -453,6 +455,7 @@ function confirmEnforcerTicketAction(kind, ticketId) {
     say("That ticket is no longer in the queue.");
     return;
   }
+  if (QM_ROW_ROLE_RULES[kind] && roleRuleBlocks(QM_ROW_ROLE_RULES[kind], kind + " tickets")) return;
 
   var options;
 
@@ -552,9 +555,12 @@ function renderEnforcer() {
             '<div class="enforcer-field" id="enforcerStudentNoField"' + (enforcerNeedsStudentNumber() ? '' : ' style="display: none"') + '><label for="enforcerStudentNo">Student Number*</label><input type="text" id="enforcerStudentNo" inputmode="numeric" autocomplete="off" placeholder="02000-XXXXXX" maxlength="13" value="' + escapeAdminText(d.studentNumber) + '" oninput="onEnforcerInput(\'studentNumber\', this.value)" onblur="onEnforcerStudentNumberBlur(this)"></div>' +
             '<div class="enforcer-field enforcer-span-all" id="enforcerOtherField"' + (d.purpose === ENFORCER_OTHER_PURPOSE ? '' : ' style="display: none"') + '><label for="enforcerOther">Please specify the purpose*</label><input type="text" id="enforcerOther" placeholder="e.g. Request for diploma" maxlength="100" value="' + escapeAdminText(d.purposeOther) + '" oninput="onEnforcerInput(\'purposeOther\', this.value)"></div>' +
           '</div>' +
+          (roleCan("walkin") ? '' :
+            '<p class="rules-off-note">Making walk-in tickets is turned off for your role in System Rules. An administrator can turn it back on.</p>') +
           '<div class="settings-actions enforcer-form-actions">' +
             '<button type="button" class="settings-btn settings-btn-blue enforcer-clear" onclick="clearEnforcerForm()">Clear All</button>' +
-            '<button type="button" class="settings-btn settings-btn-primary" id="enforcerGenerateBtn" onclick="generateWalkinQr()">Generate QR</button>' +
+            '<button type="button" class="settings-btn settings-btn-primary" id="enforcerGenerateBtn" onclick="generateWalkinQr()"' +
+              (roleCan("walkin") ? '' : ' disabled title="' + ROLE_RULE_OFF_TITLE + '"') + '>Generate QR</button>' +
           '</div>' +
         '</section>' +
 
