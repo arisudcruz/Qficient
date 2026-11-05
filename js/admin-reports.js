@@ -195,6 +195,7 @@ function buildReport(allTickets, draft, include) {
   Object.keys(STUDENT_TYPE_LABELS).forEach(function (type) {
     byType[type] = emptyReportRow(STUDENT_TYPE_LABELS[type]);
   });
+  byType.unspecified = emptyReportRow("Not specified"); // walk-ins who aren't enrolling have no student type
 
   visible.forEach(function (ticket) {
     var stationRow = byStation[ticket.stationId] || (byStation[ticket.stationId] = emptyReportRow(getStationName(ticket.stationId)));
@@ -219,7 +220,8 @@ function buildReport(allTickets, draft, include) {
     stations: sortedReportRows(byStation, function (a, b) { return String(byStation[a].label).localeCompare(String(byStation[b].label)); }),
     days: sortedReportRows(byDay),
     hours: sortedReportRows(byHour, function (a, b) { return Number(a) - Number(b); }),
-    types: Object.keys(STUDENT_TYPE_LABELS).map(function (type) { return byType[type]; }),
+    types: Object.keys(STUDENT_TYPE_LABELS).map(function (type) { return byType[type]; })
+      .concat(byType.unspecified.issued ? [byType.unspecified] : []),
     enrollment: buildEnrollmentSummary(visible)
   };
 }

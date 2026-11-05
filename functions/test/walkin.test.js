@@ -107,6 +107,13 @@ const SECRET = "Abc123_-xyzXYZ789secret";
   const numbered = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
   check("a Regular walk-in's ticket shows their student number", r.ok && numbered.studentNumber === "02000-123456" && numbered.studentType === "regular", JSON.stringify(numbered));
 
+  // A walk-in who isn't enrolling has no student type (the Queue Enforcer asks for it only for Enrollment).
+  await makePass("passNoType1", SECRET);
+  await db.collection("walkinPasses").doc("passNoType1").update({ studentType: FieldValue.delete() });
+  r = await attempt(phone("w8"), { passId: "passNoType1", secret: SECRET });
+  const untyped = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
+  check("a pass without a student type gives a ticket with none", r.ok && untyped.studentType === "" && untyped.studentNumber === "" && untyped.status === "waiting", JSON.stringify(r.ok ? untyped : r));
+
   // The daily cap.
   await db.collection("stations").doc("cashier").update({ maxQueue: 1 });
   await makePass("passFull001", SECRET);

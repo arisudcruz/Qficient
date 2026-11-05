@@ -833,7 +833,8 @@ function renderTicketCard(ticket) {
   if (enrolling && ticket.status === "serving") statusClass = "ud-status";
 
   document.getElementById("ticketArea").innerHTML =
-    '<div class="ud-ticket' + (typeLabel ? ' ticket-type-' + ticket.studentType : '') + '">' +
+    // Only an enrollment ticket is coloured by student type; every other ticket keeps the standard navy.
+    '<div class="ud-ticket' + (enrolling && typeLabel ? ' ticket-type-' + ticket.studentType : '') + '">' +
       '<div class="ud-ticket-head">' +
         '<p class="ud-ticket-station">' + escapeHtml(enrolling ? "Enrollment" : (ticketStation ? ticketStation.name : "")) + '</p>' +
         '<p class="ud-ticket-no">' + escapeHtml(ticket.ticketNo) + '</p>' +
