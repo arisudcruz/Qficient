@@ -393,6 +393,7 @@ function callNextTicket(stationId) {
 
 function skipCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
+  if (roleRuleBlocks("hold", "put tickets on hold")) return;
 
   var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
@@ -536,6 +537,7 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
 
 function removeCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
+  if (roleRuleBlocks("remove", "remove tickets")) return;
 
   var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
   if (!serving) {
@@ -625,6 +627,7 @@ function mayTidyTickets(ticketIds) {
 }
 
 function prioritizeTickets(ticketIds) {
+  if (roleRuleBlocks("prioritize", "prioritize tickets")) return Promise.resolve(false);
   if (!mayTidyTickets(ticketIds)) return Promise.resolve(false);
 
   return reportQueueAction(batchUpdateTickets(ticketIds, {
@@ -633,6 +636,7 @@ function prioritizeTickets(ticketIds) {
 }
 
 function recallTickets(ticketIds) {
+  if (roleRuleBlocks("recall", "recall tickets")) return Promise.resolve(false);
   if (!mayTidyTickets(ticketIds)) return Promise.resolve(false);
 
   return reportQueueAction(batchUpdateTickets(ticketIds, {
@@ -642,6 +646,7 @@ function recallTickets(ticketIds) {
 }
 
 function removeTickets(ticketIds) {
+  if (roleRuleBlocks("remove", "remove tickets")) return Promise.resolve(false);
   if (!mayTidyTickets(ticketIds)) return Promise.resolve(false);
 
   return reportQueueAction(batchUpdateTickets(ticketIds, {
@@ -652,6 +657,7 @@ function removeTickets(ticketIds) {
 
 function recallTicket(ticketId) {
   if (!ticketId) return;
+  if (roleRuleBlocks("recall", "recall tickets")) return;
   if (!canTidyStation(stationOfTicket(ticketId))) return refuseStation();
 
   db.collection("tickets").doc(ticketId).update({
@@ -685,6 +691,7 @@ function lastCallTicket(ticketId) {
   var ticket = tickets.find(function (t) { return t.id === ticketId; });
   if (!ticket || ticket.status !== "skipped" || getSkipPhase(ticket).phase !== "expired") return;
   if (!canServeStation(ticket.stationId)) return refuseStation();
+  if (roleRuleBlocks("lastCall", "give a last call")) return;
 
   db.collection("tickets").doc(ticketId).update({
     lastCalled: true,

@@ -37,6 +37,13 @@ db.collection("settings").doc("system").onSnapshot(function (doc) {
   console.error("Could not load system settings: " + err.message);
 });
 
+// What each role may do (System Rules > Role Rules); see js/admin-rules.js.
+db.collection("settings").doc("roleRules").onSnapshot(function (doc) {
+  onRoleRulesChanged(doc.exists ? doc.data().roles : {});
+}, function (err) {
+  console.error("Could not load the role rules: " + err.message);
+});
+
 // The enrollment process for each student type (Enrollment Settings).
 db.collection("settings").doc("enrollment").onSnapshot(function (doc) {
   var flows = doc.exists && doc.data().flows ? doc.data().flows : {};

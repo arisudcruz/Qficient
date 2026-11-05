@@ -124,6 +124,7 @@ function toggleNotifDropdown(kind, event) {
   }
   if (typeof closeUserMenu === "function") closeUserMenu();
   notifDropdown = { kind: kind, tab: "all", scroll: 0 };
+  notifDropdownOpenedAt = Date.now();
   renderNotifDropdown();
 }
 
@@ -250,7 +251,18 @@ function refreshNotifDropdown(kind) {
   if (notifDropdown.kind === kind) renderNotifDropdown();
 }
 
-// Closes on a click outside, Escape, a page change or a resize.
+// Closes on a click outside, Escape, scrolling the page, or a page change.
+var notifDropdownOpenedAt = 0;
+
+// Scrolling the page (or the admin console's scrolling area) closes it, since the bell scrolls away from it.
+// Scrolling the dropdown's own list doesn't, and neither does a small scroll the opening tap itself can cause.
+document.addEventListener("scroll", function (event) {
+  if (!notifDropdown.kind || Date.now() - notifDropdownOpenedAt < 300) return;
+  var target = event.target;
+  if (target && target.nodeType === 1 && target.closest("#notifDropdown")) return;
+  closeNotifDropdown();
+}, true);
+
 document.addEventListener("click", function (event) {
   if (!notifDropdown.kind) return;
   if (event.target.closest("#notifDropdown, .ud-bell, .admin-bell")) return;
