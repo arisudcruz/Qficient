@@ -38,14 +38,16 @@ module.exports = {
       ". Please see the front desk if this is a mistake."
   }),
 
-  serving: (t, station) => ({
+  // windowNo: the window the ticket was called to, at a station with several windows; 0 otherwise.
+  serving: (t, station, windowNo) => ({
     title: "It's your turn!",
-    body: "Ticket " + t.ticketNo + " is now being served at " + station + ". Please go to the counter."
+    body: "Ticket " + t.ticketNo + " is now being served at " + station + (windowNo ? ", Window " + windowNo : "") +
+      ". Please go to " + (windowNo ? "Window " + windowNo : "the counter") + "."
   }),
 
-  recall: (t, station) => ({
+  recall: (t, station, windowNo) => ({
     title: "Please go to the counter",
-    body: station + " is calling ticket " + t.ticketNo + "."
+    body: station + (windowNo ? " Window " + windowNo : "") + " is calling ticket " + t.ticketNo + "."
   }),
 
   skipped: (t, station, voidMinutes) => ({

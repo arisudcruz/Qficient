@@ -35,7 +35,7 @@ function enrollmentProceedHtml(stationId, serving) {
 }
 
 function confirmProceed(stationId) {
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  var serving = myServingTicket(stationId);
   if (!serving || serving.enrollment !== true) return;
 
   var nextId = nextEnrollmentStationId(serving);

@@ -237,6 +237,36 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   white-space: nowrap;
 }
 
+/* A station with several windows: each window and the number it is serving */
+.tv-now-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+  width: 100%;
+  margin: 0.4vh 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tv-now-windows li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1vw;
+  padding: 0.5vh 0.8vw;
+  border-radius: 0.8vh;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tv-now-windows li span {
+  font-size: 1.8vh;
+  white-space: nowrap;
+}
+
+.tv-now-windows li b {
+  font-size: 4.4vh;
+}
+
 .tv-label {
   margin: 2.2vh 0 1vh;
   font-family: var(--font-display);

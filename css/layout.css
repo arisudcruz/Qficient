@@ -462,6 +462,67 @@
   border-bottom-color: var(--navyDark);
 }
 
+/* Queue Management at a station with several windows: which window this staff member is at */
+.qm-windows {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin: -8px 0 18px;
+}
+
+.qm-windows-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.qm-window-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qm-window {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 104px;
+  padding: 7px 14px;
+  border: 1.5px solid #C8D5E5;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.qm-window-name {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.qm-window-now {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.qm-window.active {
+  border-color: var(--navyDark);
+  background: var(--navyDark);
+  color: #fff;
+}
+
+.qm-window.active .qm-window-now {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+body.dark .qm-window { background: transparent; border-color: var(--ad-line-strong); color: var(--ad-text); }
+body.dark .qm-window-now { color: var(--ad-muted); }
+body.dark .qm-window.active { background: #1D3A66; border-color: #5AA2FF; }
+body.dark .qm-window.active .qm-window-now { color: #CFE0F8; }
+
 .queue-mgmt-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
@@ -1113,6 +1174,23 @@ body.dark .modal-input[readonly] {
   font-weight: 700;
   color: #172033;
 }
+
+/* Settings > staff: the username under a name, and the mark on old email accounts */
+.staff-login {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748B;
+}
+
+.type-tag.staff-email-tag {
+  background: #FDECEC;
+  color: #B42318;
+  white-space: normal;
+}
+
+body.dark .staff-login { color: #94A5C2; }
+body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
 
 .settings-center {
   text-align: center !important;

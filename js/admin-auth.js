@@ -1,6 +1,36 @@
 var ADMIN_EMAIL = "admin@qficient.com";
 
+// Staff sign in with a username. Firebase's password sign-in needs an email, so each username stands for a hidden
+// address on this domain (never shown, never mailed): juan.cruz -> juan.cruz@staff.qficient.app. The built-in
+// administrator is the username "admin" (its login is admin@qficient.com).
+var STAFF_EMAIL_DOMAIN = "staff.qficient.app";
+var ADMIN_USERNAME = "admin";
+var USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,29}$/; // keep in step with firestore.rules and functions/lib/staff.js
+
+function normalizeUsername(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function staffEmailForUsername(username) {
+  var u = normalizeUsername(username);
+  return u === ADMIN_USERNAME ? ADMIN_EMAIL : u + "@" + STAFF_EMAIL_DOMAIN;
+}
+
+function usernameOfEmail(email) {
+  var key = String(email || "").trim().toLowerCase();
+  if (key === ADMIN_EMAIL) return ADMIN_USERNAME;
+  var suffix = "@" + STAFF_EMAIL_DOMAIN;
+  return key.slice(-suffix.length) === suffix ? key.slice(0, -suffix.length) : "";
+}
+
+// Accounts that sign in with a username: the built-in admin and every account on the staff domain. Older accounts
+// made with a real email can no longer sign in; an admin re-creates them with a username.
+function isUsernameAccount(email) {
+  return !!usernameOfEmail(email);
+}
+
 var adminUser = null;
+var adminName = ""; // the signed-in staff member's full name, from their staff record
 var adminRole = null; // "admin", "enforcer", or the id of the station a Queue Management account belongs to
 var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
 var staffUnsubscribe = null;
@@ -20,11 +50,17 @@ function adminKind() {
   return adminRole === "enforcer" ? "enforcer" : "station";
 }
 
-function adminDisplayName() {
+// The role, as shown next to the name in the header.
+function adminRoleLabel() {
   var kind = adminKind();
   if (kind === "enforcer") return "Queue Enforcer";
   if (kind === "station") return getStationName(adminRole) + " Staff";
-  return "QFicient Admin";
+  return adminName ? "Administrator" : "QFicient Admin";
+}
+
+// "Juan Dela Cruz · Cashier Staff"; just the role when the account has no name saved (e.g. the built-in admin).
+function adminDisplayName() {
+  return adminName ? adminName + " · " + adminRoleLabel() : adminRoleLabel();
 }
 
 // Staff of one station only see that station's numbers and notifications. Admins and enforcers see them all.
@@ -64,6 +100,12 @@ function startStaffListener() {
     staffAccounts = snapshot.docs.map(function (doc) {
       return Object.assign({ id: doc.id }, doc.data());
     });
+    // An admin who edits their own name sees it in the header straight away.
+    var me = adminUser && staffAccounts.find(function (a) { return a.id === staffKey(adminUser.email); });
+    if (me && (me.name || "") !== adminName) {
+      adminName = me.name || "";
+      document.querySelectorAll(".admin-header-name").forEach(function (el) { el.textContent = adminDisplayName(); });
+    }
     refreshSettings();
   }, function (error) {
     console.error("Could not load staff accounts: " + error.message);
@@ -84,9 +126,11 @@ function resolveAdminAccess(firebaseUser) {
   var isBootstrapAdmin = email === ADMIN_EMAIL;
   var now = firebase.firestore.FieldValue.serverTimestamp();
 
+  // Resolves the role, and keeps the person's full name for the header.
   return db.runTransaction(function (transaction) {
     return transaction.get(ref).then(function (doc) {
       if (doc.exists) {
+        adminName = doc.data().name || "";
         if (isBootstrapAdmin && doc.data().role !== "admin") {
           transaction.update(ref, { role: "admin", updatedAt: now });
           return "admin";
@@ -94,6 +138,7 @@ function resolveAdminAccess(firebaseUser) {
         return doc.data().role;
       }
 
+      adminName = "";
       // Only the built-in admin account may create its own record. Everyone else needs an admin to give them a role.
       if (!isBootstrapAdmin) return null;
 
@@ -106,6 +151,7 @@ function resolveAdminAccess(firebaseUser) {
 function deactivateAdminSession() {
   if (adminUser) resetAdminPageState();
   adminUser = null;
+  adminName = "";
   adminRole = null;
   setTicketsScope(1);
   stopStaffListener();
@@ -116,6 +162,12 @@ function deactivateAdminSession() {
 
 function activateAdminSession(firebaseUser) {
   if (!isPasswordUser(firebaseUser)) {
+    deactivateAdminSession();
+    return Promise.resolve(false);
+  }
+  // An account made with a real email from before usernames: refused until an admin re-creates it.
+  if (!isUsernameAccount(firebaseUser.email)) {
+    adminDeniedRole = "email-account";
     deactivateAdminSession();
     return Promise.resolve(false);
   }
@@ -160,9 +212,9 @@ function adminLoginErrorMessage(code) {
     case "auth/invalid-credential":
     case "auth/wrong-password":
     case "auth/user-not-found":
-      return "Incorrect email or password.";
+      return "Incorrect username or password.";
     case "auth/invalid-email":
-      return "Enter a valid email address.";
+      return "Enter a valid username.";
     case "auth/user-disabled":
       return "This account has been disabled.";
     case "auth/too-many-requests":
@@ -196,7 +248,7 @@ function setAdminLoginMode(mode) {
   document.getElementById("adminLoginSub").textContent = isAdmin ?
     "Sign in with your administrator account to continue." :
     "Sign in with your staff account to continue.";
-  document.getElementById("adminEmail").placeholder = isAdmin ? "admin@example.com" : "staff@example.com";
+  document.getElementById("adminEmail").placeholder = isAdmin ? "admin" : "juan.cruz";
   setAdminLoginError("");
 }
 
@@ -219,13 +271,23 @@ function setAdminLoginBusy(busy) {
 function adminLogin(event) {
   event.preventDefault();
 
-  var email = document.getElementById("adminEmail").value.trim();
+  var username = normalizeUsername(document.getElementById("adminEmail").value);
   var passwordInput = document.getElementById("adminPassword");
 
-  if (!email || !passwordInput.value) {
-    setAdminLoginError("Enter your email and password.");
+  if (!username || !passwordInput.value) {
+    setAdminLoginError("Enter your username and password.");
     return;
   }
+  // Accounts sign in with a username now, never an email.
+  if (username.indexOf("@") !== -1) {
+    setAdminLoginError("Sign in with your username, not an email.");
+    return;
+  }
+  if (username !== ADMIN_USERNAME && !USERNAME_PATTERN.test(username)) {
+    setAdminLoginError("Incorrect username or password.");
+    return;
+  }
+  var email = staffEmailForUsername(username);
 
   setAdminLoginError("");
   setAdminLoginBusy(true);
@@ -254,7 +316,9 @@ function adminLogin(event) {
         }
 
         passwordInput.value = "";
-        setAdminLoginError(adminDeniedRole && adminDeniedRole !== "standby" ?
+        setAdminLoginError(adminDeniedRole === "email-account" ?
+          "This account uses an email, which can no longer sign in. Ask an administrator to re-create it with a username." :
+          adminDeniedRole && adminDeniedRole !== "standby" ?
           "This role doesn't have access to the admin console yet. Ask an administrator." :
           "This account has no role yet. Ask an administrator to assign one.");
         return firebase.auth().signOut();

@@ -218,8 +218,13 @@ service cloud.firestore {
       return isStationStaffOf(resource.data.stationId) &&
         changedKeys().hasOnly(['status', 'servingAt', 'completedAt', 'skippedAt', 'lastCalled', 'lastCallAt',
                                'verified', 'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt',
-                               'voidedAt', 'autoVoided']) &&
+                               'voidedAt', 'autoVoided', 'window']) &&
         (!changedKeys().hasAny(['status']) || isAllowedStatusMove()) &&
+        // A station's windows share one line: the window a ticket is called to (1-10, see Settings > Edit Station)
+        // is set only while it is being served.
+        (!changedKeys().hasAny(['window']) || !('window' in request.resource.data) ||
+          (request.resource.data.window is int && request.resource.data.window >= 1 && request.resource.data.window <= 10 &&
+           request.resource.data.status == 'serving')) &&
         freshOrGone('servingAt') && freshOrGone('completedAt') && freshOrGone('skippedAt') &&
         freshOrGone('lastCallAt') && freshOrGone('verifiedAt') && freshOrGone('recalledAt') &&
         freshOrGone('prioritizedAt') && freshOrGone('voidedAt') &&
@@ -245,7 +250,7 @@ service cloud.firestore {
         r.status == 'serving' &&
         changedKeys().hasOnly(['stationId', 'ticketNo', 'status', 'verified', 'createdAt', 'enrollmentStep',
                                'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
-                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified', 'window']) &&
         d.enrollmentStep == r.enrollmentStep + 1 &&
         d.enrollmentStep < r.enrollmentFlow.size() &&
         d.stationId == r.enrollmentFlow[d.enrollmentStep] &&
@@ -258,7 +263,7 @@ service cloud.firestore {
         d.previousTicketNo == r.ticketNo &&
         d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
         !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
-        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
+        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d) && !('window' in d);
     }
 
     // Only enrollment tickets move between stations (isStationStaffEnrollmentStep, along their process). A regular
@@ -297,6 +302,15 @@ service cloud.firestore {
       return name is string && name.size() >= 1 && name.size() <= 80;
     }
 
+    // Keep in step with USERNAME_PATTERN in js/admin-auth.js and functions/lib/staff.js. "admin" is the built-in one.
+    function isStaffUsername(u) {
+      return u is string && u.matches('^[a-z0-9][a-z0-9._-]{2,29}$') && u != 'admin';
+    }
+
+    function isPersonName(n) {
+      return n is string && n.size() >= 1 && n.size() <= 40 && n.matches('.*[^\\s].*');
+    }
+
     match /staff/{staffEmail} {
       allow get: if isAdmin() || (isPasswordUser() && staffEmail == userEmail());
       allow list: if isAdmin();
@@ -310,20 +324,28 @@ service cloud.firestore {
         request.resource.data.createdAt == request.time &&
         request.resource.data.updatedAt == request.time;
 
-      // An admin gives an email address a role: admin, enforcer or one of the stations.
+      // An admin adds a staff member: a username (its hidden sign-in address is username@staff.qficient.app, the
+      // record's id), their first and last name, and a role (admin, enforcer or one of the stations).
       allow create: if isAdmin() &&
         staffEmail == staffEmail.lower() &&
-        request.resource.data.keys().hasOnly(['email', 'name', 'role', 'createdAt', 'updatedAt']) &&
+        request.resource.data.keys().hasOnly(['email', 'username', 'firstName', 'lastName', 'name', 'role', 'createdAt', 'updatedAt']) &&
         request.resource.data.email == staffEmail &&
-        isStaffName(request.resource.data.get('name', 'x')) &&
+        isStaffUsername(request.resource.data.get('username', '')) &&
+        staffEmail == request.resource.data.username + '@staff.qficient.app' &&
+        isPersonName(request.resource.data.get('firstName', '')) &&
+        isPersonName(request.resource.data.get('lastName', '')) &&
+        isStaffName(request.resource.data.get('name', '')) &&
         isAssignableRole(request.resource.data.role) &&
         request.resource.data.createdAt == request.time &&
         request.resource.data.updatedAt == request.time;
 
+      // Names and the role can change; the username (and so the sign-in) never does.
       allow update: if isAdmin() &&
-        changedKeys().hasOnly(['role', 'name', 'updatedAt']) &&
+        changedKeys().hasOnly(['role', 'name', 'firstName', 'lastName', 'updatedAt']) &&
         (request.resource.data.role == resource.data.role || isAssignableRole(request.resource.data.role)) &&
         isStaffName(request.resource.data.get('name', 'x')) &&
+        (!changedKeys().hasAny(['firstName']) || isPersonName(request.resource.data.firstName)) &&
+        (!changedKeys().hasAny(['lastName']) || isPersonName(request.resource.data.lastName)) &&
         request.resource.data.updatedAt == request.time &&
         (staffEmail != 'admin@qficient.com' || request.resource.data.role == 'admin') &&
         (staffEmail != userEmail() || request.resource.data.role == 'admin');

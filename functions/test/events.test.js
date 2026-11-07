@@ -50,6 +50,23 @@ test("messages use the station name", () => {
   assert.ok(/Cashier/.test(change.message.body) && /CA-001/.test(change.message.body));
 });
 
+test("windows: a station with several windows names the window in the alerts", () => {
+  const multi = Object.assign({}, ctx, { stationWindows: () => 3 });
+  const serving = describeChange(base, Object.assign({}, base, { status: "serving", window: 2 }), multi, notify);
+  assert.ok(/Cashier, Window 2/.test(serving.message.body) && /Please go to Window 2/.test(serving.message.body), serving.message.body);
+  const recall = describeChange(Object.assign({}, base, { status: "serving", window: 2 }), Object.assign({}, base, { status: "serving", window: 2, recallCount: 1 }), multi, notify);
+  assert.ok(/Cashier Window 2 is calling/.test(recall.message.body), recall.message.body);
+});
+test("windows: a one-window station never mentions a window", () => {
+  const one = Object.assign({}, ctx, { stationWindows: () => 1 });
+  const serving = describeChange(base, Object.assign({}, base, { status: "serving", window: 1 }), one, notify);
+  assert.ok(!/Window/.test(serving.message.body) && /Please go to the counter/.test(serving.message.body), serving.message.body);
+});
+test("windows: without window info (older callers) nothing changes", () => {
+  const serving = describeChange(base, Object.assign({}, base, { status: "serving", window: 2 }), ctx, notify);
+  assert.ok(!/Window/.test(serving.message.body), serving.message.body);
+});
+
 const enrolling = Object.assign({}, base, { enrollment: true, enrollmentFlow: ["cashier", "registrar", "admission"], enrollmentStep: 0, purpose: "Enrollment" });
 test("enrollment: moving on to the next station is 'enrollmentNext', not 'transferred'", () => {
   const change = describeChange(Object.assign({}, enrolling, { status: "serving" }),

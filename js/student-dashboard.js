@@ -609,7 +609,7 @@ function renderLiveBoard() {
     return;
   }
 
-  var serving = servingTicketOf(station);
+  var serving = latestServingOf(station);
   var line = waitingTicketsOf(station.id);
 
   var pages = Math.max(1, Math.ceil(line.length / BOARD_PAGE_SIZE));
@@ -628,7 +628,7 @@ function renderLiveBoard() {
   body.innerHTML =
     '<div class="ud-stats">' +
       '<div class="ud-stat ud-stat-queue">' +
-        '<div class="ud-now"><span><i class="ud-lbl-long">Currently</i><i class="ud-lbl-short">Now</i> Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
+        '<div class="ud-now"><span><i class="ud-lbl-long">Currently</i><i class="ud-lbl-short">Now</i> Serving</span><b>' + escapeHtml(servingNumberText(station, serving)) + '</b></div>' +
         '<div class="ud-next"><span>Next in Line</span><b>' + escapeHtml(line[0] ? line[0].ticketNo : "—") + '</b></div>' +
         '<div class="ud-next ud-third"><span>Waiting</span><b>' + escapeHtml(line[1] ? line[1].ticketNo : "—") + '</b></div>' +
       '</div>' +
@@ -706,7 +706,7 @@ function renderStationCards(cooldownMs, ticket) {
   var cards = "";
   stations.forEach(function (station) {
     if (station.active === false) return;
-    var servingTicket = servingTicketOf(station);
+    var servingTicket = latestServingOf(station);
 
     cards +=
       '<div class="ud-station-card">' +
@@ -716,7 +716,7 @@ function renderStationCards(cooldownMs, ticket) {
         '<div class="ud-station-foot">' +
           '<div>' +
             '<p class="ud-joined">' + waitingTicketsOf(station.id).length + ' waiting</p>' +
-            '<p class="ud-serving">Now serving ' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</p>' +
+            '<p class="ud-serving">Now serving ' + escapeHtml(servingNumberText(station, servingTicket)) + '</p>' +
           '</div>' +
           '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket || blocked ? ' disabled' : '') + '>Queue</button>' +
         '</div>' +
@@ -828,7 +828,9 @@ function renderTicketCard(ticket) {
   }
 
   var enrolling = ticket.enrollment === true;
-  var servingTicket = servingTicketOf(ticketStation);
+  var servingTicket = latestServingOf(ticketStation);
+  // At a station with several windows, the student is told which one: "Window 2".
+  var myWindowText = ticket.status === "serving" ? windowLabel(ticketStation, ticketWindow(ticket)) : "";
   var place = waitingTicketsOf(ticket.stationId).findIndex(function (item) { return item.id === ticket.id; });
 
   var posBig;
@@ -850,7 +852,7 @@ function renderTicketCard(ticket) {
   if (notice) {
     notice.hidden = !!skip;
     notice.textContent = ticket.status === "serving" ?
-      (enrolling ? "It's your turn! Your enrollment is now being processed at " + (ticketStation ? ticketStation.name : "the counter") + "." : "It's your turn. Please proceed to the counter.") :
+      (enrolling ? "It's your turn! Your enrollment is now being processed at " + (ticketStation ? ticketStation.name : "the counter") + (myWindowText ? ", " + myWindowText : "") + "." : "It's your turn. Please proceed to " + (myWindowText || "the counter") + ".") :
       (enrolling ?
         "Please go to " + (ticketStation ? ticketStation.name : "the next station") + " and wait for your number." + (place >= 0 ? " You're " + ordinalWord(place + 1) + " in line." : "") :
         "Queue joined. We'll let you know when it's your turn.");
@@ -882,7 +884,7 @@ function renderTicketCard(ticket) {
       (enrolling ? '' :
       '<div class="ud-ticket-pos">' +
         '<div class="ud-pos-box"><b>' + escapeHtml(posBig) + '</b><span>' + escapeHtml(posLabel) + '</span></div>' +
-        '<div class="ud-pos-box"><b>' + escapeHtml(servingTicket ? servingTicket.ticketNo : "—") + '</b><span>Now serving</span></div>' +
+        '<div class="ud-pos-box"><b>' + escapeHtml(servingNumberText(ticketStation, servingTicket)) + '</b><span>Now serving</span></div>' +
       '</div>') +
     '</div>' +
     (ticket.status === "serving" ? '' : '<button type="button" class="ud-cancel" onclick="confirmCancelTicket()">Cancel Queue</button>');

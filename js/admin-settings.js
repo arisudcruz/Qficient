@@ -43,7 +43,7 @@ function getListedRoles() {
 
 function computeSettingsSignature() {
   return JSON.stringify([
-    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null]; }),
+    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s)]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
     blockedStudents.map(function (b) { return [b.id, b.untilMs]; })
@@ -327,9 +327,9 @@ function confirmCreateStation() {
         name: name,
         code: nextStationCode(name, used),
         count: 0,
-        nowServingId: null,
         active: true,
         maxQueue: null,
+        windows: 1,
         purposes: purposes
       }).then(function () {
         closeFormModal();
@@ -377,6 +377,15 @@ function openEditStationModal(stationId) {
       '<div class="modal-inline">' +
         '<input type="number" id="editStationMax" class="modal-input" min="1" step="1" placeholder="No limit" value="' + (station.maxQueue > 0 ? station.maxQueue : '') + '">' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStationMax(\'' + id + '\')">Save Changes</button>' +
+      '</div>' +
+    '</div>' +
+    '<hr class="modal-divider">' +
+    '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Windows</h3>' +
+      '<p class="modal-help">How many counters this station serves from. They share one line: whichever window calls next gets the next person, and the student is told which window to go to. Staff pick their window on Queue Management.</p>' +
+      '<div class="modal-inline">' +
+        '<input type="number" id="editStationWindows" class="modal-input" min="1" max="' + STATION_WINDOWS_MAX + '" step="1" value="' + stationWindows(station) + '">' +
+        '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStationWindows(\'' + id + '\')">Save Changes</button>' +
       '</div>' +
     '</div>' +
     '<hr class="modal-divider">' +
@@ -509,6 +518,37 @@ function saveStationPurposes(stationId) {
     confirmLabel: "Save Changes",
     tone: "danger",
     onConfirm: save
+  });
+}
+
+var STATION_WINDOWS_MAX = 10; // keep in step with the window check in firestore.rules
+
+function saveStationWindows(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station) return;
+
+  var count = Number(document.getElementById("editStationWindows").value.trim());
+  if (!Number.isInteger(count) || count < 1 || count > STATION_WINDOWS_MAX) {
+    say("Please enter a whole number from 1 to " + STATION_WINDOWS_MAX + ".");
+    return;
+  }
+  if (count === stationWindows(station)) {
+    say("There are no changes to save.");
+    return;
+  }
+
+  // A window that is still serving someone can't be taken away until that ticket is finished.
+  var busy = servingTicketsOf(station).filter(function (t) { return ticketWindow(t) > count; });
+  if (busy.length) {
+    say("Window " + ticketWindow(busy[0]) + " is still serving " + busy[0].ticketNo + ". Finish that ticket first, then reduce the windows.");
+    return;
+  }
+
+  db.collection("stations").doc(stationId).update({ windows: count }).then(function () {
+    closeFormModal();
+    sayDone(station.name + " now has " + count + (count === 1 ? " window." : " windows."));
+  }).catch(function (error) {
+    say("Could not save the windows: " + error.message);
   });
 }
 
@@ -681,17 +721,17 @@ function staffAuthReady() {
 
 function staffAuthMessage(error) {
   switch (error && error.code) {
-    case "staff/email-taken":
-      return "That email already has a login with a different password. Enter that login's password, or use another email.";
+    case "staff/username-taken":
+      return "That username is already taken. Choose another username.";
     case "auth/invalid-email":
-      return "Enter a valid email address.";
+      return "Enter a valid username.";
     case "auth/weak-password":
       return "That password is too weak. Use at least " + STAFF_PASSWORD_MIN + " characters.";
     case "auth/wrong-password":
     case "auth/invalid-credential":
       return "The current password is wrong.";
     case "auth/user-not-found":
-      return "No login exists for this email yet.";
+      return "No login exists for this username.";
     case "auth/too-many-requests":
       return "Too many attempts. Please wait a few minutes and try again.";
     case "auth/network-request-failed":
@@ -710,7 +750,7 @@ function staffAuthMessage(error) {
     case "firestore/permission-denied":
       return "Your account isn't allowed to change staff. Only an administrator can.";
     case "staff/record-failed":
-      return "The login was created, but its role could not be saved (" + (error.detail || "unknown error") + "). Press Add Staff again with the same email and password to finish.";
+      return "The login was created, but its role could not be saved (" + (error.detail || "unknown error") + "). Press Add Staff again with the same username and password to finish.";
     default:
       // Show Firebase's own text without its "Firebase: ... (auth/...)" wrapping.
       var text = String((error && error.message) || "").replace(/^Firebase:\s*/, "").replace(/\s*\((auth|firestore)\/[a-z-]+\)\.?$/, "");
@@ -725,13 +765,39 @@ function setStaffFormBusy(busy) {
 }
 
 function staffDisplayName(account) {
-  return account.name || String(account.email || "").split("@")[0];
+  return account.name || [account.firstName, account.lastName].filter(Boolean).join(" ") || usernameOfEmail(account.email) || String(account.email || "").split("@")[0];
+}
+
+// What identifies an account in the lists: its username, or for an old email account, the email.
+function staffLoginText(account) {
+  return usernameOfEmail(account.email) || account.email || "";
 }
 
 function passwordProblem(password, confirm, label) {
   if (!password) return "Enter a " + label + ".";
   if (password.length < STAFF_PASSWORD_MIN) return "The " + label + " must be at least " + STAFF_PASSWORD_MIN + " characters.";
   if (password !== confirm) return "The passwords do not match.";
+  return "";
+}
+
+function cleanPersonName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function personNameProblem(value, label) {
+  if (!/\p{L}/u.test(value)) return "Enter the staff member's " + label + ".";
+  if (value.length > 40) return "The " + label + " can be at most 40 characters.";
+  return "";
+}
+
+// "" when the username can be used for a new account, else what is wrong with it.
+function usernameProblem(username) {
+  if (!username) return "Enter a username.";
+  if (username === ADMIN_USERNAME) return "\"admin\" is reserved for the built-in administrator.";
+  if (!USERNAME_PATTERN.test(username)) {
+    return "A username is 3 to 30 characters: lowercase letters, numbers, dots, dashes or underscores, starting with a letter or number.";
+  }
+  if (staffAccounts.some(function (account) { return usernameOfEmail(account.email) === username; })) return "That username is already taken.";
   return "";
 }
 
@@ -745,10 +811,13 @@ function openAddStaffModal() {
   showFormModal("Add New Staff",
     '<div class="modal-section">' +
       '<h3 class="modal-section-title">Staff Information</h3>' +
-      '<div class="modal-field"><label for="newStaffName">Name</label>' +
-        '<input type="text" id="newStaffName" class="modal-input" placeholder="Full name" maxlength="80" autocomplete="off"></div>' +
-      '<div class="modal-field"><label for="newStaffEmail">Email</label>' +
-        '<input type="email" id="newStaffEmail" class="modal-input" placeholder="name@example.com" maxlength="254" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="newStaffFirst">First Name</label>' +
+        '<input type="text" id="newStaffFirst" class="modal-input" placeholder="e.g. Juan" maxlength="40" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="newStaffLast">Last Name</label>' +
+        '<input type="text" id="newStaffLast" class="modal-input" placeholder="e.g. Dela Cruz" maxlength="40" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="newStaffUsername">Username</label>' +
+        '<input type="text" id="newStaffUsername" class="modal-input" placeholder="e.g. juan.cruz" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false"></div>' +
+      '<p class="modal-help">They sign in with this username. 3 to 30 characters: lowercase letters, numbers, dots, dashes or underscores.</p>' +
       '<div class="modal-field"><label for="newStaffPassword">Password</label>' +
         '<input type="password" id="newStaffPassword" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
       '<div class="modal-field"><label for="newStaffConfirm">Confirm Password</label>' +
@@ -766,7 +835,7 @@ function openAddStaffModal() {
 }
 
 function clearAddStaffForm() {
-  ["newStaffName", "newStaffEmail", "newStaffPassword", "newStaffConfirm", "newStaffRole"].forEach(function (id) {
+  ["newStaffFirst", "newStaffLast", "newStaffUsername", "newStaffPassword", "newStaffConfirm", "newStaffRole"].forEach(function (id) {
     document.getElementById(id).value = "";
   });
 }
@@ -774,18 +843,16 @@ function clearAddStaffForm() {
 function saveNewStaff() {
   if (staffFormBusy) return;
 
-  var name = document.getElementById("newStaffName").value.trim().replace(/\s+/g, " ");
-  var email = staffKey(document.getElementById("newStaffEmail").value);
+  var firstName = cleanPersonName(document.getElementById("newStaffFirst").value);
+  var lastName = cleanPersonName(document.getElementById("newStaffLast").value);
+  var username = normalizeUsername(document.getElementById("newStaffUsername").value);
   var password = document.getElementById("newStaffPassword").value;
   var confirm = document.getElementById("newStaffConfirm").value;
   var role = document.getElementById("newStaffRole").value;
+  var email = staffEmailForUsername(username);
 
-  var problem = "";
-  if (!/\p{L}/u.test(name)) problem = "Enter the staff member's name.";
-  else if (!email || email.length > 254 || !EMAIL_PATTERN.test(email)) problem = "Enter a valid email address.";
-  else if (staffAccounts.some(function (account) { return account.id === email; })) problem = "That email already belongs to a staff member.";
-  else if (passwordProblem(password, confirm, "password")) problem = passwordProblem(password, confirm, "password");
-  else if (!role) problem = "Please choose a role.";
+  var problem = personNameProblem(firstName, "first name") || personNameProblem(lastName, "last name") ||
+    usernameProblem(username) || passwordProblem(password, confirm, "password") || (role ? "" : "Please choose a role.");
 
   if (problem) {
     say(problem);
@@ -796,12 +863,12 @@ function saveNewStaff() {
 
   Promise.resolve().then(staffAuthReady).then(function (auth) {
     // The login may already exist (for example after access was removed). That is fine only if the
-    // admin knows its password, so nobody can be given a role on an email they do not control.
+    // admin knows its password, so nobody can be given a role on an account they do not control.
     return auth.createUserWithEmailAndPassword(email, password).catch(function (error) {
       if (!error || error.code !== "auth/email-already-in-use") throw error;
       return auth.signInWithEmailAndPassword(email, password).catch(function () {
-        var taken = new Error("email taken");
-        taken.code = "staff/email-taken";
+        var taken = new Error("username taken");
+        taken.code = "staff/username-taken";
         throw taken;
       });
     }).then(function () {
@@ -809,20 +876,28 @@ function saveNewStaff() {
     });
   }).then(function () {
     var now = firebase.firestore.FieldValue.serverTimestamp();
-    return db.collection("staff").doc(email).set({ email: email, name: name, role: role, createdAt: now, updatedAt: now })
-      .catch(function (error) {
-        console.error("Staff record for " + email + " was not saved:", error);
-        var failed = new Error("record failed");
-        failed.code = error && error.code === "permission-denied" ? "permission-denied" : "staff/record-failed";
-        failed.detail = error && error.message;
-        throw failed;
-      });
+    return db.collection("staff").doc(email).set({
+      email: email,
+      username: username,
+      firstName: firstName,
+      lastName: lastName,
+      name: firstName + " " + lastName,
+      role: role,
+      createdAt: now,
+      updatedAt: now
+    }).catch(function (error) {
+      console.error("Staff record for " + username + " was not saved:", error);
+      var failed = new Error("record failed");
+      failed.code = error && error.code === "permission-denied" ? "permission-denied" : "staff/record-failed";
+      failed.detail = error && error.message;
+      throw failed;
+    });
   }).then(function () {
     closeFormModal();
     settingsSelectedRole = role;
     settingsRoleDrafts = {};
     renderSettings();
-    sayDone("Staff added. They can sign in with that email and password.");
+    sayDone("Staff added. " + firstName + " can sign in with the username \"" + username + "\" and that password.");
   }).catch(function (error) {
     console.error("Add staff failed:", error);
     say("Could not add staff: " + staffAuthMessage(error));
@@ -833,37 +908,51 @@ function saveNewStaff() {
 
 /* Edit */
 
+// First and last name of an account; older records only have the full name, which is split at the first space.
+function staffNameParts(account) {
+  if (account.firstName || account.lastName) return { first: account.firstName || "", last: account.lastName || "" };
+  var full = String(account.name || "").trim();
+  var cut = full.indexOf(" ");
+  return cut === -1 ? { first: full, last: "" } : { first: full.slice(0, cut), last: full.slice(cut + 1) };
+}
+
 function openEditStaffModal(email) {
   var account = staffAccounts.find(function (item) { return item.id === email; });
   if (!account) return;
 
   var id = escapeAdminText(account.id);
+  var parts = staffNameParts(account);
+  var username = usernameOfEmail(account.email);
+
+  var passwordHtml = username ?
+    '<h3 class="modal-section-title">Reset Password</h3>' +
+    '<p class="modal-help">Set a new password if they forgot theirs. Leave both boxes empty to keep the current one.</p>' +
+    '<div class="modal-field"><label for="editStaffNew">New Password</label>' +
+      '<input type="password" id="editStaffNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
+    '<div class="modal-field"><label for="editStaffConfirm">Confirm New Password</label>' +
+      '<input type="password" id="editStaffConfirm" class="modal-input" autocomplete="new-password"></div>' :
+    '<p class="rules-off-note">This account was made with an email, which can no longer sign in. Add the person again with a username, then delete this account.</p>';
 
   showFormModal("Edit Staff Information",
     '<div class="modal-section">' +
       '<h3 class="modal-section-title">Staff Information</h3>' +
-      '<div class="modal-field"><label for="editStaffName">Name</label>' +
-        '<input type="text" id="editStaffName" class="modal-input" maxlength="80" value="' + escapeAdminText(staffDisplayName(account)) + '" autocomplete="off"></div>' +
-      '<div class="modal-field"><label for="editStaffEmail">Email</label>' +
-        '<input type="email" id="editStaffEmail" class="modal-input" value="' + escapeAdminText(account.email) + '" readonly></div>' +
-      '<p class="modal-help">To change the password, fill in all three password boxes. Leave them empty to keep it.</p>' +
-      '<div class="modal-field"><label for="editStaffCurrent">Current Password</label>' +
-        '<input type="password" id="editStaffCurrent" class="modal-input" autocomplete="off"></div>' +
-      '<div class="modal-field"><label for="editStaffNew">New Password</label>' +
-        '<input type="password" id="editStaffNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
-      '<div class="modal-field"><label for="editStaffConfirm">Confirm New Password</label>' +
-        '<input type="password" id="editStaffConfirm" class="modal-input" autocomplete="new-password"></div>' +
+      '<div class="modal-field"><label for="editStaffFirst">First Name</label>' +
+        '<input type="text" id="editStaffFirst" class="modal-input" maxlength="40" value="' + escapeAdminText(parts.first) + '" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="editStaffLast">Last Name</label>' +
+        '<input type="text" id="editStaffLast" class="modal-input" maxlength="40" value="' + escapeAdminText(parts.last) + '" autocomplete="off"></div>' +
+      '<div class="modal-field"><label for="editStaffUsername">' + (username ? 'Username' : 'Email') + '</label>' +
+        '<input type="text" id="editStaffUsername" class="modal-input" value="' + escapeAdminText(staffLoginText(account)) + '" readonly></div>' +
+      passwordHtml +
       '<div class="settings-actions modal-actions-end">' +
-        '<button type="button" class="settings-btn settings-btn-blue" onclick="clearEditStaffForm()">Clear All</button>' +
+        '<button type="button" class="settings-btn settings-btn-blue" onclick="closeFormModal()">Cancel</button>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStaffEdit(\'' + id + '\')">Save Changes</button>' +
       '</div>' +
     '</div>');
 }
 
-function clearEditStaffForm() {
-  ["editStaffName", "editStaffCurrent", "editStaffNew", "editStaffConfirm"].forEach(function (id) {
-    document.getElementById(id).value = "";
-  });
+// An admin sets a new password for a staff account without its old one (Cloud Function resetStaffPassword).
+function resetStaffPassword(username, password) {
+  return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("resetStaffPassword")({ username: username, password: password });
 }
 
 function saveStaffEdit(email) {
@@ -872,24 +961,24 @@ function saveStaffEdit(email) {
   var account = staffAccounts.find(function (item) { return item.id === email; });
   if (!account) return;
 
-  var name = document.getElementById("editStaffName").value.trim().replace(/\s+/g, " ");
-  var current = document.getElementById("editStaffCurrent").value;
-  var next = document.getElementById("editStaffNew").value;
-  var confirm = document.getElementById("editStaffConfirm").value;
-  var changingPassword = !!(current || next || confirm);
+  var username = usernameOfEmail(account.email);
+  var firstName = cleanPersonName(document.getElementById("editStaffFirst").value);
+  var lastName = cleanPersonName(document.getElementById("editStaffLast").value);
+  var nextInput = document.getElementById("editStaffNew");
+  var next = nextInput ? nextInput.value : "";
+  var confirm = nextInput ? document.getElementById("editStaffConfirm").value : "";
+  var changingPassword = !!(username && (next || confirm));
 
-  var problem = "";
-  if (!/\p{L}/u.test(name)) problem = "Enter the staff member's name.";
-  else if (changingPassword && !current) problem = "Enter the current password to change it.";
-  else if (changingPassword && passwordProblem(next, confirm, "new password")) problem = passwordProblem(next, confirm, "new password");
-  else if (changingPassword && next === current) problem = "The new password must be different from the current one.";
+  var problem = personNameProblem(firstName, "first name") || personNameProblem(lastName, "last name") ||
+    (changingPassword ? passwordProblem(next, confirm, "new password") : "");
 
   if (problem) {
     say(problem);
     return;
   }
 
-  var nameChanged = name !== staffDisplayName(account);
+  var parts = staffNameParts(account);
+  var nameChanged = firstName !== parts.first || lastName !== parts.last || !account.firstName;
   if (!changingPassword && !nameChanged) {
     closeFormModal();
     return;
@@ -897,23 +986,20 @@ function saveStaffEdit(email) {
 
   setStaffFormBusy(true);
 
-  var passwordStep = changingPassword ?
-    Promise.resolve().then(staffAuthReady).then(function (auth) {
-      return auth.signInWithEmailAndPassword(account.email, current).then(function (credential) {
-        return credential.user.updatePassword(next);
-      }).then(function () {
-        return auth.signOut();
-      });
-    }) :
-    Promise.resolve();
+  var passwordStep = changingPassword ? resetStaffPassword(username, next) : Promise.resolve();
 
   passwordStep.then(function () {
     if (!nameChanged) return null;
-    return db.collection("staff").doc(email).update({ name: name, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    return db.collection("staff").doc(email).update({
+      firstName: firstName,
+      lastName: lastName,
+      name: firstName + " " + lastName,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
   }).then(function () {
     closeFormModal();
     renderSettings();
-    sayDone(changingPassword ? "Staff updated. The new password works from the next sign-in." : "Staff updated.");
+    sayDone(changingPassword ? "Staff updated. The new password works from their next sign-in." : "Staff updated.");
   }).catch(function (error) {
     console.error("Edit staff failed:", error);
     say("Could not save the changes: " + staffAuthMessage(error));
@@ -930,7 +1016,7 @@ function confirmDeleteStaff(email) {
 
   showConfirmModal({
     title: "Are you sure you want to delete this staff member?",
-    message: staffDisplayName(account) + " (" + account.email + ") loses access to the admin console right away. The login itself is kept, so you can add them again with the same password later.",
+    message: staffDisplayName(account) + " (" + staffLoginText(account) + ") loses access to the admin console right away. The login itself is kept, so you can add them again with the same password later.",
     confirmLabel: "Delete Staff",
     tone: "danger",
     onConfirm: function () {
@@ -971,13 +1057,14 @@ function renderSettings() {
 
     return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + '</td>' +
       '<td>' + escapeAdminText(stationCodeOf(station.id)) + '</td>' +
+      '<td class="settings-center">' + stationWindows(station) + '</td>' +
       '<td>' + badge + '</td>' +
       '<td><div class="settings-actions">' +
         '<button type="button" class="settings-btn settings-btn-blue" onclick="openEditStationModal(\'' + id + '\')">Edit</button>' + toggleBtn +
       '</div></td></tr>';
   }).join("");
 
-  if (!stationRowsHtml) stationRowsHtml = '<tr><td colspan="4" class="empty-row">No service stations yet.</td></tr>';
+  if (!stationRowsHtml) stationRowsHtml = '<tr><td colspan="5" class="empty-row">No service stations yet.</td></tr>';
 
   var roleRowsHtml = roles.map(function (role) {
     var count = staffAccounts.filter(function (a) { return accountRole(a) === role.id; }).length;
@@ -1006,7 +1093,7 @@ function renderSettings() {
       members.map(function (account) {
         var locked = isProtectedAccount(account.email);
         var current = settingsRoleDrafts[account.id] !== undefined ? settingsRoleDrafts[account.id] : accountRole(account);
-        return '<tr><td class="settings-strong">' + escapeAdminText(account.email) + '</td>' +
+        return '<tr><td class="settings-strong">' + escapeAdminText(staffDisplayName(account)) + '<span class="staff-login">' + escapeAdminText(staffLoginText(account)) + '</span></td>' +
           '<td><select class="settings-select" data-account="' + escapeAdminText(account.id) + '" onchange="onMemberRoleChange(this)"' +
             (locked ? ' disabled title="This account\'s role can\'t be changed"' : '') + '>' + roleOptions(current) + '</select></td></tr>';
       }).join("") +
@@ -1021,7 +1108,8 @@ function renderSettings() {
     var locked = isProtectedAccount(account.email);
 
     return '<tr><td class="settings-strong">' + escapeAdminText(staffDisplayName(account)) + '</td>' +
-      '<td>' + escapeAdminText(account.email) + '</td>' +
+      '<td>' + escapeAdminText(staffLoginText(account)) +
+        (usernameOfEmail(account.email) ? '' : ' <span class="type-tag staff-email-tag" title="Made with an email, which can no longer sign in">Email account: re-create with a username</span>') + '</td>' +
       '<td>' + escapeAdminText(roleName) + '</td>' +
       '<td><div class="settings-actions">' +
         '<button type="button" class="settings-icon-btn settings-icon-blue" title="Edit staff" onclick="openEditStaffModal(\'' + id + '\')">✎</button>' +
@@ -1060,7 +1148,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Service Station</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStationModal()">+ Add New Station</button></div>' +
-      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Ticket Code</th><th>Status</th><th>Action</th></tr></thead>' +
+      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Ticket Code</th><th class="settings-center">Windows</th><th>Status</th><th>Action</th></tr></thead>' +
         '<tbody>' + stationRowsHtml + '</tbody></table></div>' +
     '</section>' +
 
@@ -1080,7 +1168,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Staffs</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStaffModal()">+ Add New Staff</button></div>' +
-      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead>' +
+      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Action</th></tr></thead>' +
         '<tbody>' + staffRowsHtml + '</tbody></table></div>' +
     '</section>';
 }
