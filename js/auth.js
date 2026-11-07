@@ -196,6 +196,3 @@ function login() {
 }
 
 
-// Used by Settings when adding staff.
-var EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/;
-

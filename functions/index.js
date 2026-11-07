@@ -13,6 +13,8 @@ const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
 const { redeemWalkinPass } = require("./lib/walkin");
+const { resetStaffPassword } = require("./lib/staff");
+const { getAuth } = require("firebase-admin/auth");
 const { isNoShow, recordNoShow } = require("./lib/strikes");
 const messages = require("./lib/messages");
 
@@ -146,6 +148,17 @@ exports.joinQueue = onCall(async function (request) {
 });
 
 // A walk-in's phone opens the Queue Enforcer's QR code: this checks the one-time pass and creates their ticket.
+// An administrator sets a new password for a staff account (Settings > Edit Staff), without the old one.
+exports.resetStaffPassword = onCall(async function (request) {
+  try {
+    return await resetStaffPassword({ db, adminAuth: getAuth() }, request.auth, request.data);
+  } catch (error) {
+    if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
+    logger.error("resetStaffPassword failed: " + (error && error.stack ? error.stack : error));
+    throw new HttpsError("internal", "Something went wrong while resetting the password. Please try again.");
+  }
+});
+
 exports.redeemWalkinPass = onCall(async function (request) {
   try {
     return await redeemWalkinPass({ db, FieldValue, config }, request.auth, request.data);

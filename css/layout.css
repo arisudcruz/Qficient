@@ -1175,6 +1175,23 @@ body.dark .modal-input[readonly] {
   color: #172033;
 }
 
+/* Settings > staff: the username under a name, and the mark on old email accounts */
+.staff-login {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748B;
+}
+
+.type-tag.staff-email-tag {
+  background: #FDECEC;
+  color: #B42318;
+  white-space: normal;
+}
+
+body.dark .staff-login { color: #94A5C2; }
+body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+
 .settings-center {
   text-align: center !important;
 }
