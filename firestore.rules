@@ -218,8 +218,13 @@ service cloud.firestore {
       return isStationStaffOf(resource.data.stationId) &&
         changedKeys().hasOnly(['status', 'servingAt', 'completedAt', 'skippedAt', 'lastCalled', 'lastCallAt',
                                'verified', 'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt',
-                               'voidedAt', 'autoVoided']) &&
+                               'voidedAt', 'autoVoided', 'window']) &&
         (!changedKeys().hasAny(['status']) || isAllowedStatusMove()) &&
+        // A station's windows share one line: the window a ticket is called to (1-10, see Settings > Edit Station)
+        // is set only while it is being served.
+        (!changedKeys().hasAny(['window']) || !('window' in request.resource.data) ||
+          (request.resource.data.window is int && request.resource.data.window >= 1 && request.resource.data.window <= 10 &&
+           request.resource.data.status == 'serving')) &&
         freshOrGone('servingAt') && freshOrGone('completedAt') && freshOrGone('skippedAt') &&
         freshOrGone('lastCallAt') && freshOrGone('verifiedAt') && freshOrGone('recalledAt') &&
         freshOrGone('prioritizedAt') && freshOrGone('voidedAt') &&
@@ -245,7 +250,7 @@ service cloud.firestore {
         r.status == 'serving' &&
         changedKeys().hasOnly(['stationId', 'ticketNo', 'status', 'verified', 'createdAt', 'enrollmentStep',
                                'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
-                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified']) &&
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified', 'window']) &&
         d.enrollmentStep == r.enrollmentStep + 1 &&
         d.enrollmentStep < r.enrollmentFlow.size() &&
         d.stationId == r.enrollmentFlow[d.enrollmentStep] &&
@@ -258,7 +263,7 @@ service cloud.firestore {
         d.previousTicketNo == r.ticketNo &&
         d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
         !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
-        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d);
+        !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d) && !('window' in d);
     }
 
     // Only enrollment tickets move between stations (isStationStaffEnrollmentStep, along their process). A regular

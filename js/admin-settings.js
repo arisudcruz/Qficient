@@ -43,7 +43,7 @@ function getListedRoles() {
 
 function computeSettingsSignature() {
   return JSON.stringify([
-    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null]; }),
+    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s)]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
     blockedStudents.map(function (b) { return [b.id, b.untilMs]; })
@@ -327,9 +327,9 @@ function confirmCreateStation() {
         name: name,
         code: nextStationCode(name, used),
         count: 0,
-        nowServingId: null,
         active: true,
         maxQueue: null,
+        windows: 1,
         purposes: purposes
       }).then(function () {
         closeFormModal();
@@ -377,6 +377,15 @@ function openEditStationModal(stationId) {
       '<div class="modal-inline">' +
         '<input type="number" id="editStationMax" class="modal-input" min="1" step="1" placeholder="No limit" value="' + (station.maxQueue > 0 ? station.maxQueue : '') + '">' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStationMax(\'' + id + '\')">Save Changes</button>' +
+      '</div>' +
+    '</div>' +
+    '<hr class="modal-divider">' +
+    '<div class="modal-section">' +
+      '<h3 class="modal-section-title">Windows</h3>' +
+      '<p class="modal-help">How many counters this station serves from. They share one line: whichever window calls next gets the next person, and the student is told which window to go to. Staff pick their window on Queue Management.</p>' +
+      '<div class="modal-inline">' +
+        '<input type="number" id="editStationWindows" class="modal-input" min="1" max="' + STATION_WINDOWS_MAX + '" step="1" value="' + stationWindows(station) + '">' +
+        '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStationWindows(\'' + id + '\')">Save Changes</button>' +
       '</div>' +
     '</div>' +
     '<hr class="modal-divider">' +
@@ -509,6 +518,37 @@ function saveStationPurposes(stationId) {
     confirmLabel: "Save Changes",
     tone: "danger",
     onConfirm: save
+  });
+}
+
+var STATION_WINDOWS_MAX = 10; // keep in step with the window check in firestore.rules
+
+function saveStationWindows(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  if (!station) return;
+
+  var count = Number(document.getElementById("editStationWindows").value.trim());
+  if (!Number.isInteger(count) || count < 1 || count > STATION_WINDOWS_MAX) {
+    say("Please enter a whole number from 1 to " + STATION_WINDOWS_MAX + ".");
+    return;
+  }
+  if (count === stationWindows(station)) {
+    say("There are no changes to save.");
+    return;
+  }
+
+  // A window that is still serving someone can't be taken away until that ticket is finished.
+  var busy = servingTicketsOf(station).filter(function (t) { return ticketWindow(t) > count; });
+  if (busy.length) {
+    say("Window " + ticketWindow(busy[0]) + " is still serving " + busy[0].ticketNo + ". Finish that ticket first, then reduce the windows.");
+    return;
+  }
+
+  db.collection("stations").doc(stationId).update({ windows: count }).then(function () {
+    closeFormModal();
+    sayDone(station.name + " now has " + count + (count === 1 ? " window." : " windows."));
+  }).catch(function (error) {
+    say("Could not save the windows: " + error.message);
   });
 }
 
@@ -971,13 +1011,14 @@ function renderSettings() {
 
     return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + '</td>' +
       '<td>' + escapeAdminText(stationCodeOf(station.id)) + '</td>' +
+      '<td class="settings-center">' + stationWindows(station) + '</td>' +
       '<td>' + badge + '</td>' +
       '<td><div class="settings-actions">' +
         '<button type="button" class="settings-btn settings-btn-blue" onclick="openEditStationModal(\'' + id + '\')">Edit</button>' + toggleBtn +
       '</div></td></tr>';
   }).join("");
 
-  if (!stationRowsHtml) stationRowsHtml = '<tr><td colspan="4" class="empty-row">No service stations yet.</td></tr>';
+  if (!stationRowsHtml) stationRowsHtml = '<tr><td colspan="5" class="empty-row">No service stations yet.</td></tr>';
 
   var roleRowsHtml = roles.map(function (role) {
     var count = staffAccounts.filter(function (a) { return accountRole(a) === role.id; }).length;
@@ -1060,7 +1101,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Service Station</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStationModal()">+ Add New Station</button></div>' +
-      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Ticket Code</th><th>Status</th><th>Action</th></tr></thead>' +
+      '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Ticket Code</th><th class="settings-center">Windows</th><th>Status</th><th>Action</th></tr></thead>' +
         '<tbody>' + stationRowsHtml + '</tbody></table></div>' +
     '</section>' +
 

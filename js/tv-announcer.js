@@ -131,10 +131,12 @@ function runTvAnnouncements() {
     });
 }
 
-function tvServingText(ticket, stationName) {
+// windowText: "window 2" at a station with several windows, else "".
+function tvServingText(ticket, stationName, windowText) {
   var number = spokenTicketNo(ticket.ticketNo);
   var kind = ticket.enrollment === true ? "enrollment ticket " : "ticket ";
-  return "Now serving, " + kind + number + ", at " + stationName + ". Ticket " + number + ", please proceed to " + stationName + ".";
+  var where = stationName + (windowText ? ", " + windowText : "");
+  return "Now serving, " + kind + number + ", at " + where + ". Ticket " + number + ", please proceed to " + where + ".";
 }
 
 function tvRecallText(ticket, stationName) {
@@ -155,12 +157,15 @@ function checkTvAnnouncements(list) {
   var names = {};
   list.forEach(function (station) { names[station.id] = station.name; });
 
+  // Every ticket that newly starts being served is announced, whichever window called it.
   list.forEach(function (station) {
-    var serving = servingTicketOf(station);
-    seen.serving[station.id] = serving ? serving.id : (before.serving[station.id] || null);
-    if (!firstLook && serving && before.serving[station.id] !== serving.id) {
-      queueTvAnnouncement(tvServingText(serving, station.name));
-    }
+    servingTicketsOf(station).forEach(function (serving) {
+      seen.serving[serving.id] = true;
+      if (!firstLook && !before.serving[serving.id]) {
+        var label = windowLabel(station, ticketWindow(serving));
+        queueTvAnnouncement(tvServingText(serving, station.name, label ? label.toLowerCase() : ""));
+      }
+    });
   });
 
   tickets.forEach(function (ticket) {

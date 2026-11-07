@@ -184,12 +184,15 @@ function stationTableHtml(list) {
     var mine = list.filter(function (t) { return t.stationId === station.id; });
     var served = countBy(mine, function (t) { return t.status === "completed"; });
     var voided = countBy(mine, function (t) { return t.status === "void" || t.status === "cancelled"; });
-    var serving = servingTicketOf(station);
+    // Every window of the station: "AD1-004", or "W1 AD1-004 · W2 AD1-005" with several windows.
+    var servingList = servingTicketsOf(station).map(function (t) {
+      return (stationWindows(station) > 1 ? "W" + ticketWindow(t) + " " : "") + t.ticketNo;
+    });
 
     var cells = [
       ["Station", '<span class="settings-strong">' + escapeAdminText(station.name) + '</span>' + (station.active === false ? ' <span class="type-tag">Off</span>' : '')],
       ["Waiting now", String(liveWaiting(station.id))],
-      ["Now serving", serving ? escapeAdminText(serving.ticketNo) : "—"],
+      ["Now serving", servingList.length ? escapeAdminText(servingList.join(" · ")) : "—"],
       ["Served", String(served)],
       ["Avg wait", formatDuration(averageOf(mine.map(waitMs)))],
       ["Avg service", formatDuration(averageOf(mine.map(serviceMs)))],

@@ -128,8 +128,35 @@ function confirmTicketAction(kind, ticketId) {
   });
 }
 
+// The ticket at this staff member's window (js/queue.js myWindow): every action on this page works on it.
 function getServingTicket(stationId) {
-  return servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  return myServingTicket(stationId);
+}
+
+function selectQueueWindow(windowNo) {
+  setMyWindow(activeQueueStation, windowNo);
+  renderQueueManagement();
+}
+
+// For a station with several windows: which one this staff member is at, with what each window is serving.
+function queueWindowPickerHtml(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  var count = stationWindows(station);
+  if (count < 2) return "";
+
+  var mine = myWindow(stationId);
+  var buttons = [];
+  for (var w = 1; w <= count; w++) {
+    var serving = servingTicketAt(station, w);
+    buttons.push('<button type="button" class="qm-window' + (w === mine ? ' active' : '') + '" role="tab" aria-selected="' + (w === mine) + '" onclick="selectQueueWindow(' + w + ')">' +
+      '<span class="qm-window-name">Window ' + w + '</span>' +
+      '<span class="qm-window-now">' + escapeAdminText(serving ? serving.ticketNo : "Free") + '</span>' +
+    '</button>');
+  }
+  return '<div class="qm-windows">' +
+    '<span class="qm-windows-label">Your window</span>' +
+    '<div class="qm-window-list" role="tablist" aria-label="Your window">' + buttons.join("") + '</div>' +
+  '</div>';
 }
 
 // What Call Next does to the ticket still at the counter: completed, or (enrollment) sent on to the next station.
@@ -338,7 +365,9 @@ function renderQueueManagement() {
   var cardHtml =
     '<div class="serving-card qm-serving-card' + (enrolleeTypeOf(serving) ? ' serving-type-' + enrolleeTypeOf(serving) : '') + '">' +
       '<div class="serving-card-top">' +
-        '<span class="serving-live"><span class="live-dot"></span>Currently Serving</span>' +
+        '<span class="serving-live"><span class="live-dot"></span>Currently Serving' +
+          (windowLabel(stations.find(function (s) { return s.id === station; }), myWindow(station)) ?
+            ' · ' + windowLabel(stations.find(function (s) { return s.id === station; }), myWindow(station)) : '') + '</span>' +
         (serving && serving.createdAt ?
           '<span class="serving-time" title="When this ticket was generated">' + escapeAdminText(ticketGeneratedTime(serving)) + '</span>' : '') +
       '</div>' +
@@ -426,6 +455,7 @@ function renderQueueManagement() {
   area.innerHTML =
     headerHtml +
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
+    queueWindowPickerHtml(activeQueueStation) +
     '<div class="queue-mgmt-grid qm-grid">' +
       '<section class="panel serving-panel qm-serving">' + cardHtml + detailsHtml + actionsHtml + transferHtml + '</section>' +
       '<div class="qm-lists">' +

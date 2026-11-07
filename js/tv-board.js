@@ -80,8 +80,22 @@ function tvRowHtml(ticket, position) {
   return '<b>' + escapeHtml(ticket.ticketNo) + '</b><i>→</i><b>' + position + '</b>';
 }
 
+// "Now Serving": one big number, or at a station with several windows, each window and its number.
+function tvNowHtml(station) {
+  var count = stationWindows(station);
+  if (count < 2) {
+    var serving = latestServingOf(station);
+    return '<b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b>';
+  }
+  var rows = [];
+  for (var w = 1; w <= count; w++) {
+    var atWindow = servingTicketAt(station, w);
+    rows.push('<li><span>Window ' + w + '</span><b>' + escapeHtml(atWindow ? atWindow.ticketNo : "—") + '</b></li>');
+  }
+  return '<ul class="tv-now-windows">' + rows.join("") + '</ul>';
+}
+
 function tvColumnHtml(station) {
-  var serving = servingTicketOf(station);
   var line = waitingTicketsOf(station.id);
   var next = line[0];
   var waiting = line.slice(1, 1 + TV_WAITING_ROWS);
@@ -90,7 +104,7 @@ function tvColumnHtml(station) {
   return '<section class="tv-col">' +
     '<div class="tv-col-tab">' + escapeHtml(station.name) + '</div>' +
     '<div class="tv-col-body">' +
-      '<div class="tv-now" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
+      '<div class="tv-now' + (stationWindows(station) > 1 ? ' has-windows' : '') + '" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span>' + tvNowHtml(station) + '</div>' +
       '<p class="tv-label">Next in Line</p>' +
       (next ? '<div class="tv-row tv-next">' + tvRowHtml(next, 1) + '</div>' : '<p class="tv-none">No one is waiting.</p>') +
       (waiting.length ?
@@ -104,13 +118,13 @@ function tvColumnHtml(station) {
 }
 
 function tvMiniHtml(station) {
-  var serving = servingTicketOf(station);
+  var serving = latestServingOf(station);
   var next = waitingTicketsOf(station.id)[0];
 
   return '<div class="tv-mini">' +
     '<h3>' + escapeHtml(station.name) + '</h3>' +
     '<div class="tv-mini-row">' +
-      '<div class="tv-now-mini" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span><b>' + escapeHtml(serving ? serving.ticketNo : "—") + '</b></div>' +
+      '<div class="tv-now-mini" data-station="' + escapeHtml(station.id) + '"><span>Now Serving</span><b>' + escapeHtml(servingNumberText(station, serving)) + '</b></div>' +
       '<div class="tv-mini-next"><span>Next in Line</span><b>' + escapeHtml(next ? next.ticketNo : "—") + '</b></div>' +
     '</div>' +
   '</div>';
@@ -147,8 +161,8 @@ function renderTvBoard() {
 
   // Flash a station's "Now Serving" when it calls a new number.
   list.forEach(function (station) {
-    var serving = servingTicketOf(station);
-    var number = serving ? serving.ticketNo : "";
+    // Every window's number, so a call at any window flashes the box.
+    var number = servingTicketsOf(station).map(function (t) { return t.ticketNo; }).join(",");
     if (tvLastServing[station.id] !== undefined && tvLastServing[station.id] !== number && number) {
       var box = board.querySelector('[data-station="' + station.id.replace(/"/g, "") + '"]');
       if (box) box.classList.add("tv-flash");

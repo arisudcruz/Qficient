@@ -27,9 +27,16 @@ const pusher = createPusher({
   log: function (message) { logger.info(message); }
 });
 
-async function stationNameOf(stationId) {
+// A station's name and how many windows it has (1 unless set in Settings > Edit Station).
+async function stationInfoOf(stationId) {
   const doc = await db.collection("stations").doc(stationId).get();
-  return doc.exists && doc.data().name ? doc.data().name : "the counter";
+  const data = doc.exists ? doc.data() : {};
+  const windows = Math.floor(Number(data.windows));
+  return { name: data.name || "the counter", windows: windows >= 1 && windows <= 10 ? windows : 1 };
+}
+
+async function stationNameOf(stationId) {
+  return (await stationInfoOf(stationId)).name;
 }
 
 async function voidMinutes() {
@@ -70,10 +77,10 @@ exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", se
   }
 
   if (before) {
-    const names = {};
-    names[after.stationId] = await stationNameOf(after.stationId);
+    const info = await stationInfoOf(after.stationId);
     const change = describeChange(before, after, {
-      stationName: function (id) { return names[id] || "the counter"; },
+      stationName: function (id) { return id === after.stationId ? info.name : "the counter"; },
+      stationWindows: function (id) { return id === after.stationId ? info.windows : 1; },
       voidMinutes: await voidMinutes()
     }, config.notify);
 

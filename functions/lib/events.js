@@ -13,11 +13,14 @@ function compareQueueOrder(a, b) {
 
 // What happened to a student's ticket between two versions of it.
 // Returns { type, message } for the one thing worth telling them, or null.
-// `ctx` supplies stationName(id) and voidMinutes.
+// `ctx` supplies stationName(id), voidMinutes and, optionally, stationWindows(id).
 function describeChange(before, after, ctx, notify) {
   if (!before || !after) return null;
 
   const stationName = ctx.stationName(after.stationId);
+  // The window a ticket is at, named only when the station has several (they share one line).
+  const windows = ctx.stationWindows ? ctx.stationWindows(after.stationId) : 1;
+  const windowNo = windows > 1 && Number(after.window) >= 1 ? Number(after.window) : 0;
   const lastCallBefore = toMs(before.lastCallAt);
   const lastCallAfter = toMs(after.lastCallAt);
 
@@ -29,7 +32,7 @@ function describeChange(before, after, ctx, notify) {
     return notify.transferred ? { type: "transferred", message: messages.transferred(after, stationName) } : null;
   }
   if (after.status === "serving" && before.status !== "serving") {
-    return notify.serving ? { type: "serving", message: messages.serving(after, stationName) } : null;
+    return notify.serving ? { type: "serving", message: messages.serving(after, stationName, windowNo) } : null;
   }
   if (after.status === "skipped" && before.status !== "skipped") {
     return notify.skipped ? { type: "skipped", message: messages.skipped(after, stationName, ctx.voidMinutes) } : null;
@@ -42,7 +45,7 @@ function describeChange(before, after, ctx, notify) {
     return notify.lastCall ? { type: "lastCall", message: messages.lastCall(after, stationName, ctx.voidMinutes) } : null;
   }
   if ((after.recallCount || 0) > (before.recallCount || 0)) {
-    return notify.recall ? { type: "recall", message: messages.recall(after, stationName) } : null;
+    return notify.recall ? { type: "recall", message: messages.recall(after, stationName, windowNo) } : null;
   }
 
   return null;

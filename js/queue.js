@@ -112,13 +112,67 @@ function stationNameById(stationId) {
   return station ? station.name : "";
 }
 
-// The ticket a station is serving. The pointer alone isn't trusted: the ticket must still be serving, today,
-// at this station.
-function servingTicketOf(station) {
-  var id = station ? station.nowServingId : null;
-  if (!id) return null;
-  var ticket = tickets.find(function (t) { return t.id === id; });
-  return ticket && ticket.status === "serving" && ticket.stationId === station.id && isTodayTicket(ticket) ? ticket : null;
+/* ---------- Windows: a station can have several counters sharing one line ---------- */
+
+// How many windows a station has (Settings > Edit Station); 1 unless set.
+function stationWindows(station) {
+  var n = station ? Math.floor(Number(station.windows)) : 1;
+  return n >= 1 && n <= 10 ? n : 1;
+}
+
+// The window a serving ticket is at. Tickets called before windows existed count as Window 1.
+function ticketWindow(ticket) {
+  var n = Math.floor(Number(ticket && ticket.window));
+  return n >= 1 ? n : 1;
+}
+
+// "Window 2" for stations with several windows; "" for a single-window station, which never shows window labels.
+function windowLabel(station, windowNo) {
+  return stationWindows(station) > 1 ? "Window " + windowNo : "";
+}
+
+// Today's tickets being served at a station, one per window, in window order.
+function servingTicketsOf(station) {
+  if (!station) return [];
+  return tickets.filter(function (t) {
+    return t.status === "serving" && t.stationId === station.id && isTodayTicket(t);
+  }).sort(function (a, b) { return ticketWindow(a) - ticketWindow(b); });
+}
+
+function servingTicketAt(station, windowNo) {
+  return servingTicketsOf(station).find(function (t) { return ticketWindow(t) === windowNo; }) || null;
+}
+
+// The number called most recently at a station, for places that show one "Now serving".
+function latestServingOf(station) {
+  return servingTicketsOf(station).sort(function (a, b) {
+    return timestampToMs(b.servingAt, 0) - timestampToMs(a.servingAt, 0);
+  })[0] || null;
+}
+
+// "AD1-004" or, at a station with several windows, "AD1-004 (W2)".
+function servingNumberText(station, ticket) {
+  if (!ticket) return "—";
+  return ticket.ticketNo + (stationWindows(station) > 1 ? " (W" + ticketWindow(ticket) + ")" : "");
+}
+
+// The window this browser's staff member works at, per station (picked on Queue Management).
+var MY_WINDOW_KEY = "qficient.window.";
+
+function myWindow(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  var saved = 1;
+  try { saved = Math.floor(Number(localStorage.getItem(MY_WINDOW_KEY + stationId))) || 1; } catch (e) {}
+  return Math.min(Math.max(saved, 1), stationWindows(station));
+}
+
+function setMyWindow(stationId, windowNo) {
+  try { localStorage.setItem(MY_WINDOW_KEY + stationId, String(windowNo)); } catch (e) {}
+}
+
+// The ticket at this staff member's window of a station.
+function myServingTicket(stationId) {
+  return servingTicketAt(stations.find(function (s) { return s.id === stationId; }), myWindow(stationId));
 }
 
 function countStationTicketsToday(stationId) {
@@ -344,19 +398,35 @@ function getNextWaitingTicket(stationId) {
     .sort(compareQueueOrder)[0] || null;
 }
 
-// Calls the next waiting ticket (or empties the serving window), in one write.
-function advanceStation(stationId) {
-  var next = getNextWaitingTicket(stationId);
-  var batch = db.batch();
+// Calls the next waiting ticket to this staff member's window. Several windows share the line, so the ticket is
+// claimed in a transaction: if another window took it a moment earlier, the one after it is tried instead.
+// windowNo: the window the staff member was at when they pressed the button (read then, not after the save).
+function advanceStation(stationId, windowNo) {
+  if (!windowNo) windowNo = myWindow(stationId);
+  var candidates = tickets.filter(function (t) {
+    return t.stationId === stationId && t.status === "waiting" && isTodayTicket(t);
+  }).sort(compareQueueOrder).slice(0, 5);
 
-  batch.update(db.collection("stations").doc(stationId), { nowServingId: next ? next.id : null });
-  if (next) {
-    batch.update(db.collection("tickets").doc(next.id), {
-      status: "serving",
-      servingAt: firebase.firestore.FieldValue.serverTimestamp()
+  function claim(list) {
+    if (!list.length) return Promise.resolve(null);
+    var ref = db.collection("tickets").doc(list[0].id);
+    return db.runTransaction(function (transaction) {
+      return transaction.get(ref).then(function (doc) {
+        var data = doc.exists ? doc.data() : null;
+        if (!data || data.status !== "waiting" || data.stationId !== stationId) return false;
+        transaction.update(ref, {
+          status: "serving",
+          servingAt: firebase.firestore.FieldValue.serverTimestamp(),
+          window: windowNo
+        });
+        return true;
+      });
+    }).then(function (claimed) {
+      return claimed ? list[0] : claim(list.slice(1));
     });
   }
-  return batch.commit().catch(function (err) {
+
+  return claim(candidates).catch(function (err) {
     say("Could not call the next ticket: " + err.message);
   });
 }
@@ -367,13 +437,14 @@ function callNextTicket(stationId) {
   var station = stations.find(function (s) { return s.id === stationId; });
   if (!station) return;
 
-  // Only a ticket that is still being served gets completed; a cancelled or stale one must keep its status.
-  var current = servingTicketOf(station);
+  // Only a ticket that is still being served at this window gets completed; a cancelled or stale one keeps its status.
+  var windowNo = myWindow(stationId);
+  var current = myServingTicket(stationId);
 
   // An enrollment student at the counter is sent on to their next station (or finishes) instead.
   if (current && current.enrollment === true) {
     return proceedEnrollmentTicket(stationId, { quiet: true }).then(function (ok) {
-      if (ok) return advanceStation(stationId);
+      if (ok) return advanceStation(stationId, windowNo);
     });
   }
 
@@ -384,8 +455,8 @@ function callNextTicket(stationId) {
     }) :
     Promise.resolve();
 
-  finish.then(function () {
-    advanceStation(stationId);
+  return finish.then(function () {
+    return advanceStation(stationId, windowNo);
   }).catch(function (err) {
     say("Could not call next ticket: " + err.message);
   });
@@ -395,7 +466,8 @@ function skipCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
   if (roleRuleBlocks("hold", "put tickets on hold")) return;
 
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  var windowNo = myWindow(stationId);
+  var serving = myServingTicket(stationId);
   if (!serving) {
     say("No ticket is currently being served.");
     return;
@@ -405,7 +477,7 @@ function skipCurrentTicket(stationId) {
     status: "skipped",
     skippedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
-    advanceStation(stationId);
+    return advanceStation(stationId, windowNo);
   }).catch(function (err) {
     say("Could not put the ticket on hold: " + err.message);
   });
@@ -416,7 +488,7 @@ function skipCurrentTicket(stationId) {
 function completeCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  var serving = myServingTicket(stationId);
   if (!serving) {
     say("No ticket is currently being served.");
     return;
@@ -431,7 +503,6 @@ function completeCurrentTicket(stationId) {
     status: "completed",
     completedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  batch.update(db.collection("stations").doc(stationId), { nowServingId: null });
 
   return batch.commit().catch(function (err) {
     say("Could not end the transaction: " + err.message);
@@ -448,14 +519,12 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
     return Promise.resolve(false);
   }
 
-  var station = stations.find(function (s) { return s.id === sourceStationId; });
-  var serving = servingTicketOf(station);
+  var serving = myServingTicket(sourceStationId);
   if (!serving || serving.enrollment !== true) {
     say("No enrollment ticket is currently being served.");
     return Promise.resolve(false);
   }
 
-  var stationRef = db.collection("stations").doc(sourceStationId);
   var ticketRef = db.collection("tickets").doc(serving.id);
   var now = firebase.firestore.FieldValue.serverTimestamp();
   var nextId = nextEnrollmentStationId(serving);
@@ -464,7 +533,6 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
   if (!nextId) {
     var batch = db.batch();
     batch.update(ticketRef, { status: "completed", completedAt: now });
-    batch.update(stationRef, { nowServingId: null });
     return batch.commit().then(function () {
       if (!opts.quiet) sayDone("Enrollment complete for " + serving.ticketNo + ".");
       return true;
@@ -520,9 +588,9 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
         recalledAt: remove,
         recallCount: remove,
         prioritizedAt: remove,
-        nextNotified: remove
+        nextNotified: remove,
+        window: remove
       });
-      transaction.update(stationRef, { nowServingId: null });
 
       return { ticketNo: ticketNo, stationName: destData.name };
     });
@@ -539,7 +607,8 @@ function removeCurrentTicket(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
   if (roleRuleBlocks("remove", "remove tickets")) return;
 
-  var serving = servingTicketOf(stations.find(function (s) { return s.id === stationId; }));
+  var windowNo = myWindow(stationId);
+  var serving = myServingTicket(stationId);
   if (!serving) {
     say("No ticket is currently being served.");
     return;
@@ -549,7 +618,7 @@ function removeCurrentTicket(stationId) {
     status: "void",
     voidedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
-    advanceStation(stationId);
+    return advanceStation(stationId, windowNo);
   }).catch(function (err) {
     say("Could not remove ticket: " + err.message);
   });
@@ -590,7 +659,8 @@ function callSelectedTicket(stationId, ticketId) {
     return Promise.resolve(false);
   }
 
-  var current = servingTicketOf(station);
+  var windowNo = myWindow(stationId);
+  var current = myServingTicket(stationId);
   var enrolling = !!current && current.enrollment === true;
 
   // An enrollment student still at the counter is sent on (or finishes) first, never just closed.
@@ -611,9 +681,9 @@ function callSelectedTicket(stationId, ticketId) {
       servingAt: now,
       skippedAt: remove,
       lastCalled: remove,
-      lastCallAt: remove
+      lastCallAt: remove,
+      window: windowNo
     });
-    batch.update(db.collection("stations").doc(stationId), { nowServingId: ticket.id });
 
     return reportQueueAction(batch.commit(), "call that ticket");
   });

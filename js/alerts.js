@@ -124,7 +124,7 @@ function watchTicketEvents(ticket) {
   var place = placeInLine(ticket);
   var stationName = stationNameOf(ticket.stationId);
   var station = stations.find(function (s) { return s.id === ticket.stationId; });
-  var someoneServed = !!servingTicketOf(station);
+  var someoneServed = servingTicketsOf(station).length > 0;
 
   // First look at this ticket (just joined, or the page was reopened): note where it stands, without alerts.
   if (!ticketWatch || ticketWatch.id !== ticket.id) {
@@ -146,7 +146,8 @@ function watchTicketEvents(ticket) {
     w.next = place === 1 && someoneServed;
   } else if (ticket.status !== w.status) {
     if (ticket.status === "serving") {
-      studentAlert("It's your turn! Please go to " + stationName + " now.", "good", true, true, "bellRing");
+      var windowText = windowLabel(station, ticketWindow(ticket));
+      studentAlert("It's your turn! Please go to " + stationName + (windowText ? ", " + windowText : "") + " now.", "good", true, true, "bellRing");
     } else if (ticket.status === "skipped") {
       studentAlert("Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause");
     }
