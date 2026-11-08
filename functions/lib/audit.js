@@ -154,7 +154,7 @@ function describeSettingsChange(docId, before, after, roleName) {
 function describeWalkinPass(before, after, station) {
   if (before || !after) return null; // passes are only created by staff; using them is the walk-in's own action
   const where = after.enrollment === true ? "Enrollment, starting at " + station(after.stationId).name : station(after.stationId).name + ", " + (after.purpose || "");
-  return entry("walkin", "walkinPass", "Made a walk-in QR for " + (after.ownerName || "a walk-in") + " (" + where + ")", { stationId: after.stationId, targetId: after.ownerName || "" });
+  return entry("walkin", "walkinPass", "Made a " + (after.priority === true ? "priority " : "") + "walk-in QR for " + (after.ownerName || "a walk-in") + " (" + where + ")", { stationId: after.stationId, targetId: after.ownerName || "" });
 }
 
 function describeJoinStateChange(before, after) {

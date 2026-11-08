@@ -421,7 +421,9 @@ service cloud.firestore {
       let d = request.resource.data;
       return (isAdmin() || (isEnforcer() && roleAllows('enforcer', 'walkin'))) &&
         d.keys().hasOnly(['ownerName', 'studentType', 'studentNumber', 'stationId', 'purpose', 'enrollment', 'enrollmentFlow',
-                          'secretHash', 'createdBy', 'createdAt']) &&
+                          'priority', 'secretHash', 'createdBy', 'createdAt']) &&
+        // Prioritize on the Walk-in Form follows the enforcer's Prioritize permission (System Rules).
+        (!('priority' in d) || (d.priority == true && (isAdmin() || roleAllows('enforcer', 'prioritize')))) &&
         d.keys().hasAll(['ownerName', 'stationId', 'purpose', 'secretHash', 'createdBy', 'createdAt']) &&
         d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
         // The student type is asked only for Enrollment (isWalkinPassEnrollment requires it there).

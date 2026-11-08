@@ -98,6 +98,10 @@ test("walk-in QR pass", () => {
   assert.strictEqual(e.summary, "Made a walk-in QR for Ana Reyes (Cashier, Pay tuition)");
   assert.strictEqual(audit.describeWalkinPass({ ownerName: "x" }, { ownerName: "x", usedAt: 1 }, station), null);
 });
+test("a priority walk-in QR says so", () => {
+  const e = audit.describeWalkinPass(null, { ownerName: "Lola Cruz", stationId: "cashier", purpose: "Pay", priority: true }, station);
+  assert.strictEqual(e.summary, "Made a priority walk-in QR for Lola Cruz (Cashier, Pay)");
+});
 test("lifting a student's block", () => {
   const e = audit.describeJoinStateChange({ blockedUntil: ts(99), ownerName: "Ben", studentNumber: "02000-1" }, { blockedUntil: null, unblockedBy: "admin@qficient.com" });
   assert.strictEqual(e.action, "unblock");

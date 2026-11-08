@@ -119,6 +119,8 @@ async function redeemWalkinPass(deps, auth, data) {
           manual: true,
           createdBy: fresh.createdBy
         };
+        // Marked Prioritize on the Walk-in Form (PWD, senior citizens, ...): front of the line, like Prioritize in the list.
+        if (fresh.priority === true) ticket.prioritizedAt = FieldValue.serverTimestamp();
         if (fresh.enrollment === true) {
           ticket.enrollment = true;
           ticket.enrollmentFlow = fresh.enrollmentFlow;
