@@ -133,11 +133,6 @@ function auditActorHtml(item) {
     '<span class="audit-sub">' + escapeAdminText([item.actorUsername, item.actorRole].filter(Boolean).join(" · ")) + '</span>';
 }
 
-function auditCategoryLabel(category) {
-  var found = AUDIT_CATEGORIES.find(function (c) { return c.value === category; });
-  return found && found.value ? found.label : category;
-}
-
 function renderAudit() {
   var area = document.getElementById("adminAuditArea");
   if (!area) return;
@@ -195,8 +190,6 @@ function renderAudit() {
         '<label class="audit-search">Search<input type="search" placeholder="Ticket no., name, action…" value="' + escapeAdminText(s.search) + '" oninput="onAuditSearch(this.value)"></label>' +
         '<span class="report-filters-spacer"></span>' +
         '<button type="button" class="settings-btn settings-btn-blue" onclick="loadAudit(false)"' + (s.loading ? ' disabled' : '') + '>Refresh</button>' +
-        '<button type="button" class="settings-btn settings-btn-blue" id="auditPdfBtn" onclick="exportAuditPdf()"' + (visible.length ? '' : ' disabled') + '>Export PDF</button>' +
-        '<button type="button" class="settings-btn settings-btn-green" id="auditXlsxBtn" onclick="exportAuditExcel()"' + (visible.length ? '' : ' disabled') + '>Export Excel</button>' +
       '</div>' +
       '<p class="audit-count">' + escapeAdminText(countText) + '</p>' +
       '<div class="table-wrap"><table class="queue-table settings-table audit-table"><thead><tr>' +
@@ -219,67 +212,6 @@ function onAuditSearch(value) {
     again.focus();
     try { again.setSelectionRange(caret, caret); } catch (e) {}
   }
-}
-
-/* ---------- Exports (same tools as Reports) ---------- */
-
-function auditExportRows() {
-  var admin = auditIsAdmin();
-  var head = ["Date & Time"].concat(admin ? ["Staff", "Username", "Role"] : []).concat(["Activity", "Action", "Details"]);
-  return [head].concat(auditVisibleItems().map(function (item) {
-    return [auditTimeText(item.ms)]
-      .concat(admin ? [item.actorName || "", item.actorUsername || "", item.actorRole || ""] : [])
-      .concat([auditCategoryLabel(item.category), AUDIT_ACTION_LABELS[item.action] || item.action, item.summary || ""]);
-  }));
-}
-
-function auditFileName(ext) {
-  var range = auditState.from === auditState.to ? auditState.from : auditState.from + "_to_" + auditState.to;
-  return "QFicient-" + (auditIsAdmin() ? "audit-trail" : "my-activity") + "_" + range + "." + ext;
-}
-
-function exportAuditExcel() {
-  var button = document.getElementById("auditXlsxBtn");
-  setButtonLoading(button, true);
-  loadReportLibs("xlsx").then(function () {
-    var book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(auditExportRows()), auditIsAdmin() ? "Audit Trail" : "My Activity");
-    XLSX.writeFile(book, auditFileName("xlsx"));
-  }).catch(function (error) {
-    say("Could not export: " + error.message);
-  }).then(function () {
-    setButtonLoading(document.getElementById("auditXlsxBtn"), false);
-  });
-}
-
-function exportAuditPdf() {
-  var button = document.getElementById("auditPdfBtn");
-  setButtonLoading(button, true);
-  loadReportLibs("pdf").then(function () {
-    var doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-    var rows = auditExportRows();
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.setTextColor(23, 32, 51);
-    doc.text(auditIsAdmin() ? "QFicient Audit Trail" : "QFicient - My Activity", 40, 48);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(auditState.from + " to " + auditState.to + "   |   " + (rows.length - 1) + " entries   |   Exported " + auditTimeText(Date.now()), 40, 66);
-    doc.autoTable({
-      startY: 82,
-      head: [rows[0]],
-      body: rows.slice(1),
-      theme: "grid",
-      headStyles: { fillColor: [0, 84, 166], textColor: 255 },
-      styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" }
-    });
-    doc.save(auditFileName("pdf"));
-  }).catch(function (error) {
-    say("Could not export: " + error.message);
-  }).then(function () {
-    setButtonLoading(document.getElementById("auditPdfBtn"), false);
-  });
 }
 
 /* ---------- Sign-in / sign-out ---------- */
