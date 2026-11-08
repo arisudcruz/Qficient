@@ -3291,6 +3291,63 @@ body.dark .admin-topbar { background: #0B1A30; }
 .qm-main-btn.queue-action-complete:hover:not(:disabled) { background: #15803d; }
 .qm-main-btn.queue-action-complete:disabled { background: #dcfce7; color: #16a34a; }
 
+/* Transfer Ticket panel (a ticket that isn't an enrollment), folded behind its toggle button */
+.qm-transfer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #C8D5E5;
+  border-radius: 10px;
+  background: transparent;
+  color: #172033;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.qm-transfer-toggle:hover { border-color: var(--navyDark); }
+
+.qm-transfer-toggle span { flex: 1; text-align: left; }
+
+.qm-transfer-chevron { transition: transform 0.15s ease; }
+
+.qm-transfer-toggle.is-open .qm-transfer-chevron { transform: rotate(180deg); }
+
+.qm-transfer-toggle.is-open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+.qm-transfer-body {
+  padding: 14px 14px 2px;
+  border: 1.5px solid #C8D5E5;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+.qm-transfer-body .qm-transfer-btn { margin-bottom: 12px; }
+
+.qm-transfer-priority { margin: -2px 0 14px; }
+
+.qm-select {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #C8D5E5;
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.qm-transfer-btn {
+  width: 100%;
+}
+
+body.dark .qm-transfer-toggle { border-color: var(--ad-line-strong); color: var(--ad-text); }
+body.dark .qm-transfer-toggle:hover { border-color: #5AA2FF; }
+body.dark .qm-transfer-body { border-color: var(--ad-line-strong); }
+body.dark .qm-select { background: var(--ad-field); border-color: var(--ad-line-strong); color: var(--ad-text); }
+
 /* The two lists */
 .qm-lists {
   display: flex;

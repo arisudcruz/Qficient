@@ -47,6 +47,13 @@ test("enrollment hand-off names both stations and numbers", () => {
   assert.strictEqual(e.action, "enrollmentNext");
   assert.ok(/CA1-004/.test(e.summary) && /Cashier/.test(e.summary) && /Registrar/.test(e.summary) && /RE1-007/.test(e.summary), e.summary);
 });
+test("transfer, and a prioritized transfer", () => {
+  const plain = ticket(t({ status: "serving" }), t({ stationId: "registrar", ticketNo: "RE1-009", status: "waiting" }));
+  assert.strictEqual(plain.action, "transfer");
+  assert.strictEqual(plain.summary, "Moved CA1-004 to Registrar as RE1-009");
+  const prio = ticket(t({ status: "serving" }), t({ stationId: "registrar", ticketNo: "RE1-009", status: "waiting", prioritizedAt: ts(9) }));
+  assert.strictEqual(prio.summary, "Moved CA1-004 to Registrar as RE1-009 (prioritized)");
+});
 test("server bookkeeping (next-in-line notice) is not an action", () => assert.strictEqual(ticket(t(), t({ nextNotified: true })), null));
 
 test("station created / deleted", () => {

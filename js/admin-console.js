@@ -206,6 +206,7 @@ function resetAdminPageState() {
   enforcerDraft = emptyEnforcerDraft("");
   queueTypeFilter = "";
   holdTypeFilter = "";
+  resetQueueTransfer();
   enrollmentFlowDrafts = {};
   enrollmentSettingsType = "regular";
   settingsSelectedRole = "admin";
@@ -245,6 +246,7 @@ function applyAdminAccess(stayOnPage) {
 
   if (kind === "station") {
     activeQueueStation = adminRole;
+    resetQueueTransfer();
   }
 
   if (stayOnPage === true) {

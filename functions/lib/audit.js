@@ -13,6 +13,7 @@ const ROLE_RULE_NAMES = {
   remove: "Remove",
   hold: "Put on Hold",
   lastCall: "Last Call",
+  transfer: "Transfer",
   walkin: "Walk-in Tickets"
 };
 
@@ -42,7 +43,7 @@ function describeTicketAction(before, after, station) {
       { stationId: before.stationId, targetId: before.ticketNo || no });
   }
   if (before.stationId !== after.stationId) {
-    return entry("queue", "transfer", "Moved " + (before.ticketNo || no) + " to " + at.name + " as " + no, extra);
+    return entry("queue", "transfer", "Moved " + (before.ticketNo || no) + " to " + at.name + " as " + no + (after.prioritizedAt ? " (prioritized)" : ""), extra);
   }
 
   if (after.status !== before.status) {

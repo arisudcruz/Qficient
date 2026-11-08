@@ -624,6 +624,93 @@ function removeCurrentTicket(stationId) {
   });
 }
 
+// Transfer: moves the ticket being served at this staff member's window to another station, as a fresh ticket at the
+// back of that station's line (a new number there, optionally a new purpose), then calls the next person to this
+// window. Enrollment tickets don't use this: they move along their own process (proceedEnrollmentTicket).
+function transferServingTicket(sourceStationId, destStationId, purpose, priority) {
+  if (!canServeStation(sourceStationId)) {
+    refuseStation();
+    return Promise.resolve(null);
+  }
+  if (roleRuleBlocks("transfer", "transfer tickets")) return Promise.resolve(null);
+
+  var windowNo = myWindow(sourceStationId);
+  var serving = myServingTicket(sourceStationId);
+  var destStation = stations.find(function (s) { return s.id === destStationId; });
+
+  if (!serving) {
+    say("No ticket is currently being served.");
+    return Promise.resolve(null);
+  }
+  if (serving.enrollment === true) {
+    say("Enrollment tickets are sent on with Proceed to Next Station.");
+    return Promise.resolve(null);
+  }
+  if (!destStation || destStation.id === sourceStationId) {
+    say("Please choose the station to transfer to.");
+    return Promise.resolve(null);
+  }
+  if (destStation.active === false) {
+    say("That station is currently unavailable.");
+    return Promise.resolve(null);
+  }
+  if (destStation.maxQueue > 0 && countStationTicketsToday(destStationId) >= destStation.maxQueue) {
+    say("That station has reached its daily queue limit.");
+    return Promise.resolve(null);
+  }
+
+  var destRef = db.collection("stations").doc(destStationId);
+  var ticketRef = db.collection("tickets").doc(serving.id);
+
+  return db.runTransaction(function (transaction) {
+    return Promise.all([transaction.get(destRef), transaction.get(ticketRef)]).then(function (docs) {
+      var dest = docs[0].data();
+      var ticket = docs[1].data();
+
+      if (!dest || dest.active === false) throw new Error("That station is currently unavailable.");
+      if (!ticket || ticket.status !== "serving" || ticket.stationId !== sourceStationId) throw new Error("This ticket is no longer being served here.");
+      if (ticket.enrollment === true) throw new Error("Enrollment tickets are sent on with Proceed to Next Station.");
+
+      var today = queueDayKey(Date.now());
+      var isNewDay = dest.countDay !== today;
+      var newCount = isNewDay ? 1 : (dest.count || 0) + 1;
+      var ticketNo = formatTicketNo(dest.code || stationCodeOf(destStationId), newCount);
+      var now = firebase.firestore.FieldValue.serverTimestamp();
+      var remove = firebase.firestore.FieldValue.delete();
+
+      transaction.update(destRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
+      transaction.update(ticketRef, {
+        stationId: destStationId,
+        ticketNo: ticketNo,
+        purpose: purpose || ticket.purpose,
+        status: "waiting",
+        verified: false,
+        createdAt: now,
+        transferredFrom: sourceStationId,
+        previousTicketNo: ticket.ticketNo,
+        transferredAt: now,
+        servingAt: remove,
+        verifiedAt: remove,
+        recalledAt: remove,
+        recallCount: remove,
+        // Back of the line, unless staff ticked Prioritize: priority from the old station never carries over.
+        prioritizedAt: priority === true && roleCan("prioritize") ? now : remove,
+        nextNotified: remove,
+        window: remove
+      });
+
+      return { ticketNo: ticketNo, stationName: dest.name };
+    });
+  }).then(function (result) {
+    advanceStation(sourceStationId, windowNo);
+    sayDone("Ticket transferred to " + result.stationName + " as " + result.ticketNo + ".");
+    return result;
+  }).catch(function (err) {
+    say("Could not transfer the ticket: " + err.message);
+    return null;
+  });
+}
+
 /* Actions on tickets picked from the queued list */
 
 function reportQueueAction(promise, errorLabel) {

@@ -266,8 +266,33 @@ service cloud.firestore {
         !('recallCount' in d) && !('prioritizedAt' in d) && !('nextNotified' in d) && !('window' in d);
     }
 
-    // Only enrollment tickets move between stations (isStationStaffEnrollmentStep, along their process). A regular
-    // ticket stays at the station it was issued for: there is no rule for station staff to move one.
+    // Transfer: the ticket being served (not an enrollment ticket, which moves along its own process) is sent to
+    // another open station as a fresh waiting ticket at the back of its line. System Rules can switch it off.
+    function isStationStaffTransfer() {
+      let r = resource.data;
+      let d = request.resource.data;
+      return isStationStaffOf(r.stationId) &&
+        r.status == 'serving' &&
+        r.get('enrollment', false) != true &&
+        changedKeys().hasOnly(['stationId', 'ticketNo', 'purpose', 'status', 'verified', 'createdAt',
+                               'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified', 'window']) &&
+        d.stationId is string && d.stationId != r.stationId && stationIsOpen(d.stationId) &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.transferredAt == request.time &&
+        d.transferredFrom == r.stationId &&
+        d.previousTicketNo == r.ticketNo &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        d.purpose is string && d.purpose.size() >= 1 && d.purpose.size() <= 200 &&
+        !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
+        !('recallCount' in d) && !('nextNotified' in d) && !('window' in d) &&
+        // Back of the new line, or the front when staff tick Prioritize (a fresh mark, if Prioritize is allowed);
+        // the old station's priority never carries over.
+        (!('prioritizedAt' in d) || (d.prioritizedAt == request.time && roleAllows(r.stationId, 'prioritize'))) &&
+        roleAllows(r.stationId, 'transfer');
+    }
 
     function isOwnerCancelling() {
       return resource.data.ownerId == request.auth.uid &&
@@ -282,7 +307,7 @@ service cloud.firestore {
       // Students join through the joinQueue Cloud Function and walk-ins through redeemWalkinPass, which create
       // the ticket on the server.
       allow create: if isAdmin();
-      allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() ||
+      allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
         isStationStaffEnrollmentStep() || (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }

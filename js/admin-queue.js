@@ -8,6 +8,19 @@ var queueMgmtPurposes = [
 var activeQueueStation = "cashier";
 var autoVoidIntervalId = null;
 
+// The transfer form lives inside a panel that re-renders on every live update, so its state is kept here.
+var queueTransfer = { stationId: "", purpose: "", open: false, priority: false };
+
+function resetQueueTransfer() {
+  queueTransfer = { stationId: "", purpose: "", open: false, priority: false };
+}
+
+// The Transfer Ticket form stays folded away behind its button until staff need it.
+function toggleQueueTransfer() {
+  queueTransfer.open = !queueTransfer.open;
+  renderQueueManagement();
+}
+
 // Student-type filters of the two lists ("" = all types).
 var queueTypeFilter = "";
 var holdTypeFilter = "";
@@ -31,6 +44,7 @@ function selectQueueStation(stationId) {
   if (!canServeStation(stationId)) return refuseStation();
 
   activeQueueStation = stationId;
+  resetQueueTransfer();
   renderQueueManagement();
 }
 
@@ -50,6 +64,7 @@ var QM_ICONS = {
   remove: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   hold: '<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V5a1.5 1.5 0 0 1 3 0v6M14 11V6.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 7-6 7-2.5 0-4-1.2-5.2-3.2L4 14.6a1.4 1.4 0 0 1 2.3-1.6L8 15"/>',
   done: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  transfer: '<path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/>',
   filter: '<path d="M4 6h16M7 12h10M10 18h4"/>'
 };
 
@@ -156,6 +171,114 @@ function queueWindowPickerHtml(stationId) {
   return '<div class="qm-windows">' +
     '<span class="qm-windows-label">Your window</span>' +
     '<div class="qm-window-list" role="tablist" aria-label="Your window">' + buttons.join("") + '</div>' +
+  '</div>';
+}
+
+/* ---------- Transfer: send the ticket being served to another station ---------- */
+
+function getTransferPurposes(stationId) {
+  var station = stations.find(function (s) { return s.id === stationId; });
+  return station && Array.isArray(station.purposes) ? station.purposes : [];
+}
+
+function transferPurposeOptionsHtml(stationId) {
+  var purposes = getTransferPurposes(stationId);
+  var placeholder = (!stationId || purposes.length) ? "Select Purpose" : "Keep current purpose";
+
+  return '<option value="">' + placeholder + '</option>' + purposes.map(function (purpose) {
+    return '<option value="' + escapeAdminText(purpose) + '"' + (purpose === queueTransfer.purpose ? ' selected' : '') + '>' + escapeAdminText(purpose) + '</option>';
+  }).join("");
+}
+
+// A station with its own list of purposes asks which one; any other keeps the ticket's purpose.
+function onTransferStationChange(select) {
+  queueTransfer.stationId = select.value;
+  queueTransfer.purpose = "";
+
+  var field = document.getElementById("queueTransferPurposeField");
+  var purposeSelect = document.getElementById("queueTransferPurpose");
+  if (field) field.hidden = !getTransferPurposes(queueTransfer.stationId).length;
+  if (purposeSelect) purposeSelect.innerHTML = transferPurposeOptionsHtml(queueTransfer.stationId);
+}
+
+function onTransferPurposeChange(select) {
+  queueTransfer.purpose = select.value;
+}
+
+function onTransferPriorityChange(input) {
+  queueTransfer.priority = !!input.checked;
+}
+
+function confirmTransfer(stationId) {
+  var serving = getServingTicket(stationId);
+  if (!serving) {
+    say("No ticket is currently being served.");
+    return;
+  }
+  if (roleRuleBlocks("transfer", "transfer tickets")) return;
+
+  var dest = stations.find(function (s) { return s.id === queueTransfer.stationId; });
+  if (!dest) {
+    say("Please choose the station to transfer to.");
+    return;
+  }
+  if (getTransferPurposes(dest.id).length && !queueTransfer.purpose) {
+    say("Please select the purpose for " + dest.name + ".");
+    return;
+  }
+
+  var priority = queueTransfer.priority && roleCan("prioritize");
+  showConfirmModal({
+    title: "Transfer ticket " + serving.ticketNo + "?",
+    message: "This sends " + serving.ownerName + "'s ticket to " + dest.name + (priority ? " at the front of its line (prioritized)" : " at the back of its line") +
+      ". They get a new queue number there, and the next person is called to your window.",
+    confirmLabel: "Transfer",
+    tone: "primary",
+    onConfirm: function () {
+      return transferServingTicket(stationId, dest.id, queueTransfer.purpose, priority).then(function (result) {
+        if (!result) return;
+        resetQueueTransfer();
+        renderQueueManagement();
+      });
+    }
+  });
+}
+
+// The Transfer panel under the actions, for a ticket that isn't an enrollment (those use Proceed to Next Station).
+function queueTransferHtml(station, serving) {
+  var allowed = roleCan("transfer");
+  var stationOptionsHtml = '<option value="">Station</option>' + getSortedStations().filter(function (s) {
+    return s.id !== station && s.active !== false;
+  }).map(function (s) {
+    return '<option value="' + escapeAdminText(s.id) + '"' + (s.id === queueTransfer.stationId ? ' selected' : '') + '>' + escapeAdminText(s.name) + '</option>';
+  }).join("");
+  var off = !serving || !allowed;
+  var title = !allowed ? ROLE_RULE_OFF_TITLE : "Transfer is available while a ticket is being served";
+
+  var open = queueTransfer.open;
+  var toggleHtml = '<button type="button" class="qm-transfer-toggle' + (open ? ' is-open' : '') + '" aria-expanded="' + open + '" aria-controls="queueTransferBody" onclick="toggleQueueTransfer()">' +
+    qmIcon("transfer") + '<span>Transfer Ticket</span>' +
+    '<svg class="qm-transfer-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>' +
+  '</button>';
+  if (!open) return '<div class="qm-transfer">' + toggleHtml + '</div>';
+
+  return '<div class="qm-transfer">' + toggleHtml +
+    '<div class="qm-transfer-body" id="queueTransferBody">' +
+    '<label class="qm-label" for="queueTransferStation">To Station</label>' +
+    '<select id="queueTransferStation" class="qm-select" onchange="onTransferStationChange(this)"' + (off ? ' disabled' : '') + '>' + stationOptionsHtml + '</select>' +
+    '<div id="queueTransferPurposeField"' + (getTransferPurposes(queueTransfer.stationId).length ? '' : ' hidden') + '>' +
+      '<label class="qm-label" for="queueTransferPurpose">Purpose</label>' +
+      '<select id="queueTransferPurpose" class="qm-select" onchange="onTransferPurposeChange(this)">' + transferPurposeOptionsHtml(queueTransfer.stationId) + '</select>' +
+    '</div>' +
+    // Prioritize: front of the new station's line (PWD, senior citizens, ...). Follows the Prioritize permission.
+    '<label class="enforcer-priority qm-transfer-priority"' + (roleCan("prioritize") ? '' : ' title="' + ROLE_RULE_OFF_TITLE + '"') + '>' +
+      '<input type="checkbox" id="queueTransferPriority"' + (queueTransfer.priority && roleCan("prioritize") ? ' checked' : '') +
+        (roleCan("prioritize") && !off ? '' : ' disabled') + ' onchange="onTransferPriorityChange(this)">' +
+      '<span><b>Prioritize</b><small>Front of the new station&#39;s line.</small></span>' +
+    '</label>' +
+    '<button type="button" class="queue-action-btn qm-main-btn qm-transfer-btn"' + (off ? ' disabled title="' + title + '"' : '') +
+      ' onclick="confirmTransfer(\'' + station + '\')">' + qmIcon("transfer") + '<span>Transfer</span></button>' +
+    '</div>' +
   '</div>';
 }
 
@@ -350,8 +473,7 @@ function renderQueueManagement() {
   var headerHtml = '<div class="dashboard-header"><div class="header-greeting">Queue Management</div>' + adminHeaderRightHtml() + '</div>';
 
   var serving = getServingTicket(activeQueueStation);
-  // Only enrollment tickets are transferred, and only to the next station of their enrollment; every other ticket
-  // ends at this station.
+  // An enrollment ticket is sent on to the next station of its process; any other ticket can be transferred freely.
   var isEnrollment = !!serving && serving.enrollment === true;
   var station = activeQueueStation;
 
@@ -401,7 +523,7 @@ function renderQueueManagement() {
           ' onclick="confirmComplete(\'' + station + '\')">' + qmIcon("done") + '<span>End Transaction</span></button>') +
     '</div>';
 
-  var transferHtml = isEnrollment ? enrollmentProceedHtml(station, serving) : "";
+  var transferHtml = isEnrollment ? enrollmentProceedHtml(station, serving) : queueTransferHtml(station, serving);
 
   /* Right: the waiting line, and the people on hold. */
   var waiting = queueTicketsWithStatus("waiting");

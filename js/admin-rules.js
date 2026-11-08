@@ -31,7 +31,9 @@ var ROLE_RULE_GROUPS = [
       { key: "hold", name: "Put a Ticket on Hold", roles: ["station"],
         desc: "Put the ticket being served on hold while its owner comes back to the counter." },
       { key: "lastCall", name: "Give a Last Call", roles: ["station"],
-        desc: "Give an on-hold ticket whose time ran out a final countdown before it is voided." }
+        desc: "Give an on-hold ticket whose time ran out a final countdown before it is voided." },
+      { key: "transfer", name: "Transfer a Ticket", roles: ["station"],
+        desc: "Send the ticket being served to another station, at the back of its line with a new number there." }
     ]
   },
   {
