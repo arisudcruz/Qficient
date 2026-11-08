@@ -363,7 +363,8 @@ service cloud.firestore {
       // record's id), their first and last name, and a role (admin, enforcer or one of the stations).
       allow create: if isAdmin() &&
         staffEmail == staffEmail.lower() &&
-        request.resource.data.keys().hasOnly(['email', 'username', 'firstName', 'lastName', 'name', 'role', 'createdAt', 'updatedAt']) &&
+        request.resource.data.keys().hasOnly(['email', 'username', 'firstName', 'lastName', 'name', 'role', 'mustChangePassword', 'createdAt', 'updatedAt']) &&
+        request.resource.data.get('mustChangePassword', true) == true &&
         request.resource.data.email == staffEmail &&
         isStaffUsername(request.resource.data.get('username', '')) &&
         staffEmail == request.resource.data.username + '@staff.qficient.app' &&
@@ -384,6 +385,14 @@ service cloud.firestore {
         request.resource.data.updatedAt == request.time &&
         (staffEmail != 'admin@qficient.com' || request.resource.data.role == 'admin') &&
         (staffEmail != userEmail() || request.resource.data.role == 'admin');
+
+      // Staff mark their own temporary password (staff123, or one an admin reset) as changed, after changing it
+      // with Firebase Authentication (js/admin-password.js). Nothing else on their record.
+      allow update: if isPasswordUser() &&
+        staffEmail == userEmail() &&
+        changedKeys().hasOnly(['mustChangePassword', 'passwordChangedAt']) &&
+        request.resource.data.mustChangePassword == false &&
+        request.resource.data.passwordChangedAt == request.time;
 
       // An admin can take a person's access away, but never the built-in admin or their own.
       allow delete: if isAdmin() &&

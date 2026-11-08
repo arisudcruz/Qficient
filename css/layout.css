@@ -1192,6 +1192,26 @@ body.dark .modal-input[readonly] {
 body.dark .staff-login { color: #94A5C2; }
 body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
 
+/* Still on staff123 or a password an admin reset */
+.type-tag.staff-temp-pw-tag {
+  background: #FFF4DB;
+  color: #92400E;
+}
+
+body.dark .type-tag.staff-temp-pw-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+
+/* Add Staff: where the default password is shown */
+.modal-help.staff-default-pw {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #EEF5FF;
+  color: #1E3A5F;
+}
+
+.modal-help.staff-default-pw b { font-family: var(--font-display); letter-spacing: 0.02em; }
+
+body.dark .modal-help.staff-default-pw { background: rgba(125, 180, 245, 0.12); color: #C5D2E6; }
+
 .settings-center {
   text-align: center !important;
 }

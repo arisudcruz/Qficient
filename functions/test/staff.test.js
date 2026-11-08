@@ -64,6 +64,8 @@ async function makeStaff(username, role, password) {
   check("an admin resets a staff password", r.ok, JSON.stringify(r));
   check("the new password signs in", await canSignIn(cashier, "NewPass456"));
   check("the old password no longer signs in", !(await canSignIn(cashier, "OldPass123")));
+  const flagged = (await db.collection("staff").doc(cashier).get()).data();
+  check("a reset password is temporary: they're asked to change it at next sign-in", flagged.mustChangePassword === true && flagged.role === "cashier" && flagged.name === "T User", JSON.stringify(flagged));
 
   r = await attempt(caller("admin@qficient.com"), { username: "enf.one", password: "Another789" });
   check("the built-in admin can reset passwords", r.ok && await canSignIn(enforcer, "Another789"), JSON.stringify(r));

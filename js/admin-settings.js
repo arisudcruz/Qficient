@@ -712,6 +712,8 @@ function confirmSaveMemberRoles() {
    until a role is saved for an email, signing in with it is refused. */
 
 var STAFF_PASSWORD_MIN = 8;
+// Every new account's first password. The staff member is asked to choose their own at sign-in (js/admin-password.js).
+var DEFAULT_STAFF_PASSWORD = "staff123";
 var staffFormBusy = false;
 
 // A second Firebase app that only creates and updates other people's logins, so the admin's own session is
@@ -756,7 +758,7 @@ function staffAuthMessage(error) {
     case "firestore/permission-denied":
       return "Your account isn't allowed to change staff. Only an administrator can.";
     case "staff/record-failed":
-      return "The login was created, but its role could not be saved (" + (error.detail || "unknown error") + "). Press Add Staff again with the same username and password to finish.";
+      return "The login was created, but its role could not be saved (" + (error.detail || "unknown error") + "). Press Add Staff again with the same username to finish.";
     default:
       // Show Firebase's own text without its "Firebase: ... (auth/...)" wrapping.
       var text = String((error && error.message) || "").replace(/^Firebase:\s*/, "").replace(/\s*\((auth|firestore)\/[a-z-]+\)\.?$/, "");
@@ -824,10 +826,7 @@ function openAddStaffModal() {
       '<div class="modal-field"><label for="newStaffUsername">Username</label>' +
         '<input type="text" id="newStaffUsername" class="modal-input" placeholder="e.g. juan.cruz" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false"></div>' +
       '<p class="modal-help">They sign in with this username. 3 to 30 characters: lowercase letters, numbers, dots, dashes or underscores.</p>' +
-      '<div class="modal-field"><label for="newStaffPassword">Password</label>' +
-        '<input type="password" id="newStaffPassword" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
-      '<div class="modal-field"><label for="newStaffConfirm">Confirm Password</label>' +
-        '<input type="password" id="newStaffConfirm" class="modal-input" placeholder="Repeat the password" autocomplete="new-password"></div>' +
+      '<p class="modal-help staff-default-pw">Their first password is <b>' + escapeAdminText(DEFAULT_STAFF_PASSWORD) + '</b>. They\'ll be asked to change it when they sign in.</p>' +
     '</div>' +
     '<div class="modal-section">' +
       '<h3 class="modal-section-title">Roles</h3>' +
@@ -841,7 +840,7 @@ function openAddStaffModal() {
 }
 
 function clearAddStaffForm() {
-  ["newStaffFirst", "newStaffLast", "newStaffUsername", "newStaffPassword", "newStaffConfirm", "newStaffRole"].forEach(function (id) {
+  ["newStaffFirst", "newStaffLast", "newStaffUsername", "newStaffRole"].forEach(function (id) {
     document.getElementById(id).value = "";
   });
 }
@@ -852,13 +851,12 @@ function saveNewStaff() {
   var firstName = cleanPersonName(document.getElementById("newStaffFirst").value);
   var lastName = cleanPersonName(document.getElementById("newStaffLast").value);
   var username = normalizeUsername(document.getElementById("newStaffUsername").value);
-  var password = document.getElementById("newStaffPassword").value;
-  var confirm = document.getElementById("newStaffConfirm").value;
+  var password = DEFAULT_STAFF_PASSWORD;
   var role = document.getElementById("newStaffRole").value;
   var email = staffEmailForUsername(username);
 
   var problem = personNameProblem(firstName, "first name") || personNameProblem(lastName, "last name") ||
-    usernameProblem(username) || passwordProblem(password, confirm, "password") || (role ? "" : "Please choose a role.");
+    usernameProblem(username) || (role ? "" : "Please choose a role.");
 
   if (problem) {
     say(problem);
@@ -867,15 +865,24 @@ function saveNewStaff() {
 
   setStaffFormBusy(true);
 
+  // true when the login already exists with another password (someone removed earlier and added back): their
+  // password is set back to the default once the record is saved, so the admin never hands over a login they
+  // don't control.
+  var resetAfterSave = false;
+
   Promise.resolve().then(staffAuthReady).then(function (auth) {
-    // The login may already exist (for example after access was removed). That is fine only if the
-    // admin knows its password, so nobody can be given a role on an account they do not control.
     return auth.createUserWithEmailAndPassword(email, password).catch(function (error) {
       if (!error || error.code !== "auth/email-already-in-use") throw error;
       return auth.signInWithEmailAndPassword(email, password).catch(function () {
-        var taken = new Error("username taken");
-        taken.code = "staff/username-taken";
-        throw taken;
+        // Someone who still has access keeps their account; a removed one gets the default password again.
+        return db.collection("staff").doc(email).get().then(function (doc) {
+          if (doc.exists) {
+            var taken = new Error("username taken");
+            taken.code = "staff/username-taken";
+            throw taken;
+          }
+          resetAfterSave = true;
+        });
       });
     }).then(function () {
       return auth.signOut();
@@ -889,6 +896,7 @@ function saveNewStaff() {
       lastName: lastName,
       name: firstName + " " + lastName,
       role: role,
+      mustChangePassword: true,
       createdAt: now,
       updatedAt: now
     }).catch(function (error) {
@@ -899,11 +907,14 @@ function saveNewStaff() {
       throw failed;
     });
   }).then(function () {
+    return resetAfterSave ? resetStaffPassword(username, password) : null;
+  }).then(function () {
     closeFormModal();
     settingsSelectedRole = role;
     settingsRoleDrafts = {};
     renderSettings();
-    sayDone("Staff added. " + firstName + " can sign in with the username \"" + username + "\" and that password.");
+    sayDone("Staff added. " + firstName + " can sign in with the username \"" + username + "\" and the password " + password +
+      ". They'll be asked to choose their own password.");
   }).catch(function (error) {
     console.error("Add staff failed:", error);
     say("Could not add staff: " + staffAuthMessage(error));
@@ -932,7 +943,7 @@ function openEditStaffModal(email) {
 
   var passwordHtml = username ?
     '<h3 class="modal-section-title">Reset Password</h3>' +
-    '<p class="modal-help">Set a new password if they forgot theirs. Leave both boxes empty to keep the current one.</p>' +
+    '<p class="modal-help">Set a new password if they forgot theirs (for example ' + escapeAdminText(DEFAULT_STAFF_PASSWORD) + '). They\'ll be asked to change it at their next sign-in. Leave both boxes empty to keep the current one.</p>' +
     '<div class="modal-field"><label for="editStaffNew">New Password</label>' +
       '<input type="password" id="editStaffNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
     '<div class="modal-field"><label for="editStaffConfirm">Confirm New Password</label>' +
@@ -1005,7 +1016,7 @@ function saveStaffEdit(email) {
   }).then(function () {
     closeFormModal();
     renderSettings();
-    sayDone(changingPassword ? "Staff updated. The new password works from their next sign-in." : "Staff updated.");
+    sayDone(changingPassword ? "Staff updated. The new password works from their next sign-in, and they'll be asked to choose their own." : "Staff updated.");
   }).catch(function (error) {
     console.error("Edit staff failed:", error);
     say("Could not save the changes: " + staffAuthMessage(error));
@@ -1022,7 +1033,7 @@ function confirmDeleteStaff(email) {
 
   showConfirmModal({
     title: "Are you sure you want to delete this staff member?",
-    message: staffDisplayName(account) + " (" + staffLoginText(account) + ") loses access to the admin console right away. The login itself is kept, so you can add them again with the same password later.",
+    message: staffDisplayName(account) + " (" + staffLoginText(account) + ") loses access to the admin console right away. You can add them again later with the same username; their password goes back to " + DEFAULT_STAFF_PASSWORD + ".",
     confirmLabel: "Delete Staff",
     tone: "danger",
     onConfirm: function () {
@@ -1115,7 +1126,8 @@ function renderSettings() {
 
     return '<tr><td class="settings-strong">' + escapeAdminText(staffDisplayName(account)) + '</td>' +
       '<td>' + escapeAdminText(staffLoginText(account)) +
-        (usernameOfEmail(account.email) ? '' : ' <span class="type-tag staff-email-tag" title="Made with an email, which can no longer sign in">Email account: re-create with a username</span>') + '</td>' +
+        (usernameOfEmail(account.email) ? '' : ' <span class="type-tag staff-email-tag" title="Made with an email, which can no longer sign in">Email account: re-create with a username</span>') +
+        (account.mustChangePassword === true ? ' <span class="type-tag staff-temp-pw-tag" title="Still using the default or a reset password; they\'ll be asked to change it at sign-in">Default password</span>' : '') + '</td>' +
       '<td>' + escapeAdminText(roleName) + '</td>' +
       '<td><div class="settings-actions">' +
         '<button type="button" class="settings-icon-btn settings-icon-blue" title="Edit staff" onclick="openEditStaffModal(\'' + id + '\')">✎</button>' +
