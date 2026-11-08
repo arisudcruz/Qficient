@@ -8,7 +8,7 @@
 //   #/dashboard/<station id>   a station's join page (or your ticket)
 //   #/admin                    admin sign-in
 //   #/admin/<section>          admin console: dashboard, queue, enforcer, notifications, liveboard, rules, settings
-//   #/tv                       full-screen Live Board for a TV (needs a staff sign-in)
+//   #/tv/<preset id>           full-screen Live Board for a TV (needs a staff sign-in); #/tv alone asks for a preset
 //   #/pass/<id>.<secret>       a walk-in's QR code from the Queue Enforcer (js/walkin.js); never kept in the address
 //
 // The screen is still switched by goTo(); this file only keeps the hash in step with it (syncRoute) and
@@ -43,7 +43,7 @@ function routeHashForScreen() {
   switch (shownPageId()) {
     case "pageHome": return "#/";
     case "pageAdminLogin": return "#/admin";
-    case "pageTvBoard": return "#/tv";
+    case "pageTvBoard": return "#/tv" + (typeof tvPresetId !== "undefined" && tvPresetId ? "/" + encodeURIComponent(tvPresetId) : "");
     case "pageAdmin": return "#/admin/" + currentAdminSection();
     case "pageDashboard": {
       var tab = currentDashboardTab();
@@ -173,6 +173,7 @@ function applyRoute(isFirstLoad) {
         goTo("pageHome");
       }
     } else if (route.name === "tv") {
+      if (typeof tvPresetId !== "undefined") tvPresetId = route.sub;
       if (signedStaff) goTo("pageTvBoard");
       else if (isFirstLoad) pendingRoute = route;
       else goTo("pageAdminLogin");

@@ -274,7 +274,7 @@ exports.auditStaff = auditTrigger("staff/{staffEmail}", function (before, after,
 });
 
 exports.auditSettings = auditTrigger("settings/{docId}", function (before, after, params, station, roleName) {
-  return audit.describeSettingsChange(params.docId, before, after, roleName);
+  return audit.describeSettingsChange(params.docId, before, after, roleName, function (id) { return station(id).name; });
 });
 
 exports.auditWalkinPasses = auditTrigger("walkinPasses/{passId}", function (before, after, params, station) {

@@ -65,7 +65,7 @@ body.dark .empty-row,
 body.dark .settings-empty,
 body.dark .traffic-selection,
 body.dark .bar-value,
-body.dark .lb-launch .lb-launch-help {
+body.dark .lb-page .lb-launch-help {
   color: var(--ad-muted);
 }
 
@@ -325,7 +325,18 @@ body.dark .admin-login-error {
   color: #FF8A8E;
 }
 
-body.dark .lb-launch p { color: var(--ad-text); }
+/* Live Board presets (css/tvboard.css) */
+body.dark .lb-top p,
+body.dark .lb-empty p { color: var(--ad-text); }
+body.dark .lb-preset { background: var(--ad-surface); border-color: var(--ad-line); box-shadow: none; }
+body.dark .lb-preset-head h3 { color: var(--ad-accent); }
+body.dark .lb-preset-head span,
+body.dark .lb-slot > span,
+body.dark .lb-field-note { color: var(--ad-muted); }
+body.dark .lb-preset-stations li { background: var(--ad-surface-2); color: var(--ad-text); }
+body.dark .lb-preset-stations li.is-off { background: var(--ad-field); color: var(--ad-muted); }
+body.dark .lb-preset-stations li em { color: #F2C14E; }
+body.dark .lb-empty { border-color: var(--ad-line-strong); }
 
 body.dark .switch-track { background: var(--ad-line-strong); }
 body.dark .stat-dot { opacity: 0.6; }

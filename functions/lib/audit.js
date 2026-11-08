@@ -113,8 +113,37 @@ function describeStaffChange(before, after, id, roleName) {
   return entry("staff", before.role !== after.role ? "staffRole" : "staffEdit", "Staff " + who(after) + ": " + changes.join("; "), { targetId: after.username || id });
 }
 
-// Changes to System Settings, the enrollment process and the role rules. `roleName(id)` names a role.
-function describeSettingsChange(docId, before, after, roleName) {
+// The Live Board presets that were added, changed or removed, compared by id.
+function describeLiveBoardChange(before, after, stationName) {
+  const list = function (d) { return Array.isArray(d.presets) ? d.presets.filter(function (p) { return p && p.id; }) : []; };
+  const byId = function (presets) {
+    const map = {};
+    presets.forEach(function (p) { map[p.id] = p; });
+    return map;
+  };
+  const b = byId(list(before));
+  const a = byId(list(after));
+  const label = function (p) {
+    const names = (Array.isArray(p.stations) ? p.stations : []).map(function (id) { return stationName ? stationName(id) : id; });
+    return "\"" + (p.name || "Untitled") + "\" (" + names.join(", ") + ")";
+  };
+
+  const parts = [];
+  Object.keys(a).forEach(function (id) {
+    if (!b[id]) parts.push("Added the Live Board preset " + label(a[id]));
+    else if (b[id].name !== a[id].name || JSON.stringify(b[id].stations || []) !== JSON.stringify(a[id].stations || [])) {
+      parts.push("Changed the Live Board preset " + (b[id].name !== a[id].name ? "\"" + (b[id].name || "Untitled") + "\" to " : "") + label(a[id]));
+    }
+  });
+  Object.keys(b).forEach(function (id) {
+    if (!a[id]) parts.push("Removed the Live Board preset \"" + (b[id].name || "Untitled") + "\"");
+  });
+  return parts.length ? entry("settings", "liveBoard", parts.join("; ")) : null;
+}
+
+// Changes to System Settings, the enrollment process, the role rules and the Live Board presets. `roleName(id)`
+// names a role and `stationName(id)` a station.
+function describeSettingsChange(docId, before, after, roleName, stationName) {
   const b = before || {};
   const a = after || {};
 
@@ -148,6 +177,8 @@ function describeSettingsChange(docId, before, after, roleName) {
     if (!parts.length) return null;
     return entry("settings", "roleRules", "Changed the role rules. " + parts.join("; "));
   }
+
+  if (docId === "liveBoard") return describeLiveBoardChange(b, a, stationName);
 
   return null;
 }
