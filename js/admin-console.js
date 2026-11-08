@@ -179,6 +179,7 @@ var ADMIN_SECTION_AREAS = {
   liveboard: "adminLiveBoardArea",
   reports: "adminReportsArea",
   rules: "adminRulesArea",
+  audit: "adminAuditArea",
   settings: "adminSettingsArea",
   enrollmentsettings: "adminEnrollmentSettingsArea"
 };
@@ -187,9 +188,9 @@ var ADMIN_SECTION_AREAS = {
 // Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
 // (their own station only); both can read the Rules but never open Settings.
 var ADMIN_ROLE_SECTIONS = {
-  admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings"],
-  enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules"],
-  station: ["dashboard", "queue", "notifications", "liveboard", "reports", "rules"]
+  admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings", "audit"],
+  enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules", "audit"],
+  station: ["dashboard", "queue", "notifications", "liveboard", "reports", "rules", "audit"]
 };
 
 // Where each kind of account lands after signing in.
@@ -205,12 +206,14 @@ function resetAdminPageState() {
   enforcerDraft = emptyEnforcerDraft("");
   queueTypeFilter = "";
   holdTypeFilter = "";
+  resetQueueTransfer();
   enrollmentFlowDrafts = {};
   enrollmentSettingsType = "regular";
   settingsSelectedRole = "admin";
   settingsRoleDrafts = {};
   settingsTimeoutDraft = null;
   resetReportState();
+  resetAuditState();
 }
 
 // Pages an administrator can switch off for a role in System Rules > Role Rules (js/admin-rules.js).
@@ -232,11 +235,18 @@ function applyAdminAccess(stayOnPage) {
     item.style.display = canOpenSection(item.getAttribute("data-section")) ? "" : "none";
   });
 
+  // Admins see everyone's activity; everyone else sees only their own.
+  document.querySelectorAll("#pageAdmin [data-audit-label]").forEach(function (el) {
+    el.textContent = kind === "admin" ? "Audit Trail" : "My Activity";
+    el.closest("[data-section]").title = el.textContent;
+  });
+
   var toolLabel = document.querySelector("#pageAdmin .tool-label");
   if (toolLabel) toolLabel.style.display = canOpenSection("rules") || canOpenSection("settings") ? "" : "none";
 
   if (kind === "station") {
     activeQueueStation = adminRole;
+    resetQueueTransfer();
   }
 
   if (stayOnPage === true) {
@@ -282,6 +292,8 @@ function setAdminSection(section) {
     renderReports();
   } else if (section === "rules") {
     renderRules();
+  } else if (section === "audit") {
+    renderAudit();
   } else {
     updateAdmin();
   }

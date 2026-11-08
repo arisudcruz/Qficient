@@ -114,6 +114,13 @@ const SECRET = "Abc123_-xyzXYZ789secret";
   const untyped = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
   check("a pass without a student type gives a ticket with none", r.ok && untyped.studentType === "" && untyped.studentNumber === "" && untyped.status === "waiting", JSON.stringify(r.ok ? untyped : r));
 
+  // Marked Prioritize on the Walk-in Form: the ticket starts at the front of the line.
+  await makePass("passPrio001", SECRET, { priority: true });
+  r = await attempt(phone("w9"), { passId: "passPrio001", secret: SECRET });
+  const prio = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
+  check("a priority pass gives a prioritized ticket", r.ok && !!prio.prioritizedAt, JSON.stringify(r.ok ? prio : r));
+  check("an ordinary pass gives an ordinary ticket", !untyped.prioritizedAt && !t.prioritizedAt, JSON.stringify(untyped));
+
   // The daily cap.
   await db.collection("stations").doc("cashier").update({ maxQueue: 1 });
   await makePass("passFull001", SECRET);

@@ -106,6 +106,15 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
     await batch.commit();
   }
 
+  // The audit trail is kept for config.auditRetentionDays (90 days).
+  const auditCutoff = Timestamp.fromMillis(nowMs - (config.auditRetentionDays || 90) * DAY_MS);
+  const oldAudit = await db.collection("auditLogs").where("at", "<", auditCutoff).get();
+  for (let i = 0; i < oldAudit.docs.length; i += 400) {
+    const batch = db.batch();
+    oldAudit.docs.slice(i, i + 400).forEach(function (doc) { batch.delete(doc.ref); });
+    await batch.commit();
+  }
+
   // Walk-in QR passes only matter on the day they were made. The old SMS walk-in records (mobile numbers in
   // ticketContacts, the smsLog test log) are no longer used and are personal data, so they go too.
   const oldPasses = await db.collection("walkinPasses").where("createdAt", "<", Timestamp.fromMillis(todayStart)).get();

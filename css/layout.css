@@ -2027,6 +2027,49 @@ body.dark .notif-empty-icon { color: #6B7C99; }
   grid-column: 1 / -1;
 }
 
+/* Walk-in Form: the Prioritize checkbox (plain: a box, its label and a short hint) */
+.enforcer-priority {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.enforcer-priority input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--navy);
+  cursor: pointer;
+}
+
+.enforcer-priority span {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 0.85rem;
+}
+
+.enforcer-priority b {
+  font-weight: 600;
+  color: #172033;
+}
+
+.enforcer-priority small {
+  color: #64748B;
+  font-size: 0.75rem;
+}
+
+.enforcer-priority:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body.dark .enforcer-priority b { color: var(--ad-text); }
+body.dark .enforcer-priority small { color: var(--ad-muted); }
+
 @media (max-width: 640px) {
   .enforcer-span-all {
     grid-column: auto;
@@ -2037,6 +2080,36 @@ body.dark .notif-empty-icon { color: #6B7C99; }
   background: #E8EDF4;
   color: #475569;
 }
+
+/* A manual ticket: the walk-in has no phone, so staff call the number out loud */
+.type-tag.nophone-tag {
+  background: #FEF1DC;
+  color: #9A5F00;
+}
+
+body.dark .type-tag.nophone-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+
+/* Manual Ticket pop-up: the number to remember, big */
+.manual-ticket-label {
+  margin: 0;
+  color: #64748B;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.manual-ticket-number {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 12vw, 4.2rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--navyDark);
+}
+
+body.dark .manual-ticket-number { color: #9CC8FA; }
 
 .rules-readonly {
   margin: 0 0 14px;
@@ -2169,6 +2242,76 @@ button.is-loading::after {
 }
 
 .report-filters-spacer { flex: 1 1 auto; }
+
+/* Audit Trail / My Activity (js/admin-audit.js) */
+.audit-intro {
+  margin: -6px 0 14px;
+}
+
+.audit-search input {
+  min-width: 220px;
+}
+
+.audit-count {
+  margin: 12px 0 8px;
+  font-size: 0.78rem;
+  color: #64748B;
+}
+
+.audit-table td.audit-time {
+  white-space: nowrap;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.audit-sub {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748B;
+}
+
+.audit-summary {
+  min-width: 260px;
+}
+
+.audit-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: #E8EEF6;
+  color: #334155;
+}
+
+.audit-tag-queue { background: #DBEAFE; color: #1D4ED8; }
+.audit-tag-walkin { background: #EFE8FB; color: #5B21B6; }
+.audit-tag-station { background: #E0F2F1; color: #0F766E; }
+.audit-tag-staff { background: #FEF1DC; color: #9A5F00; }
+.audit-tag-settings { background: #FDECEC; color: #B42318; }
+.audit-tag-account { background: #E3F6EA; color: #17703D; }
+
+.audit-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+body.dark .audit-count,
+body.dark .audit-sub,
+body.dark .audit-table td.audit-time { color: #94A5C2; }
+body.dark .audit-tag { background: rgba(255, 255, 255, 0.08); color: #CBD5E1; }
+body.dark .audit-tag-queue { background: rgba(90, 162, 255, 0.16); color: #9CC8FA; }
+body.dark .audit-tag-walkin { background: rgba(147, 112, 219, 0.2); color: #C4B5FD; }
+body.dark .audit-tag-station { background: rgba(45, 212, 191, 0.14); color: #5EEAD4; }
+body.dark .audit-tag-staff { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+body.dark .audit-tag-settings { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+body.dark .audit-tag-account { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
+
+@media (max-width: 640px) {
+  .audit-search input { min-width: 0; width: 100%; }
+}
 
 /* The "Include in report" checklist, between the filters and the buttons. */
 .report-include-label {
@@ -3177,6 +3320,63 @@ body.dark .admin-topbar { background: #0B1A30; }
 
 .qm-main-btn.queue-action-complete:hover:not(:disabled) { background: #15803d; }
 .qm-main-btn.queue-action-complete:disabled { background: #dcfce7; color: #16a34a; }
+
+/* Transfer Ticket panel (a ticket that isn't an enrollment), folded behind its toggle button */
+.qm-transfer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #C8D5E5;
+  border-radius: 10px;
+  background: transparent;
+  color: #172033;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.qm-transfer-toggle:hover { border-color: var(--navyDark); }
+
+.qm-transfer-toggle span { flex: 1; text-align: left; }
+
+.qm-transfer-chevron { transition: transform 0.15s ease; }
+
+.qm-transfer-toggle.is-open .qm-transfer-chevron { transform: rotate(180deg); }
+
+.qm-transfer-toggle.is-open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+.qm-transfer-body {
+  padding: 14px 14px 2px;
+  border: 1.5px solid #C8D5E5;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+.qm-transfer-body .qm-transfer-btn { margin-bottom: 12px; }
+
+.qm-transfer-priority { margin: -2px 0 14px; }
+
+.qm-select {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #C8D5E5;
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.qm-transfer-btn {
+  width: 100%;
+}
+
+body.dark .qm-transfer-toggle { border-color: var(--ad-line-strong); color: var(--ad-text); }
+body.dark .qm-transfer-toggle:hover { border-color: #5AA2FF; }
+body.dark .qm-transfer-body { border-color: var(--ad-line-strong); }
+body.dark .qm-select { background: var(--ad-field); border-color: var(--ad-line-strong); color: var(--ad-text); }
 
 /* The two lists */
 .qm-lists {

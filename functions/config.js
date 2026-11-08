@@ -12,6 +12,9 @@ module.exports = {
   // Students' notification history (the Notifications tab) is deleted after this many days.
   notificationHistoryDays: 7,
 
+  // The audit trail (what admins and staff did) is kept this many days.
+  auditRetentionDays: 90,
+
   // A push that cannot be delivered within this time is dropped instead of arriving late.
   pushTtlSeconds: 600,
 
