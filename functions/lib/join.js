@@ -186,12 +186,14 @@ async function joinQueue(deps, auth, data) {
     const stateSnap = await tx.get(stateRef);
     const state = stateSnap.exists ? stateSnap.data() : {};
 
-    // Blocked for missing their turn too often (functions/lib/strikes.js).
+    // Blocked for missing their turn, or cancelling, too often (functions/lib/strikes.js).
     const blockedUntilMs = toMs(state.blockedUntil);
     if (blockedUntilMs > now) {
-      const rules = config.noShow || {};
-      throw new JoinError("failed-precondition", "You missed your turn " + (rules.limit || 3) + " times in " + (rules.windowDays || 7) +
-        " days, so you can join again on " + manilaTime(blockedUntilMs) + ". Please see the front desk if this is a mistake.");
+      const why = state.blockedReason === "cancels" ?
+        "You cancelled " + ((config.cancelBlock || {}).limit || 5) + " tickets today" :
+        "You missed your turn " + ((config.noShow || {}).limit || 3) + " times in " + ((config.noShow || {}).windowDays || 7) + " days";
+      throw new JoinError("failed-precondition", why + ", so you can join again on " + manilaTime(blockedUntilMs) +
+        ". Please see the front desk if this is a mistake.");
     }
 
     if (state.ticketId) {

@@ -105,4 +105,20 @@ test("no-show: a ticket that was already void doesn't count again", () => assert
 test("no-show: the block message gives the time in Manila", () => assert.ok(/Tue, Oct 27, 3:15 PM/.test(messages.noShowBlocked(Date.UTC(2026, 9, 27, 7, 15), 3, 7).body)));
 test("no-show: the strike message says how many are left", () => assert.ok(/strike 2 of 3/.test(messages.noShowStrike(base, 2, 3, 7, 24).title)));
 
+// Cancel limit (lib/strikes.js)
+const { isOwnerCancel } = require("../lib/strikes");
+const waitingT = Object.assign({}, base, { status: "waiting", ownerId: "student-1" });
+const cancelledT = Object.assign({}, waitingT, { status: "cancelled" });
+test("cancel: the owner cancelling a waiting ticket counts", () => assert.ok(isOwnerCancel(waitingT, cancelledT)));
+test("cancel: cancelling an on-hold ticket counts", () => assert.ok(isOwnerCancel(Object.assign({}, waitingT, { status: "skipped" }), cancelledT)));
+test("cancel: a ticket already cancelled doesn't count again", () => assert.ok(!isOwnerCancel(cancelledT, Object.assign({}, cancelledT, { read: true }))));
+test("cancel: a removed (void) ticket isn't a cancel", () => assert.ok(!isOwnerCancel(waitingT, Object.assign({}, waitingT, { status: "void" }))));
+test("cancel: walk-in tickets don't count", () => assert.ok(!isOwnerCancel(waitingT, Object.assign({}, cancelledT, { manual: true }))));
+test("cancel: old walk-in and no-phone owners don't count", () => assert.ok(
+  !isOwnerCancel(waitingT, Object.assign({}, cancelledT, { ownerId: "manual:x" })) && !isOwnerCancel(waitingT, Object.assign({}, cancelledT, { ownerId: "nophone:x" }))));
+test("cancel: a new ticket (no before) isn't a cancel", () => assert.ok(!isOwnerCancel(null, cancelledT)));
+test("cancel: the warning says how many of the limit", () => assert.ok(/3 of 5 today/.test(messages.cancelWarning(base, 3, 5).title)));
+test("cancel: the block message gives the time in Manila", () => assert.ok(/You cancelled 5 tickets today/.test(messages.cancelBlocked(Date.UTC(2026, 9, 27, 16, 0), 5).body) &&
+  /Wed, Oct 28, 12:00 AM/.test(messages.cancelBlocked(Date.UTC(2026, 9, 27, 16, 0), 5).body)));
+
 console.log("\n" + passed + " passed" + (process.exitCode ? ", with failures" : ""));

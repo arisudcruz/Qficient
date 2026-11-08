@@ -38,6 +38,18 @@ module.exports = {
       ". Please see the front desk if this is a mistake."
   }),
 
+  // Cancel limit (functions/lib/strikes.js).
+  cancelWarning: (t, count, limit) => ({
+    title: "Cancelled ticket: " + count + " of " + limit + " today",
+    body: "Ticket " + t.ticketNo + " was cancelled. If you cancel " + limit + " tickets in one day, you can't join the queue again until tomorrow."
+  }),
+
+  cancelBlocked: (untilMs, limit) => ({
+    title: "You can't join the queue for now",
+    body: "You cancelled " + limit + " tickets today, so you can join again on " + manilaTime(untilMs) +
+      ". Please see the front desk if this is a mistake."
+  }),
+
   // windowNo: the window the ticket was called to, at a station with several windows; 0 otherwise.
   serving: (t, station, windowNo) => ({
     title: "It's your turn!",

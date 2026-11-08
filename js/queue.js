@@ -278,8 +278,10 @@ function manilaDateTimeText(ms) {
 // A student blocked for missing their turn too often (functions/lib/strikes.js) can't join until then.
 function blockedJoinText() {
   var until = typeof studentBlockedUntilMs === "function" ? studentBlockedUntilMs() : 0;
-  return until ? "You missed your turn 3 times in 7 days, so you can join again on " + manilaDateTimeText(until) +
-    ". Please see the front desk if this is a mistake." : "";
+  if (!until) return "";
+  var why = typeof studentBlockReason === "function" && studentBlockReason() === "cancels" ?
+    "You cancelled " + CANCEL_LIMIT + " tickets today" : "You missed your turn 3 times in 7 days";
+  return why + ", so you can join again on " + manilaDateTimeText(until) + ". Please see the front desk if this is a mistake.";
 }
 
 function formatCountdown(ms) {

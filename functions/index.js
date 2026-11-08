@@ -16,7 +16,7 @@ const { redeemWalkinPass } = require("./lib/walkin");
 const { resetStaffPassword } = require("./lib/staff");
 const { createManualTicket } = require("./lib/manual");
 const { getAuth } = require("firebase-admin/auth");
-const { isNoShow, recordNoShow } = require("./lib/strikes");
+const { isNoShow, recordNoShow, isOwnerCancel, recordCancel } = require("./lib/strikes");
 const messages = require("./lib/messages");
 const audit = require("./lib/audit");
 
@@ -119,6 +119,20 @@ exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", se
     } else if (result.counted) {
       await pusher.recordOnce(event.id + ":noShowStrike", ticket,
         messages.noShowStrike(ticket, result.strikes, rules.limit, rules.windowDays, rules.blockHours), "noShowStrike");
+    }
+  }
+
+  // The student cancelled: counted per queue day, and at the limit they can't join again until the day ends. The
+  // block is pushed; a warning only goes in the history (they're looking at the screen, they just cancelled).
+  if (isOwnerCancel(before, after)) {
+    const rules = config.cancelBlock;
+    const result = await recordCancel({ db, Timestamp, config }, ticket, Date.now());
+    if (result.counted && result.blockedUntilMs) {
+      await pusher.pushOnce(event.id + ":cancelBlocked", ticket,
+        messages.cancelBlocked(result.blockedUntilMs, rules.limit), ticket.id + ":cancelBlocked");
+    } else if (result.counted && result.count >= rules.warnFrom && result.count < rules.limit) {
+      await pusher.recordOnce(event.id + ":cancelWarning", ticket,
+        messages.cancelWarning(ticket, result.count, rules.limit), "cancelWarning");
     }
   }
 

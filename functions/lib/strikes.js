@@ -3,6 +3,8 @@
 // queue for `blockHours` (joinQueue checks blockedUntil). An admin can lift a block early from Settings.
 // Everything lives on the student's joinState/{uid} record, which the join limits already use.
 
+const { DAY_MS, startOfTodayMs, dayKey, toMs } = require("./time");
+
 // Whether a ticket's change is a no-show worth a strike.
 function isNoShow(before, after) {
   return !!before && !!after &&
@@ -58,4 +60,66 @@ async function recordNoShow(deps, ticket, nowMs) {
   });
 }
 
-module.exports = { isNoShow, recordNoShow };
+// Cancels. A student who cancels `limit` tickets in one queue day can't join again until that day ends. The count
+// lives on joinState/{uid} as cancels: { ticketId: ms } for the day in cancelsDay; a new day starts it afresh.
+
+function isWalkinTicket(ticket) {
+  return ticket.manual === true || typeof ticket.ownerId !== "string" || ticket.ownerId === "" ||
+    ticket.ownerId.indexOf("manual:") === 0 || ticket.ownerId.indexOf("nophone:") === 0;
+}
+
+// Whether a ticket's change is its owner cancelling it (only the owner may set "cancelled"; see firestore.rules).
+function isOwnerCancel(before, after) {
+  return !!before && !!after && before.status !== "cancelled" && after.status === "cancelled" && !isWalkinTicket(after);
+}
+
+// Records one cancel for the ticket's owner (once per ticket). Returns { count, blockedUntilMs, counted }: the
+// cancels so far today (the limit when this one started a block), the end of a block it started, and whether this
+// call added anything.
+async function recordCancel(deps, ticket, nowMs) {
+  const { db, Timestamp, config } = deps;
+  const rules = config.cancelBlock || {};
+  const limit = Number(rules.limit) || 5;
+  const today = dayKey(config.tzOffsetMs, nowMs);
+  const stateRef = db.collection("joinState").doc(ticket.ownerId);
+
+  return db.runTransaction(async function (tx) {
+    const snap = await tx.get(stateRef);
+    const state = snap.exists ? snap.data() : {};
+    const sameDay = state.cancelsDay === today;
+    const cancels = sameDay && state.cancels && typeof state.cancels === "object" ? Object.assign({}, state.cancels) : {};
+
+    if (cancels[ticket.id] || state.blockedByTicket === ticket.id) {
+      return { count: Object.keys(cancels).length, blockedUntilMs: 0, counted: false };
+    }
+
+    cancels[ticket.id] = nowMs;
+    const count = Object.keys(cancels).length;
+
+    if (count < limit) {
+      tx.set(stateRef, { cancels: cancels, cancelsDay: today }, { merge: true });
+      return { count: count, blockedUntilMs: 0, counted: true };
+    }
+
+    // Blocked until the queue day ends. A longer block already in place (missed turns) is kept as it is.
+    const untilMs = startOfTodayMs(config.tzOffsetMs, nowMs) + DAY_MS;
+    if (toMs(state.blockedUntil) >= untilMs) {
+      tx.set(stateRef, { cancels: {}, cancelsDay: today }, { merge: true });
+      return { count: count, blockedUntilMs: 0, counted: true };
+    }
+
+    tx.set(stateRef, {
+      cancels: {},
+      cancelsDay: today,
+      blockedUntil: Timestamp.fromMillis(untilMs),
+      blockedAt: Timestamp.fromMillis(nowMs),
+      blockedReason: "cancels",
+      blockedByTicket: ticket.id,
+      ownerName: ticket.ownerName || "",
+      studentNumber: ticket.studentNumber || ""
+    }, { merge: true });
+    return { count: count, blockedUntilMs: untilMs, counted: true };
+  });
+}
+
+module.exports = { isNoShow, recordNoShow, isOwnerCancel, recordCancel };
