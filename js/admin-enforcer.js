@@ -275,6 +275,70 @@ function generateWalkinQr() {
   });
 }
 
+/* ---------- Manual Ticket: for a walk-in without a phone ---------- */
+
+// Made at once on the server (functions/lib/manual.js); the screen shows the number for the walk-in to remember.
+function generateManualTicket() {
+  if (roleRuleBlocks("walkin", "make walk-in tickets")) return;
+  var problem = enforcerFormProblem();
+  if (problem) {
+    say(problem);
+    return;
+  }
+
+  var details = enforcerPassDetails();
+  var station = stations.find(function (s) { return s.id === details.stationId; });
+  var where = details.enrollmentFlow ? "Enrollment, starting at " + (station ? station.name : "the first station") : (station ? station.name : "the station");
+
+  showConfirmModal({
+    title: "Make a manual ticket for " + details.ownerName + "?",
+    message: "For a walk-in without a phone: the ticket goes into " + where + "'s line" + (details.priority ? " at the front (prioritized)" : "") +
+      " now, and its number is shown for them to remember.",
+    confirmLabel: "Make Ticket",
+    tone: "primary",
+    onConfirm: function () {
+      var button = document.getElementById("enforcerManualBtn");
+      setButtonLoading(button, true);
+      return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("createManualTicket")({
+        ownerName: details.ownerName,
+        studentType: details.studentType,
+        studentNumber: details.studentNumber,
+        stationId: details.stationId,
+        purpose: details.purpose,
+        enrollment: !!details.enrollmentFlow,
+        priority: details.priority === true
+      }).then(function (response) {
+        showManualTicketResult(response.data || {}, details);
+        enforcerDraft = emptyEnforcerDraft("");
+        renderEnforcer();
+      }).catch(function (error) {
+        var message = String(error && error.message || "").replace(/\s*\[\d{3}\]\s*$/, "");
+        say("Could not make the ticket: " + (message || "please try again."));
+      }).then(function () {
+        setButtonLoading(document.getElementById("enforcerManualBtn"), false);
+      });
+    }
+  });
+}
+
+function showManualTicketResult(result, details) {
+  var where = details.enrollmentFlow ? "Enrollment · starts at " + (result.stationName || "the first station") : (result.stationName || "") + " · " + details.purpose;
+  if (result.priority) where += " · Priority";
+
+  showFormModal("Manual Ticket",
+    '<div class="walkin-qr manual-ticket">' +
+      '<p class="manual-ticket-label">Ticket number</p>' +
+      '<p class="manual-ticket-number">' + escapeAdminText(result.ticketNo || "") + '</p>' +
+      '<p class="walkin-qr-name">' + escapeAdminText(result.ownerName || details.ownerName) + '</p>' +
+      '<p class="walkin-qr-meta">' + escapeAdminText(where) + '</p>' +
+      '<p class="modal-help">Ask them to remember this number and watch the TV board or listen for it to be called.' +
+        (details.enrollmentFlow ? ' At each enrollment station they get a new number, which the staff there will tell them.' : '') + '</p>' +
+      '<div class="settings-actions walkin-qr-actions">' +
+        '<button type="button" class="settings-btn settings-btn-primary" onclick="closeFormModal()">Close</button>' +
+      '</div>' +
+    '</div>');
+}
+
 function showWalkinPass(details) {
   stopWalkinPassView();
 
@@ -405,6 +469,7 @@ function enforcerTagsHtml(ticket) {
   var tags = "";
 
   if (ticket.manual === true) tags += ' <span class="type-tag manual-tag">Walk-in</span>';
+  if (ticket.noPhone === true) tags += ' <span class="type-tag nophone-tag" title="Manual ticket: call the number out loud">No phone</span>';
   if (ticket.enrollment === true) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
@@ -569,6 +634,9 @@ function renderEnforcer() {
             '<p class="rules-off-note">Making walk-in tickets is turned off for your role in System Rules. An administrator can turn it back on.</p>') +
           '<div class="settings-actions enforcer-form-actions">' +
             '<button type="button" class="settings-btn settings-btn-blue enforcer-clear" onclick="clearEnforcerForm()">Clear All</button>' +
+            // No phone: the ticket is made now and its number shown to remember.
+            '<button type="button" class="settings-btn settings-btn-blue" id="enforcerManualBtn" onclick="generateManualTicket()" title="For a walk-in without a phone"' +
+              (roleCan("walkin") ? '' : ' disabled title="' + ROLE_RULE_OFF_TITLE + '"') + '>Manual Ticket</button>' +
             '<button type="button" class="settings-btn settings-btn-primary" id="enforcerGenerateBtn" onclick="generateWalkinQr()"' +
               (roleCan("walkin") ? '' : ' disabled title="' + ROLE_RULE_OFF_TITLE + '"') + '>Generate QR</button>' +
           '</div>' +

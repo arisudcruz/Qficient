@@ -14,6 +14,7 @@ const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
 const { redeemWalkinPass } = require("./lib/walkin");
 const { resetStaffPassword } = require("./lib/staff");
+const { createManualTicket } = require("./lib/manual");
 const { getAuth } = require("firebase-admin/auth");
 const { isNoShow, recordNoShow } = require("./lib/strikes");
 const messages = require("./lib/messages");
@@ -62,6 +63,19 @@ exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", se
   const ticket = Object.assign({ id: event.params.ticketId }, after);
 
   const enrolling = after.enrollment === true;
+
+  // A manual (no-phone) ticket has nobody to push to or keep a history for, and no account to give strikes to;
+  // only the people behind it in the line are told when they move up.
+  if (after.noPhone === true) {
+    if (config.notify.next && affectsQueueFront(before, after)) {
+      const lineIds = [after.stationId];
+      if (before && before.stationId !== after.stationId) lineIds.push(before.stationId);
+      for (const stationId of lineIds) {
+        await pusher.notifyNextInLine(stationId, await stationNameOf(stationId), Date.now());
+      }
+    }
+    return;
+  }
 
   // The student's (or walk-in's) own history: they joined, or their transaction (or whole enrollment) is done.
   // (No push; they saw it happen.)
@@ -149,6 +163,25 @@ exports.joinQueue = onCall(async function (request) {
 });
 
 // A walk-in's phone opens the Queue Enforcer's QR code: this checks the one-time pass and creates their ticket.
+// The Queue Enforcer (or an admin) makes a ticket for a walk-in without a phone (Walk-in Form > Manual Ticket).
+exports.createManualTicket = onCall(async function (request) {
+  try {
+    const result = await createManualTicket({ db, FieldValue, config }, request.auth, request.data);
+    const data = request.data || {};
+    await logAudit(request.auth && request.auth.uid, "app_user", {
+      category: "walkin", action: "manualTicket",
+      summary: "Made a " + (result.priority ? "priority " : "") + "manual ticket " + result.ticketNo + " for " + result.ownerName +
+        " (" + (result.enrollment ? "Enrollment, starting at " + result.stationName : result.stationName + ", " + (data.purpose || "")) + ")",
+      targetId: result.ticketNo
+    });
+    return result;
+  } catch (error) {
+    if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
+    logger.error("createManualTicket failed: " + (error && error.stack ? error.stack : error));
+    throw new HttpsError("internal", "Something went wrong while making the ticket. Please try again.");
+  }
+});
+
 // An administrator sets a new password for a staff account (Settings > Edit Staff), without the old one.
 exports.resetStaffPassword = onCall(async function (request) {
   try {

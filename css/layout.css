@@ -2081,6 +2081,36 @@ body.dark .enforcer-priority small { color: var(--ad-muted); }
   color: #475569;
 }
 
+/* A manual ticket: the walk-in has no phone, so staff call the number out loud */
+.type-tag.nophone-tag {
+  background: #FEF1DC;
+  color: #9A5F00;
+}
+
+body.dark .type-tag.nophone-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+
+/* Manual Ticket pop-up: the number to remember, big */
+.manual-ticket-label {
+  margin: 0;
+  color: #64748B;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.manual-ticket-number {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 12vw, 4.2rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--navyDark);
+}
+
+body.dark .manual-ticket-number { color: #9CC8FA; }
+
 .rules-readonly {
   margin: 0 0 14px;
   padding: 8px 12px;

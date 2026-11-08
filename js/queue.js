@@ -534,7 +534,8 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
     var batch = db.batch();
     batch.update(ticketRef, { status: "completed", completedAt: now });
     return batch.commit().then(function () {
-      if (!opts.quiet) sayDone("Enrollment complete for " + serving.ticketNo + ".");
+      if (serving.noPhone === true) tellNoPhoneWalkin(serving.ownerName, "Your enrollment is complete. Thank you!", "");
+      else if (!opts.quiet) sayDone("Enrollment complete for " + serving.ticketNo + ".");
       return true;
     }).catch(function (err) {
       say("Could not complete the enrollment: " + err.message);
@@ -595,7 +596,9 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
       return { ticketNo: ticketNo, stationName: destData.name };
     });
   }).then(function (result) {
-    if (!opts.quiet) sayDone(serving.ticketNo + " moves on to " + result.stationName + " as " + result.ticketNo + ".");
+    // A walk-in without a phone (manual ticket) hears it from the staff, so they always see it, even on Call Next.
+    if (serving.noPhone === true) tellNoPhoneWalkin(serving.ownerName, "Please go to " + result.stationName + ". Your new number is " + result.ticketNo + ".", result.ticketNo);
+    else if (!opts.quiet) sayDone(serving.ticketNo + " moves on to " + result.stationName + " as " + result.ticketNo + ".");
     return true;
   }).catch(function (err) {
     say("Could not send the ticket on: " + err.message);
@@ -621,6 +624,22 @@ function removeCurrentTicket(stationId) {
     return advanceStation(stationId, windowNo);
   }).catch(function (err) {
     say("Could not remove ticket: " + err.message);
+  });
+}
+
+// For a walk-in with a manual ticket (no phone): what the staff should tell them, with the new number big.
+function tellNoPhoneWalkin(name, message, ticketNo) {
+  if (typeof Swal === "undefined") {
+    say("Tell " + name + ": " + message);
+    return;
+  }
+  Swal.fire({
+    icon: "info",
+    title: "Tell " + name,
+    html: (ticketNo ? '<p class="manual-ticket-number">' + escapeHtml(ticketNo) + '</p>' : '') +
+      '<p>' + escapeHtml(message) + '</p><p class="modal-help">They have no phone (manual ticket), so they only know what you tell them.</p>',
+    confirmButtonText: "Done",
+    confirmButtonColor: "#0054A6"
   });
 }
 
@@ -703,7 +722,8 @@ function transferServingTicket(sourceStationId, destStationId, purpose, priority
     });
   }).then(function (result) {
     advanceStation(sourceStationId, windowNo);
-    sayDone("Ticket transferred to " + result.stationName + " as " + result.ticketNo + ".");
+    if (serving.noPhone === true) tellNoPhoneWalkin(serving.ownerName, "Please go to " + result.stationName + ". Your new number is " + result.ticketNo + ".", result.ticketNo);
+    else sayDone("Ticket transferred to " + result.stationName + " as " + result.ticketNo + ".");
     return result;
   }).catch(function (err) {
     say("Could not transfer the ticket: " + err.message);

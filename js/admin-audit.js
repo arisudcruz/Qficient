@@ -17,7 +17,7 @@ var AUDIT_CATEGORIES = [
 var AUDIT_ACTION_LABELS = {
   call: "Called", complete: "Completed", hold: "On Hold", lastCall: "Last Call", recall: "Recalled", prioritize: "Prioritized",
   remove: "Removed", autoVoid: "Auto-voided", cancel: "Cancelled", verify: "Verified", create: "Created", enrollmentNext: "Enrollment Hand-off",
-  transfer: "Transferred", walkinPass: "Walk-in QR", stationCreate: "Station Added", stationEdit: "Station Edited",
+  transfer: "Transferred", walkinPass: "Walk-in QR", manualTicket: "Manual Ticket", stationCreate: "Station Added", stationEdit: "Station Edited",
   stationDelete: "Station Deleted", staffAdd: "Staff Added", staffRole: "Role Changed", staffEdit: "Staff Edited",
   staffRemove: "Staff Removed", passwordReset: "Password Reset", unblock: "Block Lifted", settingsTimeout: "Timeout Changed",
   enrollmentFlow: "Enrollment Process", roleRules: "Role Rules", signIn: "Signed In", signOut: "Signed Out"

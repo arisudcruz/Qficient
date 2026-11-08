@@ -435,6 +435,8 @@ function queueRowTagsHtml(ticket) {
   if (ticket.enrollment === true) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment · Step ' + ((Number(ticket.enrollmentStep) || 0) + 1) + ' of ' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
+  // A manual ticket: the walk-in has no phone, so call the number out loud.
+  if (ticket.noPhone === true) tags += ' <span class="type-tag nophone-tag" title="Manual ticket: call the number out loud">No phone</span>';
   return tags;
 }
 
