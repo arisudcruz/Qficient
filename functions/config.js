@@ -29,6 +29,10 @@ module.exports = {
   // windowDays block the student from joining for blockHours (an admin can lift it early in Settings).
   noShow: { limit: 3, windowDays: 7, blockHours: 24 },
 
+  // Cancelling: this many tickets cancelled by the student in one queue day blocks them from joining until the
+  // day ends (midnight, Philippine time). From warnFrom on, each cancel notes a warning in their history.
+  cancelBlock: { limit: 5, warnFrom: 3 },
+
   // Limits on joining the queue (enforced by the joinQueue function, per account).
   joinMinIntervalMs: 3 * 1000,   // shortest gap between two joins
   cancelCooldownMs: 20 * 1000,   // wait after cancelling a ticket before joining again

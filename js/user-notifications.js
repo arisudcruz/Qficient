@@ -23,7 +23,9 @@ var USER_NOTIF_ICONS = {
   enrollmentCompleted: { name: "graduate", tone: "good" },
   completed: { name: "done", tone: "good" },
   noShowStrike: { name: "warning", tone: "alert" },
-  noShowBlocked: { name: "blocked", tone: "danger" }
+  noShowBlocked: { name: "blocked", tone: "danger" },
+  cancelWarning: { name: "warning", tone: "alert" },
+  cancelBlocked: { name: "blocked", tone: "danger" }
 };
 
 function userNotifIcon(type) {

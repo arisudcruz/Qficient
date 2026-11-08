@@ -245,10 +245,15 @@ function joinPurposesFor(stationId) {
   return station && Array.isArray(station.purposes) && station.purposes.length ? station.purposes : queueMgmtPurposes;
 }
 
-/* ---------- No-show block (functions/lib/strikes.js) ---------- */
+/* ---------- No-show and cancel blocks (functions/lib/strikes.js) ---------- */
 
-// The student's own joinState record says whether they're blocked from joining, and until when.
-var studentBlock = { uid: null, untilMs: 0, unsubscribe: null, timer: null };
+// Kept the same as cancelBlock in functions/config.js.
+var CANCEL_LIMIT = 5;
+var CANCEL_WARN_FROM = 3;
+
+// The student's own joinState record says whether they're blocked from joining, until when and why, and how many
+// tickets they have cancelled today.
+var studentBlock = { uid: null, untilMs: 0, reason: "", cancels: { day: "", count: 0 }, unsubscribe: null, timer: null };
 
 function syncStudentBlockListener() {
   var uid = user && user.type === "student" ? user.id : null;
@@ -256,13 +261,19 @@ function syncStudentBlockListener() {
 
   if (studentBlock.unsubscribe) studentBlock.unsubscribe();
   clearTimeout(studentBlock.timer);
-  studentBlock = { uid: uid, untilMs: 0, unsubscribe: null, timer: null };
+  studentBlock = { uid: uid, untilMs: 0, reason: "", cancels: { day: "", count: 0 }, unsubscribe: null, timer: null };
   if (!uid) return;
 
   studentBlock.unsubscribe = db.collection("joinState").doc(uid).onSnapshot(function (doc) {
     if (studentBlock.uid !== uid) return;
-    var until = doc.exists ? timestampToMs(doc.data().blockedUntil, 0) : 0;
+    var data = doc.exists ? doc.data() : {};
+    var until = timestampToMs(data.blockedUntil, 0);
     studentBlock.untilMs = until;
+    studentBlock.reason = data.blockedReason || "";
+    studentBlock.cancels = {
+      day: data.cancelsDay || "",
+      count: data.cancels && typeof data.cancels === "object" ? Object.keys(data.cancels).length : 0
+    };
     clearTimeout(studentBlock.timer);
     // Redraw the moment the block ends, so the Queue buttons come back by themselves.
     if (until > serverNow()) studentBlock.timer = setTimeout(updateDashboard, Math.min(until - serverNow() + 1000, 2147483000));
@@ -274,6 +285,29 @@ function syncStudentBlockListener() {
 
 function studentBlockedUntilMs() {
   return studentBlock.untilMs > serverNow() ? studentBlock.untilMs : 0;
+}
+
+function studentBlockReason() {
+  return studentBlockedUntilMs() ? studentBlock.reason : "";
+}
+
+// Tickets the student has cancelled today (as counted by the server).
+function cancelsToday() {
+  return studentBlock.cancels.day === queueDayKey(serverNow()) ? studentBlock.cancels.count : 0;
+}
+
+function ordinalText(n) {
+  var tens = n % 100;
+  if (tens >= 11 && tens <= 13) return n + "th";
+  return n + ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
+}
+
+// Added to the Cancel dialog once the student gets close to the daily cancel limit.
+function cancelLimitWarningText() {
+  var next = cancelsToday() + 1;
+  if (next < CANCEL_WARN_FROM) return "";
+  if (next >= CANCEL_LIMIT) return "This is your " + ordinalText(next) + " cancel today: you won't be able to join the queue again until tomorrow.";
+  return "This will be your " + ordinalText(next) + " cancel today. If you cancel " + CANCEL_LIMIT + " tickets in one day, you can't join the queue again until tomorrow.";
 }
 
 // A station's waiting line, in queue order.
@@ -508,9 +542,11 @@ function confirmCancelTicket() {
   var ticket = myTicket();
   if (!ticket) return;
 
+  var warning = ticket.manual === true ? "" : cancelLimitWarningText();
   showConfirmModal({
     title: "Are you sure you want to cancel your queue?",
-    message: "Ticket " + ticket.ticketNo + " will leave the line. You'll have to wait a moment before you can join again.",
+    message: "Ticket " + ticket.ticketNo + " will leave the line. You'll have to wait a moment before you can join again." +
+      (warning ? " " + warning : ""),
     confirmLabel: "Cancel Queue",
     tone: "danger",
     onConfirm: function () { return cancelTicket(); }

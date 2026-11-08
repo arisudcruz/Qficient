@@ -56,6 +56,11 @@ function computeSettingsSignature() {
 var blockedStudents = [];
 var blockedUnsubscribe = null;
 
+var BLOCK_REASON_TEXT = {
+  noShow: "Missed their turn 3 times in 7 days",
+  cancels: "Cancelled " + CANCEL_LIMIT + " tickets in one day"
+};
+
 function startBlockedListener() {
   if (blockedUnsubscribe) return;
   blockedUnsubscribe = db.collection("joinState")
@@ -87,13 +92,13 @@ function blockedStudentsPanelHtml() {
       return '<tr><td class="settings-strong">' + escapeAdminText(b.name || "Student") + '</td>' +
         '<td>' + escapeAdminText(b.studentNumber || "—") + '</td>' +
         '<td>' + escapeAdminText(manilaDateTimeText(b.untilMs)) + '</td>' +
-        '<td>' + (b.reason === "noShow" ? "Missed their turn 3 times in 7 days" : escapeAdminText(b.reason || "—")) + '</td>' +
+        '<td>' + escapeAdminText(BLOCK_REASON_TEXT[b.reason] || b.reason || "—") + '</td>' +
         '<td><button type="button" class="settings-btn settings-btn-blue" onclick="confirmUnblockStudent(\'' + escapeAdminText(b.id) + '\')">Unblock</button></td></tr>';
     }).join("") || '<tr><td colspan="5" class="empty-row">No students are blocked.</td></tr>';
 
   return '<section class="panel settings-panel">' +
     '<div class="panel-header"><h2>Blocked Students</h2></div>' +
-    '<p class="settings-help">Students who miss their turn 3 times within 7 days (the last call ran out each time) can\'t join the queue for 24 hours. Unblock lets them join right away and clears their missed turns.</p>' +
+    '<p class="settings-help">Students who miss their turn 3 times within 7 days (the last call ran out each time) can\'t join the queue for 24 hours. Students who cancel ' + CANCEL_LIMIT + ' tickets in one day can\'t join again until the day ends. Unblock lets them join right away and clears their missed turns and cancels.</p>' +
     '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Student No.</th><th>Blocked Until</th><th>Reason</th><th>Action</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table></div>' +
   '</section>';
@@ -105,13 +110,14 @@ function confirmUnblockStudent(uid) {
 
   showConfirmModal({
     title: "Unblock " + (blocked.name || "this student") + "?",
-    message: "They can join the queue again right away, and their missed turns start from zero.",
+    message: "They can join the queue again right away, and their missed turns and cancels start from zero.",
     confirmLabel: "Unblock",
     tone: "primary",
     onConfirm: function () {
       return db.collection("joinState").doc(uid).update({
         blockedUntil: null,
         noShows: {},
+        cancels: {},
         unblockedBy: staffKey(adminUser.email),
         unblockedAt: firebase.firestore.FieldValue.serverTimestamp()
       }).then(function () {
