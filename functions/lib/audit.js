@@ -106,6 +106,11 @@ function describeStaffChange(before, after, id, roleName) {
   if (before && !after) return entry("staff", "staffRemove", "Removed " + who(before) + "'s access", { targetId: before.username || id });
   if (!before || !after) return null;
 
+  // Staff changing their own password (js/admin-password.js) marks the record with passwordChangedAt.
+  if (toMs(after.passwordChangedAt) && toMs(after.passwordChangedAt) !== toMs(before.passwordChangedAt)) {
+    return entry("staff", "passwordChange", who(after) + " changed their own password", { targetId: after.username || id });
+  }
+
   const changes = [];
   if (before.role !== after.role) changes.push("role " + roleName(before.role) + " → " + roleName(after.role));
   if ((before.name || "") !== (after.name || "")) changes.push("name " + (before.name || "—") + " → " + (after.name || "—"));

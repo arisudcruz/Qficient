@@ -31,6 +31,7 @@ function isUsernameAccount(email) {
 
 var adminUser = null;
 var adminName = ""; // the signed-in staff member's full name, from their staff record
+var adminMustChangePassword = false; // still on staff123 or a password an admin reset (js/admin-password.js)
 var adminRole = null; // "admin", "enforcer", or the id of the station a Queue Management account belongs to
 var adminDeniedRole = null; // the role of an account that signed in but is not allowed in
 var staffUnsubscribe = null;
@@ -131,6 +132,7 @@ function resolveAdminAccess(firebaseUser) {
     return transaction.get(ref).then(function (doc) {
       if (doc.exists) {
         adminName = doc.data().name || "";
+        adminMustChangePassword = doc.data().mustChangePassword === true;
         if (isBootstrapAdmin && doc.data().role !== "admin") {
           transaction.update(ref, { role: "admin", updatedAt: now });
           return "admin";
@@ -139,6 +141,7 @@ function resolveAdminAccess(firebaseUser) {
       }
 
       adminName = "";
+      adminMustChangePassword = false;
       // Only the built-in admin account may create its own record. Everyone else needs an admin to give them a role.
       if (!isBootstrapAdmin) return null;
 
@@ -152,6 +155,7 @@ function deactivateAdminSession() {
   if (adminUser) resetAdminPageState();
   adminUser = null;
   adminName = "";
+  adminMustChangePassword = false;
   adminRole = null;
   setTicketsScope(1);
   stopStaffListener();
@@ -310,9 +314,12 @@ function adminLogin(event) {
         }
 
         if (allowed) {
+          var typedPassword = passwordInput.value;
           document.getElementById("adminLoginForm").reset();
           goTo("pageAdmin");
           logAccountEvent("signIn"); // the audit trail (js/admin-audit.js); never holds up the sign-in
+          // Still on staff123 (or a password an admin reset): ask them to choose their own (js/admin-password.js).
+          if (adminMustChangePassword) openChangePasswordModal({ firstTime: true, current: typedPassword });
           return null;
         }
 

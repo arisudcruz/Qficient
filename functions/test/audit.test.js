@@ -82,6 +82,14 @@ test("staff role change", () => {
 });
 test("staff removed", () => assert.strictEqual(audit.describeStaffChange({ name: "Juan", role: "cashier" }, null, "x", roleName).action, "staffRemove"));
 test("staff save without changes is not logged", () => assert.strictEqual(audit.describeStaffChange({ name: "Juan", role: "cashier" }, { name: "Juan", role: "cashier", updatedAt: 1 }, "x", roleName), null));
+test("staff changing their own password is logged, without saying the password", () => {
+  const before = { name: "Juan", username: "juan.cruz", role: "cashier", mustChangePassword: true };
+  const e = audit.describeStaffChange(before, Object.assign({}, before, { mustChangePassword: false, passwordChangedAt: ts(5) }), "x", roleName);
+  assert.strictEqual(e.action, "passwordChange");
+  assert.strictEqual(e.summary, "Juan changed their own password");
+});
+test("an admin reset flagging the record isn't logged twice", () => assert.strictEqual(
+  audit.describeStaffChange({ name: "Juan", role: "cashier", passwordChangedAt: ts(5) }, { name: "Juan", role: "cashier", passwordChangedAt: ts(5), mustChangePassword: true }, "x", roleName), null));
 
 test("auto-void timeout change", () => {
   const e = audit.describeSettingsChange("system", { autoVoidMinutes: 1 }, { autoVoidMinutes: 3 }, roleName);

@@ -65,6 +65,11 @@ async function resetStaffPassword(deps, auth, data) {
     }
     throw error;
   }
+
+  // A password an admin set is a temporary one: the staff member is asked to choose their own at next sign-in.
+  if (record.exists) {
+    await record.ref.update({ mustChangePassword: true, updatedAt: new Date() });
+  }
   return { username: username };
 }
 
