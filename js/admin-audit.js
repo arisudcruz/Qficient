@@ -20,7 +20,7 @@ var AUDIT_ACTION_LABELS = {
   transfer: "Transferred", walkinPass: "Walk-in QR", manualTicket: "Manual Ticket", stationCreate: "Station Added", stationEdit: "Station Edited",
   stationDelete: "Station Deleted", staffAdd: "Staff Added", staffRole: "Role Changed", staffEdit: "Staff Edited",
   staffRemove: "Staff Removed", passwordReset: "Password Reset", unblock: "Block Lifted", settingsTimeout: "Timeout Changed",
-  enrollmentFlow: "Enrollment Process", roleRules: "Role Rules", signIn: "Signed In", signOut: "Signed Out"
+  enrollmentFlow: "Enrollment Process", roleRules: "Role Rules", liveBoard: "Live Board Preset", signIn: "Signed In", signOut: "Signed Out"
 };
 
 var auditState = null;

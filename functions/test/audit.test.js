@@ -100,6 +100,18 @@ test("role rules saved without a real change are not logged", () => {
   assert.strictEqual(audit.describeSettingsChange("roleRules", { roles: { cashier: { remove: true } } }, { roles: { cashier: { remove: true, recall: true } } }, roleName), null);
 });
 
+test("Live Board presets: added, changed and removed are each named", () => {
+  const stationName = (id) => station(id).name;
+  const lobby = { id: "lobby1", name: "Lobby TV", stations: ["cashier", "registrar"] };
+  const enroll = { id: "enr001", name: "Enrollment", stations: ["registrar"] };
+  let e = audit.describeSettingsChange("liveBoard", null, { presets: [lobby] }, roleName, stationName);
+  assert.strictEqual(e.action, "liveBoard");
+  assert.strictEqual(e.summary, "Added the Live Board preset \"Lobby TV\" (Cashier, Registrar)");
+  e = audit.describeSettingsChange("liveBoard", { presets: [lobby, enroll] }, { presets: [Object.assign({}, lobby, { name: "Hall TV", stations: ["registrar"] })] }, roleName, stationName);
+  assert.ok(/Changed the Live Board preset "Lobby TV" to "Hall TV" \(Registrar\)/.test(e.summary) && /Removed the Live Board preset "Enrollment"/.test(e.summary), e.summary);
+  assert.strictEqual(audit.describeSettingsChange("liveBoard", { presets: [lobby] }, { presets: [Object.assign({}, lobby)] }, roleName, stationName), null);
+});
+
 test("walk-in QR pass", () => {
   const e = audit.describeWalkinPass(null, { ownerName: "Ana Reyes", stationId: "cashier", purpose: "Pay tuition" }, station);
   assert.strictEqual(e.summary, "Made a walk-in QR for Ana Reyes (Cashier, Pay tuition)");

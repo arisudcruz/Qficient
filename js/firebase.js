@@ -21,6 +21,7 @@ db.collection("stations").onSnapshot(function (snapshot) {
   updateDashboard();
   updateAdmin();
   if (typeof renderTvBoard === "function") renderTvBoard();
+  if (typeof refreshLiveBoardLauncher === "function") refreshLiveBoardLauncher();
   renderQueueManagement();
   refreshSettings();
   refreshEnforcerList();
@@ -42,6 +43,13 @@ db.collection("settings").doc("roleRules").onSnapshot(function (doc) {
   onRoleRulesChanged(doc.exists ? doc.data().roles : {});
 }, function (err) {
   console.error("Could not load the role rules: " + err.message);
+});
+
+// The Live Board presets: which stations each TV shows (js/tv-board.js).
+db.collection("settings").doc("liveBoard").onSnapshot(function (doc) {
+  if (typeof onLiveBoardPresetsChanged === "function") onLiveBoardPresetsChanged(doc.exists ? doc.data().presets : []);
+}, function (err) {
+  console.error("Could not load the Live Board presets: " + err.message);
 });
 
 // The enrollment process for each student type (Enrollment Settings).

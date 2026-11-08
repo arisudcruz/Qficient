@@ -31,6 +31,7 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
 .tv-page.tv-idle,
 .tv-page.tv-idle * { cursor: none; }
 .tv-page.tv-idle .tv-fullscreen,
+.tv-page.tv-idle .tv-change,
 .tv-page.tv-idle .tv-sound:not(.needs-tap):not(.is-off) { opacity: 0; pointer-events: none; }
 
 /* ---------- Header and footer ---------- */
@@ -62,6 +63,39 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 2.6vh;
+}
+
+/* The preset's name, after the brand */
+.tv-preset {
+  padding-left: 1.4vh;
+  margin-left: 0.4vh;
+  border-left: 1px solid rgba(255, 255, 255, 0.45);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 2.2vh;
+  opacity: 0.92;
+  white-space: nowrap;
+}
+
+.tv-preset[hidden],
+.tv-change[hidden] { display: none; }
+
+.tv-change {
+  height: 4.6vh;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8vh;
+  padding: 0 1.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 1vh;
+  background: transparent;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: max(13px, 1.6vh);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.3s;
 }
 
 .tv-head-right {
@@ -328,75 +362,98 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   color: #94A3B8;
 }
 
-/* The compact cards for any further stations */
+/* Four columns are narrower: the numbers shrink with the column width so a ticket number always fits. */
+.tv-main[data-columns="3"] .tv-now b { font-size: min(7.4vh, 5.2vw); }
+.tv-main[data-columns="4"] .tv-now b { font-size: min(7.4vh, 3.7vw); }
+.tv-main[data-columns="4"] .tv-now-windows li b { font-size: min(4.4vh, 2.5vw); }
+.tv-main[data-columns="4"] .tv-row { font-size: min(4.2vh, 2.2vw); }
+.tv-main[data-columns="4"] .tv-col-tab { font-size: min(2.4vh, 1.5vw); }
+.tv-main[data-columns="4"] .tv-col-body { padding: 2vh 1.1vw; }
 
-.tv-side {
-  display: flex;
-  flex-direction: column;
-  gap: 2.2vh;
-  min-width: 0;
-  min-height: 0;
-}
+/* A station in the preset that is switched off */
+.tv-col.is-closed .tv-col-tab { background: #94A3B8; }
 
-.tv-mini {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+.tv-col.is-closed .tv-col-body {
+  align-items: center;
   justify-content: center;
-  gap: 1.4vh;
-  padding: 1.8vh 1.2vw;
-  background: #fff;
-  border-radius: 1.2vh;
-  box-shadow: 0 0.8vh 2.4vh rgba(0, 43, 100, 0.08);
 }
 
-.tv-mini h3 {
+.tv-closed {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 2.2vh;
-  color: var(--tv-blue);
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 2.8vh;
+  color: #94A3B8;
+  text-align: center;
 }
 
-.tv-mini-row {
-  display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  gap: 0.8vw;
-  align-items: center;
+/* ---------- Choosing a preset ---------- */
+
+.tv-pick {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 120vh);
+  text-align: center;
 }
 
-.tv-mini-row > div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4vh;
-  min-width: 0;
-}
-
-.tv-mini-row span { font-size: 1.4vh; }
-
-.tv-mini-row b {
+.tv-pick h2 {
+  margin: 0 0 1vh;
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 4.2vh;
-  line-height: 1.1;
+  color: var(--tv-blue);
+}
+
+.tv-pick p {
+  margin: 0 0 3.4vh;
+  font-size: 2.2vh;
+  color: #64748B;
+}
+
+.tv-pick-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 34vh), 1fr));
+  gap: 2vh;
+}
+
+.tv-pick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8vh;
+  min-width: 0;
+  padding: 2.4vh 2.2vh;
+  border: 2px solid transparent;
+  border-radius: 1.4vh;
+  background: #fff;
+  color: var(--tv-text);
+  text-align: left;
+  box-shadow: 0 0.8vh 2.4vh rgba(0, 43, 100, 0.08);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.tv-pick-btn:hover,
+.tv-pick-btn:focus-visible {
+  border-color: var(--tv-blue);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.tv-pick-btn b {
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2.8vh;
+  color: var(--tv-blue);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tv-mini-next {
-  padding: 1vh 0.8vw;
-  border-radius: 1vh;
-  background: var(--tv-amber);
-  color: #1B2740;
-}
-
-.tv-side-pages {
-  text-align: center;
-  font-size: 1.5vh;
+.tv-pick-btn span {
+  font-size: 1.8vh;
   color: #64748B;
 }
 
@@ -422,24 +479,169 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
 
 /* ---------- Admin console: Live Board page ---------- */
 
-.lb-launch {
+.lb-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 22px;
-  min-height: calc(100vh - 200px);
-  padding: 24px;
-  text-align: center;
+  gap: 18px;
+  padding: 8px 0 24px;
 }
 
-.lb-launch p {
+.lb-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.lb-top p {
   margin: 0;
-  font-size: 0.95rem;
+  max-width: 620px;
+  font-size: 0.92rem;
   color: #172033;
 }
 
-body.dark .lb-launch p { color: #E6EDF8; }
+.lb-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+
+.lb-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 43, 100, 0.06);
+}
+
+.lb-preset-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lb-preset-head h3 {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #0054A6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-preset-head span {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: #64748B;
+}
+
+.lb-preset-stations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-preset-stations li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px 5px 5px;
+  border-radius: 999px;
+  background: #EEF5FF;
+  color: #172033;
+  font-size: 0.84rem;
+}
+
+.lb-preset-stations li b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0054A6;
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.lb-preset-stations li em {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: #B45309;
+}
+
+.lb-preset-stations li.is-off { background: #F1F5F9; color: #64748B; }
+.lb-preset-stations li.is-off b { background: #94A3B8; }
+
+.lb-preset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.lb-preset-actions .lb-launch-btn {
+  min-width: 0;
+  padding: 9px 18px;
+  margin-right: auto;
+  box-shadow: 0 4px 12px rgba(0, 43, 100, 0.2);
+}
+
+.lb-empty {
+  padding: 36px 20px;
+  border: 1px dashed #CBD5E1;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.lb-empty p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #475569;
+}
+
+.lb-empty p + p { margin-top: 6px; }
+
+/* The Add / Edit form's four column pickers */
+.lb-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lb-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lb-slot > span {
+  font-size: 0.75rem;
+  color: #64748B;
+}
+
+.lb-field-note {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: #64748B;
+}
+
+@media (max-width: 480px) {
+  .lb-slots { grid-template-columns: 1fr; }
+}
 
 .lb-launch-btn {
   display: inline-flex;
@@ -460,8 +662,9 @@ body.dark .lb-launch p { color: #E6EDF8; }
 
 .lb-launch-btn:hover { background: linear-gradient(180deg, #005BB0 0%, #00336E 100%); }
 
-.lb-launch .lb-launch-help {
-  max-width: 460px;
+.lb-page .lb-launch-help {
+  max-width: 620px;
+  margin: 0;
   font-size: 0.78rem;
   line-height: 1.5;
   color: #64748B;

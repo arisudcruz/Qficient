@@ -143,6 +143,15 @@ service cloud.firestore {
       return !exists(path) || get(path).data.get('roles', {}).get(role, {}).get(key, true) == true;
     }
 
+    // settings/liveBoard: the Live Board presets, { presets: [ { id, name, stations: [up to 4 station ids] } ] }.
+    // Each entry is checked by the console (js/tv-board.js); the board ignores any it can't use.
+    function isLiveBoardConfig(d) {
+      return d.keys().hasOnly(['presets', 'updatedAt']) &&
+        d.updatedAt == request.time &&
+        d.presets is list &&
+        d.presets.size() <= 20;
+    }
+
     match /settings/{docId} {
       allow read: if true;
       allow create, update: if isAdmin() &&
@@ -152,7 +161,8 @@ service cloud.firestore {
           request.resource.data.autoVoidMinutes >= 1 &&
           request.resource.data.autoVoidMinutes <= 1440) ||
          (docId == 'enrollment' && isEnrollmentConfig(request.resource.data)) ||
-         (docId == 'roleRules' && isRoleRulesConfig(request.resource.data)));
+         (docId == 'roleRules' && isRoleRulesConfig(request.resource.data)) ||
+         (docId == 'liveBoard' && isLiveBoardConfig(request.resource.data)));
       allow delete: if false;
     }
 
