@@ -8,7 +8,7 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node test/events.test.js",
+    "test": "node test/events.test.js && node test/audit.test.js",
     "load": "firebase emulators:exec --only firestore --project demo-qficient \"node test/load/run.js\"",
     "deploy": "firebase deploy --only functions"
   },

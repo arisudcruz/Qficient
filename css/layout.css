@@ -2170,6 +2170,76 @@ button.is-loading::after {
 
 .report-filters-spacer { flex: 1 1 auto; }
 
+/* Audit Trail / My Activity (js/admin-audit.js) */
+.audit-intro {
+  margin: -6px 0 14px;
+}
+
+.audit-search input {
+  min-width: 220px;
+}
+
+.audit-count {
+  margin: 12px 0 8px;
+  font-size: 0.78rem;
+  color: #64748B;
+}
+
+.audit-table td.audit-time {
+  white-space: nowrap;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.audit-sub {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748B;
+}
+
+.audit-summary {
+  min-width: 260px;
+}
+
+.audit-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: #E8EEF6;
+  color: #334155;
+}
+
+.audit-tag-queue { background: #DBEAFE; color: #1D4ED8; }
+.audit-tag-walkin { background: #EFE8FB; color: #5B21B6; }
+.audit-tag-station { background: #E0F2F1; color: #0F766E; }
+.audit-tag-staff { background: #FEF1DC; color: #9A5F00; }
+.audit-tag-settings { background: #FDECEC; color: #B42318; }
+.audit-tag-account { background: #E3F6EA; color: #17703D; }
+
+.audit-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+body.dark .audit-count,
+body.dark .audit-sub,
+body.dark .audit-table td.audit-time { color: #94A5C2; }
+body.dark .audit-tag { background: rgba(255, 255, 255, 0.08); color: #CBD5E1; }
+body.dark .audit-tag-queue { background: rgba(90, 162, 255, 0.16); color: #9CC8FA; }
+body.dark .audit-tag-walkin { background: rgba(147, 112, 219, 0.2); color: #C4B5FD; }
+body.dark .audit-tag-station { background: rgba(45, 212, 191, 0.14); color: #5EEAD4; }
+body.dark .audit-tag-staff { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+body.dark .audit-tag-settings { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+body.dark .audit-tag-account { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
+
+@media (max-width: 640px) {
+  .audit-search input { min-width: 0; width: 100%; }
+}
+
 /* The "Include in report" checklist, between the filters and the buttons. */
 .report-include-label {
   margin: 18px 0 10px;

@@ -438,6 +438,30 @@ service cloud.firestore {
         isWalkinPassEnrollment(d);
     }
 
+    // ---------- Audit trail ----------
+    // What admins and staff do, written by the Cloud Functions from the account that made each change, so it
+    // can't be skipped or faked. Admins read all of it; everyone else reads only their own ("My Activity").
+    // The browser writes only its own sign-in and sign-out. Nobody edits or deletes entries (the nightly cleanup
+    // removes them after 90 days).
+    function isAccountAuditEntry(d) {
+      return d.keys().hasOnly(['at', 'actorEmail', 'actorUsername', 'actorName', 'actorRole', 'category', 'action', 'summary']) &&
+        d.keys().hasAll(['at', 'actorEmail', 'category', 'action', 'summary']) &&
+        d.at == request.time &&
+        d.actorEmail == userEmail() &&
+        d.category == 'account' &&
+        d.action in ['signIn', 'signOut'] &&
+        d.summary is string && d.summary.size() <= 200 &&
+        d.get('actorUsername', '') is string && d.get('actorUsername', '').size() <= 40 &&
+        d.get('actorName', '') is string && d.get('actorName', '').size() <= 100 &&
+        d.get('actorRole', '') is string && d.get('actorRole', '').size() <= 100;
+    }
+
+    match /auditLogs/{entryId} {
+      allow read: if isAdmin() || (isPasswordUser() && resource.data.actorEmail == userEmail());
+      allow create: if isPasswordUser() && exists(staffPath()) && isAccountAuditEntry(request.resource.data);
+      allow update, delete: if false;
+    }
+
     match /walkinPasses/{passId} {
       allow get: if isAdmin() || (isEnforcer() && resource.data.createdBy == userEmail());
       allow create: if isNewWalkinPass();

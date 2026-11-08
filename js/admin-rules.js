@@ -50,11 +50,13 @@ var ROLE_ALWAYS_ALLOWED = {
     ["Call Tickets", "Call Next, and call a ticket out of order (Call now)."],
     ["End Transaction", "Mark the ticket being served as completed."],
     ["Enrollment Hand-off", "Send an enrollee on to the next station of their process."],
-    ["System Rules", "Read the System Rules (only an administrator changes them)."]
+    ["System Rules", "Read the System Rules (only an administrator changes them)."],
+    ["My Activity", "See their own entries in the audit trail."]
   ],
   enforcer: [
     ["Queue Enforcer", "Open the Queue Enforcer page and its Queue List."],
-    ["System Rules", "Read the System Rules (only an administrator changes them)."]
+    ["System Rules", "Read the System Rules (only an administrator changes them)."],
+    ["My Activity", "See their own entries in the audit trail."]
   ]
 };
 

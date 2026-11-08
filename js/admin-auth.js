@@ -312,6 +312,7 @@ function adminLogin(event) {
         if (allowed) {
           document.getElementById("adminLoginForm").reset();
           goTo("pageAdmin");
+          logAccountEvent("signIn"); // the audit trail (js/admin-audit.js); never holds up the sign-in
           return null;
         }
 
@@ -346,7 +347,8 @@ function confirmAdminLogout() {
 }
 
 function adminLogout() {
-  return firebase.auth().signOut()
+  // Recorded in the audit trail while still signed in (the rules only accept it from the person themselves).
+  return logAccountEvent("signOut").then(function () { return firebase.auth().signOut(); })
     .then(function () {
       deactivateAdminSession();
       setAdminSection("dashboard");

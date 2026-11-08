@@ -41,6 +41,10 @@
           <span class="nav-icon">▤</span>
           <span class="nav-text">Reports</span>
         </button>
+        <button type="button" class="nav-item" data-section="audit" title="Audit Trail" onclick="setAdminSection('audit')">
+          <span class="nav-icon">≣</span>
+          <span class="nav-text" data-audit-label>Audit Trail</span>
+        </button>
       </nav>
 
       <div class="admin-tools">
@@ -69,6 +73,7 @@
       <div id="adminLiveBoardArea" style="display: none"></div>
       <div id="adminReportsArea" style="display: none"></div>
       <div id="adminRulesArea" style="display: none"></div>
+      <div id="adminAuditArea" style="display: none"></div>
       <div id="adminSettingsArea" style="display: none"></div>
       <div id="adminEnrollmentSettingsArea" style="display: none"></div>
     </main>

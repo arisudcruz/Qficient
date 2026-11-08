@@ -2,7 +2,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { setGlobalOptions } = require("firebase-functions/v2");
-const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten, onDocumentWrittenWithAuthContext } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
@@ -17,6 +17,7 @@ const { resetStaffPassword } = require("./lib/staff");
 const { getAuth } = require("firebase-admin/auth");
 const { isNoShow, recordNoShow } = require("./lib/strikes");
 const messages = require("./lib/messages");
+const audit = require("./lib/audit");
 
 initializeApp();
 const db = getFirestore();
@@ -151,7 +152,11 @@ exports.joinQueue = onCall(async function (request) {
 // An administrator sets a new password for a staff account (Settings > Edit Staff), without the old one.
 exports.resetStaffPassword = onCall(async function (request) {
   try {
-    return await resetStaffPassword({ db, adminAuth: getAuth() }, request.auth, request.data);
+    const result = await resetStaffPassword({ db, adminAuth: getAuth() }, request.auth, request.data);
+    await logAudit(request.auth && request.auth.uid, "app_user", {
+      category: "staff", action: "passwordReset", summary: "Reset the password of " + result.username, targetId: result.username
+    });
+    return result;
   } catch (error) {
     if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
     logger.error("resetStaffPassword failed: " + (error && error.stack ? error.stack : error));
@@ -167,4 +172,82 @@ exports.redeemWalkinPass = onCall(async function (request) {
     logger.error("redeemWalkinPass failed: " + (error && error.stack ? error.stack : error));
     throw new HttpsError("internal", "Something went wrong while getting your ticket. Please try again.");
   }
+});
+
+/* ---------- Audit trail (lib/audit.js) ---------- */
+// What admins and staff do is recorded here, on the server, from the account that made each change (the auth
+// context of the write), so it can't be skipped or faked from a browser. Changes the server makes itself, and
+// students' or walk-ins' own actions, are not recorded. An audit problem never affects the queue.
+
+const auditStationCache = { at: 0, byId: {} };
+
+async function auditStationList() {
+  if (Date.now() - auditStationCache.at > 60 * 1000) {
+    const snap = await db.collection("stations").get();
+    const byId = {};
+    snap.docs.forEach(function (doc) {
+      const d = doc.data();
+      const windows = Math.floor(Number(d.windows));
+      byId[doc.id] = { name: d.name || doc.id, windows: windows >= 1 && windows <= 10 ? windows : 1 };
+    });
+    auditStationCache.byId = byId;
+    auditStationCache.at = Date.now();
+  }
+  return auditStationCache.byId;
+}
+
+async function logAudit(authId, authType, item) {
+  if (!item) return;
+  try {
+    const actor = await audit.actorOf({ db, adminAuth: getAuth() }, authType, authId);
+    if (!actor) return;
+    const stationsById = await auditStationList();
+    await audit.writeAudit({
+      db, FieldValue,
+      stationName: async function (id) { return (stationsById[id] || {}).name || id; }
+    }, actor, item);
+  } catch (error) {
+    logger.error("audit entry failed: " + (error && error.stack ? error.stack : error));
+  }
+}
+
+function auditTrigger(path, describe) {
+  return onDocumentWrittenWithAuthContext({ document: path }, async function (event) {
+    if (event.authType !== "app_user") return; // the server's own writes
+    const before = event.data && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after.exists ? event.data.after.data() : null;
+    try {
+      const stationsById = await auditStationList();
+      const station = function (id) { return stationsById[id] || { name: id || "a station", windows: 1 }; };
+      const roleName = function (role) { return audit.roleLabel(role, station(role).name); };
+      const item = describe(before, after, event.params, station, roleName);
+      await logAudit(event.authId, event.authType, item);
+    } catch (error) {
+      logger.error("audit of " + path + " failed: " + (error && error.stack ? error.stack : error));
+    }
+  });
+}
+
+exports.auditTickets = auditTrigger("tickets/{ticketId}", function (before, after, params, station) {
+  return audit.describeTicketAction(before, after, station);
+});
+
+exports.auditStations = auditTrigger("stations/{stationId}", function (before, after, params) {
+  return audit.describeStationChange(before, after, params.stationId);
+});
+
+exports.auditStaff = auditTrigger("staff/{staffEmail}", function (before, after, params, station, roleName) {
+  return audit.describeStaffChange(before, after, params.staffEmail, roleName);
+});
+
+exports.auditSettings = auditTrigger("settings/{docId}", function (before, after, params, station, roleName) {
+  return audit.describeSettingsChange(params.docId, before, after, roleName);
+});
+
+exports.auditWalkinPasses = auditTrigger("walkinPasses/{passId}", function (before, after, params, station) {
+  return audit.describeWalkinPass(before, after, station);
+});
+
+exports.auditJoinState = auditTrigger("joinState/{uid}", function (before, after) {
+  return audit.describeJoinStateChange(before, after);
 });
