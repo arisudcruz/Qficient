@@ -1,11 +1,12 @@
 // Staff choosing their own password. Every new account starts on DEFAULT_STAFF_PASSWORD (js/admin-settings.js), and
 // a password an admin resets is temporary too: both mark the staff record mustChangePassword. Right after signing in
 // with one, the console asks for a new password (with a Later button; it asks again at the next sign-in). Anyone
-// can also change theirs any time with the key button in the header.
+// can also change theirs any time from the profile menu (Change Password).
 //
 // The change itself is Firebase Authentication's (re-authenticate with the current password, then updatePassword);
 // afterwards the person's own staff record is marked { mustChangePassword: false, passwordChangedAt }, which is all
-// firestore.rules lets them change on it, and which the audit trail logs as "changed their own password".
+// firestore.rules lets them change on it, and which the audit trail logs as "changed their own password". Then they
+// are signed out, to sign in again with the new password.
 
 var passwordFormState = null; // { firstTime, current } while the form is open; `current` only for the first-time form
 
@@ -16,7 +17,7 @@ function openChangePasswordModal(options) {
 
   var currentField = passwordFormState.current ? "" :
     '<div class="modal-field"><label for="ownPwCurrent">Current Password</label>' +
-      '<input type="password" id="ownPwCurrent" class="modal-input" autocomplete="current-password"></div>';
+      passwordFieldHtml('<input type="password" id="ownPwCurrent" class="modal-input" autocomplete="current-password">') + '</div>';
 
   showFormModal(firstTime ? "Set a New Password" : "Change Password",
     '<div class="modal-section">' +
@@ -24,9 +25,10 @@ function openChangePasswordModal(options) {
         '<p class="modal-help own-pw-note">You\'re using a temporary password. Choose your own so only you can sign in to this account.</p>' : '') +
       currentField +
       '<div class="modal-field"><label for="ownPwNew">New Password</label>' +
-        '<input type="password" id="ownPwNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
+        passwordFieldHtml('<input type="password" id="ownPwNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password" oninput="updatePasswordMatch()">') + '</div>' +
       '<div class="modal-field"><label for="ownPwConfirm">Confirm New Password</label>' +
-        '<input type="password" id="ownPwConfirm" class="modal-input" placeholder="Repeat the new password" autocomplete="new-password"></div>' +
+        passwordFieldHtml('<input type="password" id="ownPwConfirm" class="modal-input" placeholder="Repeat the new password" autocomplete="new-password" oninput="updatePasswordMatch()">') +
+        '<p class="pw-match" id="ownPwMatch" aria-live="polite" hidden></p></div>' +
       '<div class="settings-actions modal-actions-end">' +
         '<button type="button" class="settings-btn settings-btn-blue" onclick="closeChangePasswordModal()">' + (firstTime ? 'Later' : 'Cancel') + '</button>' +
         '<button type="button" class="settings-btn settings-btn-primary" id="ownPwSave" onclick="saveOwnPassword()">Save Password</button>' +
@@ -43,6 +45,25 @@ function openChangePasswordModal(options) {
 
   var first = document.getElementById(passwordFormState.current ? "ownPwNew" : "ownPwCurrent");
   if (first) first.focus();
+}
+
+// The line under Confirm New Password: green when both boxes match, red when they don't, nothing while it is empty.
+function updatePasswordMatch() {
+  var line = document.getElementById("ownPwMatch");
+  var next = document.getElementById("ownPwNew");
+  var confirm = document.getElementById("ownPwConfirm");
+  if (!line || !next || !confirm) return;
+
+  if (!confirm.value) {
+    line.hidden = true;
+    line.className = "pw-match";
+    line.textContent = "";
+    return;
+  }
+  var match = confirm.value === next.value;
+  line.hidden = false;
+  line.className = "pw-match " + (match ? "is-match" : "is-mismatch");
+  line.textContent = (match ? "✓ " : "✕ ") + (match ? "Passwords match" : "Passwords do not match");
 }
 
 function closeChangePasswordModal() {
@@ -73,6 +94,25 @@ function ownPasswordMessage(error) {
     default:
       return staffAuthMessage(error);
   }
+}
+
+// After a change, the person signs in again with the new password: signed out once they close the message (or after
+// a few seconds if they don't), through adminLogout (js/admin-auth.js), which also records the sign-out.
+var PASSWORD_CHANGE_SIGNOUT_MS = 8000;
+
+function signOutAfterPasswordChange() {
+  var done = false;
+  function signOut() {
+    if (done) return;
+    done = true;
+    if (typeof Swal !== "undefined" && Swal.isVisible()) Swal.close();
+    if (adminUser) adminLogout();
+  }
+  var timer = setTimeout(signOut, PASSWORD_CHANGE_SIGNOUT_MS);
+  Promise.resolve(sayDone("Password changed. Please sign in again with your new password.")).then(function () {
+    clearTimeout(timer);
+    signOut();
+  });
 }
 
 function saveOwnPassword() {
@@ -109,7 +149,7 @@ function saveOwnPassword() {
   }).then(function () {
     passwordFormState = null;
     closeFormModal();
-    sayDone("Password changed. Use your new password the next time you sign in.");
+    signOutAfterPasswordChange();
   }).catch(function (error) {
     console.error("Change password failed:", error);
     say("Could not change your password: " + ownPasswordMessage(error));

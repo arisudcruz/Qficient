@@ -119,6 +119,10 @@ body[data-page="pageAdminLogin"] .themeToggle { display: none; }
   font-size: 0.88rem;
 }
 
+/* The password box sits in .pw-field (with the eye button); the gap below moves to the wrapper. */
+#pageAdminLogin form .pw-field { margin: 0 0 16px; }
+#pageAdminLogin form .pw-field input { margin: 0; padding-right: 46px; }
+
 #pageAdminLogin form input:focus {
   outline: none;
   border-color: #0054A6;

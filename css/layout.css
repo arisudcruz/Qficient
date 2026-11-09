@@ -1133,6 +1133,48 @@ body.dark .modal-input[readonly] {
   color: #64748B;
 }
 
+/* Password box with an eye button that shows / hides the typed password (js/ui.js) */
+.pw-field {
+  position: relative;
+}
+
+.pw-field input {
+  padding-right: 44px;
+}
+
+.pw-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748B;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.pw-eye:hover { color: #0054A6; background: rgba(0, 84, 166, 0.08); }
+.pw-eye:focus-visible { outline: 2px solid #0054A6; outline-offset: 1px; color: #0054A6; }
+.pw-eye .pw-eye-hide,
+.pw-eye.is-visible .pw-eye-show { display: none; }
+.pw-eye.is-visible .pw-eye-hide { display: block; }
+
+/* "Passwords match" / "Passwords do not match" under Confirm New Password */
+.pw-match {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pw-match.is-match { color: #1F9D55; }
+.pw-match.is-mismatch { color: #D93636; }
+
 .modal-section-title {
   margin: 0 0 8px;
   font-size: 0.9rem;

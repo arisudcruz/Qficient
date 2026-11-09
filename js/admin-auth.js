@@ -301,6 +301,7 @@ function adminLogin(event) {
     .then(function () {
       adminLoginInProgress = false;
       setAdminLoginBusy(false);
+      setPasswordVisible(passwordInput, false); // a password shown with the eye doesn't stay on screen
     });
 }
 
