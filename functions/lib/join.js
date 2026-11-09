@@ -162,6 +162,10 @@ async function joinQueue(deps, auth, data) {
   if (enrolling) {
     if (!studentType) throw new JoinError("failed-precondition", "Please set your student type first (account menu), then start your enrollment.");
     const settings = await db.collection("settings").doc("enrollment").get();
+    // The switch in Enrollment Settings: no new enrollments while it is off.
+    if (settings.exists && settings.data().open === false) {
+      throw new JoinError("failed-precondition", "Enrollment is currently closed.");
+    }
     const flows = settings.exists && settings.data().flows ? settings.data().flows : {};
     const flow = flows[studentType];
     if (!Array.isArray(flow) || !flow.length || flow.length > 20 || !flow.every(function (id) { return typeof id === "string" && id && id.indexOf("/") === -1; })) {

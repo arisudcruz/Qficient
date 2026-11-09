@@ -2740,6 +2740,28 @@ body[data-page="pageAdmin"] .themeToggle { display: none; }
 
 /* ---------- Enrollment Settings ---------- */
 
+/* The Open / Closed switch above the process */
+.enrollment-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  border-left: 4px solid #1F9D55;
+}
+
+.enrollment-switch.is-closed { border-left-color: #D93636; }
+
+.enrollment-switch h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.enrollment-switch .settings-help { margin: 0; }
+.enrollment-switch-state { color: #1F9D55; }
+.enrollment-switch.is-closed .enrollment-switch-state { color: #D93636; }
+.enrollment-switch .switch { flex: 0 0 auto; }
+
 .enrollment-config-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);

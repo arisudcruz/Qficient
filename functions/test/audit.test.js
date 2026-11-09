@@ -99,6 +99,14 @@ test("enrollment process change names the student types", () => {
   const e = audit.describeSettingsChange("enrollment", { flows: { regular: ["cashier"] } }, { flows: { regular: ["cashier", "registrar"], freshman: ["registrar"] } }, roleName);
   assert.ok(/Regular/.test(e.summary) && /Incoming Freshman/.test(e.summary), e.summary);
 });
+test("the enrollment switch is logged as opened / closed", () => {
+  const closed = audit.describeSettingsChange("enrollment", { flows: { regular: ["cashier"] } }, { flows: { regular: ["cashier"] }, open: false }, roleName);
+  assert.strictEqual(closed.action, "enrollmentOpen");
+  assert.strictEqual(closed.summary, "Closed enrollment");
+  const opened = audit.describeSettingsChange("enrollment", { flows: {}, open: false }, { flows: {}, open: true }, roleName);
+  assert.strictEqual(opened.summary, "Opened enrollment");
+  assert.strictEqual(audit.describeSettingsChange("enrollment", { flows: {} }, { flows: {}, open: true }, roleName), null);
+});
 test("role rules change names the role and each switch", () => {
   const e = audit.describeSettingsChange("roleRules", { roles: {} }, { roles: { cashier: { remove: false, recall: true }, enforcer: { walkin: false } } }, roleName);
   assert.strictEqual(e.action, "roleRules");

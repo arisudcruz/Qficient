@@ -78,6 +78,10 @@ async function createManualTicket(deps, auth, data) {
   let enrollmentFlow = null;
   if (enrolling) {
     const settings = await db.collection("settings").doc("enrollment").get();
+    // The switch in Enrollment Settings: no new enrollments while it is off.
+    if (settings.exists && settings.data().open === false) {
+      throw new JoinError("failed-precondition", "Enrollment is currently closed.");
+    }
     const flows = settings.exists && settings.data().flows ? settings.data().flows : {};
     const flow = flows[studentType];
     if (!Array.isArray(flow) || !flow.length || flow.length > 20) {

@@ -184,6 +184,17 @@ async function station(id, extra) {
   r = await attempt(guest("f4"), { enrollment: true, guestName: "Guest Person" });
   check("enrollment: walk-in phones can't enroll on their own", !r.ok && r.code === "permission-denied", JSON.stringify(r));
 
+  // The Open / Closed switch (Enrollment Settings): closed refuses new enrollments; normal joins are unaffected.
+  await db.collection("settings").doc("enrollment").set({ open: false }, { merge: true });
+  await db.collection("students").doc("f7").set({ studentType: "regular" });
+  advance(10000);
+  r = await attempt(student("f7"), { enrollment: true });
+  check("enrollment: closed enrollment is refused", !r.ok && r.code === "failed-precondition" && /currently closed/.test(r.message), JSON.stringify(r));
+  advance(10000);
+  r = await attempt(student("f7"), { stationId: "cashier", purpose: "Pay tuition" });
+  check("enrollment: closed enrollment doesn't stop a normal join", r.ok, JSON.stringify(r));
+  await db.collection("settings").doc("enrollment").set({ open: true }, { merge: true });
+
   await db.collection("settings").doc("enrollment").set({ flows: { regular: ["en-a", "en-b"] } });
   await db.collection("students").doc("f5").set({ studentType: "transferee" });
   advance(10000);

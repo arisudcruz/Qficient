@@ -68,6 +68,14 @@ const form = (over) => Object.assign({ ownerName: "Lola Cruz", stationId: "cashi
 
   r = await attempt(enforcer, form({ enrollment: true, studentType: "regular", studentNumber: "02000-123456" }));
   check("enrollment for a type with no process is refused", !r.ok && r.code === "failed-precondition", JSON.stringify(r));
+
+  // The Open / Closed switch (Enrollment Settings).
+  await db.collection("settings").doc("enrollment").set({ open: false }, { merge: true });
+  r = await attempt(enforcer, form({ enrollment: true, studentType: "freshman" }));
+  check("closed enrollment refuses an enrollment manual ticket", !r.ok && r.code === "failed-precondition" && /currently closed/.test(r.message), JSON.stringify(r));
+  r = await attempt(enforcer, form({ ownerName: "Closed Day" }));
+  check("closed enrollment doesn't stop an ordinary manual ticket", r.ok, JSON.stringify(r));
+  await db.collection("settings").doc("enrollment").set({ open: true }, { merge: true });
   await db.collection("settings").doc("enrollment").set({ flows: { freshman: ["registrar", "cashier"], regular: ["cashier"] } });
   r = await attempt(enforcer, form({ enrollment: true, studentType: "regular" }));
   check("a Regular enrollee needs a student number", !r.ok && r.code === "invalid-argument", JSON.stringify(r));

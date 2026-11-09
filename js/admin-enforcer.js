@@ -13,8 +13,13 @@ function enforcerIsEnrollment() {
   return enforcerDraft.stationId === ENFORCER_ENROLLMENT;
 }
 
+// Left out while enrollment is closed (Enrollment Settings); if it was already chosen it stays, marked closed, so the
+// form says why it can't be used.
 function enforcerEnrollmentOptionHtml() {
   if (!enrollmentStationIds().length) return "";
+  if (!enrollmentOpen()) {
+    return enforcerIsEnrollment() ? '<option value="' + ENFORCER_ENROLLMENT + '" selected disabled>Enrollment (closed)</option>' : '';
+  }
   return '<option value="' + ENFORCER_ENROLLMENT + '"' + (enforcerIsEnrollment() ? ' selected' : '') + '>Enrollment (by student type)</option>';
 }
 
@@ -154,6 +159,7 @@ function enforcerFormProblem() {
   if (!/\p{L}/u.test(d.lastName.trim())) return "Please enter the last name.";
   if (!d.stationId) return "Please select the station.";
   if (d.stationId === ENFORCER_ENROLLMENT) {
+    if (!enrollmentOpen()) return ENROLLMENT_CLOSED_TEXT + " Choose a station instead.";
     if (ENFORCER_TYPES.indexOf(d.studentType) === -1) return "Please select the student type.";
     if (ENROLLMENT_TYPES.indexOf(d.studentType) === -1) return "Enrollment is for Regular, Transferee / Irregular and Incoming Freshman students.";
     if (enforcerNeedsStudentNumber()) {

@@ -158,6 +158,12 @@ function describeSettingsChange(docId, before, after, roleName, stationName) {
   }
 
   if (docId === "enrollment") {
+    // The on/off switch (missing = open).
+    const wasOpen = b.open !== false;
+    const isOpen = a.open !== false;
+    if (wasOpen !== isOpen) {
+      return entry("settings", "enrollmentOpen", isOpen ? "Opened enrollment" : "Closed enrollment");
+    }
     const bf = b.flows || {};
     const af = a.flows || {};
     const types = Object.keys(Object.assign({}, bf, af)).filter(function (t) { return JSON.stringify(bf[t] || []) !== JSON.stringify(af[t] || []); });

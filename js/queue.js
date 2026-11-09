@@ -79,7 +79,14 @@ function isTodayTicket(ticket) {
 // stations it started with.
 var ENROLLMENT_PURPOSE = "Enrollment";
 var ENROLLMENT_TYPES = ["regular", "transferee", "freshman"];
-var enrollmentSettings = { flows: {} }; // settings/enrollment, kept current by js/firebase.js
+var enrollmentSettings = { flows: {}, open: true }; // settings/enrollment, kept current by js/firebase.js
+var ENROLLMENT_CLOSED_TEXT = "Enrollment is currently closed.";
+
+// Whether new enrollments can start (the switch in Enrollment Settings; on unless an admin closed it). Students who
+// are already enrolling carry on either way.
+function enrollmentOpen() {
+  return enrollmentSettings.open !== false;
+}
 
 // The stations a student type goes through, in order, as set now.
 function enrollmentFlowFor(studentType) {
@@ -297,6 +304,10 @@ var joiningQueue = false;
 // Starts the student's enrollment at the first station of their student type's process.
 function joinEnrollment() {
   if (!user) return;
+  if (!enrollmentOpen()) {
+    say(ENROLLMENT_CLOSED_TEXT);
+    return;
+  }
   var flow = enrollmentFlowFor(user.studentType);
   if (!flow.length) {
     say("Enrollment isn't open for your student type yet.");

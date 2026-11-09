@@ -368,6 +368,8 @@ body.dark .lb-preset-stations li em { color: #F2C14E; }
 body.dark .lb-empty { border-color: var(--ad-line-strong); }
 
 body.dark .switch-track { background: var(--ad-line-strong); }
+body.dark .enrollment-switch-state { color: #5FD08E; }
+body.dark .enrollment-switch.is-closed .enrollment-switch-state { color: #FF8A8A; }
 body.dark .stat-dot { opacity: 0.6; }
 
 /* ---------- Enrollment ---------- */

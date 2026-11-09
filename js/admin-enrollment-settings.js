@@ -1,5 +1,6 @@
 // Enrollment Settings (#/admin/enrollmentsettings, admins only): for each student type, the stations an enrolling
-// student goes through, in order. Saved in settings/enrollment as { flows: { regular: [...], transferee: [...], freshman: [...] } }.
+// student goes through, in order. Saved in settings/enrollment as { flows: { regular: [...], transferee: [...], freshman: [...] } },
+// next to `open`, the Open / Closed switch for new enrollments (missing = open).
 // Incoming Freshman is a walk-in type (Queue Enforcer); the other two can also start an enrollment themselves.
 // A student keeps the order that was set when they started, so changes here only affect new enrollments.
 
@@ -84,10 +85,11 @@ function confirmSaveEnrollmentSettings() {
     confirmLabel: "Save Changes",
     tone: "primary",
     onConfirm: function () {
+      // merge: the Open / Closed switch is saved on its own and stays as it is.
       return db.collection("settings").doc("enrollment").set({
         flows: flows,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }).then(function () {
+      }, { merge: true }).then(function () {
         enrollmentFlowDrafts = {};
         sayDone("Enrollment process saved.");
         renderEnrollmentSettings();
@@ -96,6 +98,52 @@ function confirmSaveEnrollmentSettings() {
       });
     }
   });
+}
+
+// The Open / Closed switch: whether new enrollments can start (students, and the Queue Enforcer's walk-in form).
+// Saved right away in settings/enrollment as `open`, apart from the steps; students already enrolling carry on.
+function confirmSetEnrollmentOpen(input) {
+  var open = !!input.checked;
+  input.checked = !open; // only changes once saved (the live settings redraw the page)
+
+  showConfirmModal(open ? {
+    title: "Open enrollment?",
+    message: "Students and the Queue Enforcer can start new enrollments again.",
+    confirmLabel: "Open Enrollment",
+    tone: "primary",
+    onConfirm: function () { return saveEnrollmentOpen(true); }
+  } : {
+    title: "Close enrollment?",
+    message: "Students and the Queue Enforcer can't start new enrollments. Students who are already enrolling continue through their stations.",
+    confirmLabel: "Close Enrollment",
+    tone: "danger",
+    onConfirm: function () { return saveEnrollmentOpen(false); }
+  });
+}
+
+function saveEnrollmentOpen(open) {
+  return db.collection("settings").doc("enrollment").set({
+    open: open,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).then(function () {
+    sayDone(open ? "Enrollment is open." : "Enrollment is closed.");
+  }).catch(function (error) {
+    say("Could not change the enrollment switch: " + error.message);
+  });
+}
+
+function enrollmentSwitchHtml() {
+  var open = enrollmentOpen();
+  return '<section class="panel settings-panel enrollment-switch' + (open ? ' is-open' : ' is-closed') + '">' +
+    '<div class="enrollment-switch-copy">' +
+      '<h2>Enrollment is <span class="enrollment-switch-state">' + (open ? 'Open' : 'Closed') + '</span></h2>' +
+      '<p class="settings-help">' + (open ?
+        'Students and the Queue Enforcer can start new enrollments.' :
+        'No new enrollments can start. Students who are already enrolling continue through their stations.') + '</p>' +
+    '</div>' +
+    '<label class="switch"><input type="checkbox" aria-label="Enrollment open"' + (open ? ' checked' : '') +
+      ' onchange="confirmSetEnrollmentOpen(this)"><span class="switch-track"></span></label>' +
+  '</section>';
 }
 
 function renderEnrollmentSettings() {
@@ -140,6 +188,7 @@ function renderEnrollmentSettings() {
       '<div><h2 class="settings-title">Enrollment Configuration</h2>' +
         '<p class="settings-sub">Set the stations each student type goes through to enroll, in order.</p></div>' +
     '</div>' +
+    enrollmentSwitchHtml() +
     '<section class="panel settings-panel enrollment-config">' +
       '<div class="enrollment-config-grid">' +
         '<div>' +
