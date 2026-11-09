@@ -94,33 +94,8 @@ body[data-page="pageAdminLogin"] .themeToggle { display: none; }
   color: #0054A6;
 }
 
-/* As an Admin / As a Staff */
-.al-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.al-switch button {
-  padding: 11px 10px;
-  border: 1.5px solid transparent;
-  border-radius: 9px;
-  background: #E8EEF6;
-  color: #172033;
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.al-switch button.active {
-  background: #DCEBFF;
-  border-color: #4A7FD0;
-  color: #0054A6;
-}
-
 .al-divider {
-  margin: 22px 0 18px;
+  margin: 0 0 18px;
   border: 0;
   border-top: 1px solid #E2E8F0;
 }
@@ -143,6 +118,10 @@ body[data-page="pageAdminLogin"] .themeToggle { display: none; }
   color: #172033;
   font-size: 0.88rem;
 }
+
+/* The password box sits in .pw-field (with the eye button); the gap below moves to the wrapper. */
+#pageAdminLogin form .pw-field { margin: 0 0 16px; }
+#pageAdminLogin form .pw-field input { margin: 0; padding-right: 46px; }
 
 #pageAdminLogin form input:focus {
   outline: none;
@@ -195,8 +174,6 @@ body.dark .al-back,
 body.dark .al-title,
 body.dark #pageAdminLogin form label { color: #E6EDF8; }
 body.dark .al-sub { color: #7DB4F5; }
-body.dark .al-switch button { background: #1B2C48; color: #C5D2E6; }
-body.dark .al-switch button.active { background: #1D3A66; border-color: #4A7FD0; color: #fff; }
 body.dark .al-divider { border-top-color: #263B5C; }
 body.dark #pageAdminLogin form input { background: #0F1B2E; border-color: #34507A; color: #E6EDF8; }
 body.dark .al-brand img { filter: brightness(0) invert(1); }

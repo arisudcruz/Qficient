@@ -59,11 +59,6 @@ function adminRoleLabel() {
   return adminName ? "Administrator" : "QFicient Admin";
 }
 
-// "Juan Dela Cruz · Cashier Staff"; just the role when the account has no name saved (e.g. the built-in admin).
-function adminDisplayName() {
-  return adminName ? adminName + " · " + adminRoleLabel() : adminRoleLabel();
-}
-
 // Staff of one station only see that station's numbers and notifications. Admins and enforcers see them all.
 function canViewStationData(stationId) {
   return adminKind() !== "station" || stationId === adminRole;
@@ -105,7 +100,7 @@ function startStaffListener() {
     var me = adminUser && staffAccounts.find(function (a) { return a.id === staffKey(adminUser.email); });
     if (me && (me.name || "") !== adminName) {
       adminName = me.name || "";
-      document.querySelectorAll(".admin-header-name").forEach(function (el) { el.textContent = adminDisplayName(); });
+      refreshAdminProfileButtons();
     }
     refreshSettings();
   }, function (error) {
@@ -152,6 +147,7 @@ function resolveAdminAccess(firebaseUser) {
 }
 
 function deactivateAdminSession() {
+  closeProfileMenu();
   if (adminUser) resetAdminPageState();
   adminUser = null;
   adminName = "";
@@ -160,6 +156,7 @@ function deactivateAdminSession() {
   setTicketsScope(1);
   stopStaffListener();
   stopBlockedListener();
+  stopLimitRequestsListener();
   stopServerStatusListener();
   stopNotificationsListener();
 }
@@ -198,6 +195,8 @@ function activateAdminSession(firebaseUser) {
           startBlockedListener();
           startServerStatusListener();
         }
+        // Daily limit requests: admins see the pending ones, station staff their station's (js/admin-limit-requests.js).
+        startLimitRequestsListener();
         applyAdminAccess();
       } else {
         adminDeniedRole = role;
@@ -234,33 +233,8 @@ function adminLoginErrorMessage(code) {
   }
 }
 
-// "As an Admin" lets only administrators in; "As a Staff" lets in the Queue Enforcer and Queue Management staff.
-var adminLoginMode = "admin";
+// One form for administrators and staff alike: the account's role decides what the console shows.
 var adminLoginInProgress = false; // the sign-in form decides where to go, not the background auth listener
-
-function setAdminLoginMode(mode) {
-  adminLoginMode = mode === "staff" ? "staff" : "admin";
-  var isAdmin = adminLoginMode === "admin";
-
-  var adminTab = document.getElementById("adminModeAdmin");
-  var staffTab = document.getElementById("adminModeStaff");
-  adminTab.classList.toggle("active", isAdmin);
-  staffTab.classList.toggle("active", !isAdmin);
-  adminTab.setAttribute("aria-selected", isAdmin ? "true" : "false");
-  staffTab.setAttribute("aria-selected", isAdmin ? "false" : "true");
-
-  document.getElementById("adminLoginSub").textContent = isAdmin ?
-    "Sign in with your administrator account to continue." :
-    "Sign in with your staff account to continue.";
-  document.getElementById("adminEmail").placeholder = isAdmin ? "admin" : "juan.cruz";
-  setAdminLoginError("");
-}
-
-// Whether the signed-in role fits the tab that was chosen.
-function adminRoleFitsMode(mode) {
-  var kind = adminKind();
-  return mode === "admin" ? kind === "admin" : (kind === "enforcer" || kind === "station");
-}
 
 function setAdminLoginError(text) {
   var el = document.getElementById("adminLoginError");
@@ -298,21 +272,11 @@ function adminLogin(event) {
   adminLoginInProgress = true;
 
   var signedIn = false;
-  var mode = adminLoginMode;
 
   firebase.auth().signInWithEmailAndPassword(email, passwordInput.value)
     .then(function (credential) {
       signedIn = true;
       return activateAdminSession(credential.user).then(function (allowed) {
-        if (allowed && !adminRoleFitsMode(mode)) {
-          passwordInput.value = "";
-          setAdminLoginError(mode === "admin" ?
-            "This is a staff account. Choose \"As a Staff\" to sign in." :
-            "This is an administrator account. Choose \"As an Admin\" to sign in.");
-          deactivateAdminSession();
-          return firebase.auth().signOut();
-        }
-
         if (allowed) {
           var typedPassword = passwordInput.value;
           document.getElementById("adminLoginForm").reset();
@@ -340,6 +304,7 @@ function adminLogin(event) {
     .then(function () {
       adminLoginInProgress = false;
       setAdminLoginBusy(false);
+      setPasswordVisible(passwordInput, false); // a password shown with the eye doesn't stay on screen
     });
 }
 

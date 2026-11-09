@@ -79,7 +79,14 @@ function isTodayTicket(ticket) {
 // stations it started with.
 var ENROLLMENT_PURPOSE = "Enrollment";
 var ENROLLMENT_TYPES = ["regular", "transferee", "freshman"];
-var enrollmentSettings = { flows: {} }; // settings/enrollment, kept current by js/firebase.js
+var enrollmentSettings = { flows: {}, open: true }; // settings/enrollment, kept current by js/firebase.js
+var ENROLLMENT_CLOSED_TEXT = "Enrollment is currently closed.";
+
+// Whether new enrollments can start (the switch in Enrollment Settings; on unless an admin closed it). Students who
+// are already enrolling carry on either way.
+function enrollmentOpen() {
+  return enrollmentSettings.open !== false;
+}
 
 // The stations a student type goes through, in order, as set now.
 function enrollmentFlowFor(studentType) {
@@ -173,6 +180,18 @@ function setMyWindow(stationId, windowNo) {
 // The ticket at this staff member's window of a station.
 function myServingTicket(stationId) {
   return servingTicketAt(stations.find(function (s) { return s.id === stationId; }), myWindow(stationId));
+}
+
+// A station's daily cap on a day ("YYYY-MM-DD"): a limit approved for that date (staff request, dayLimits) wins over
+// its normal maxQueue; 0 = no limit. The server checks the same (stationLimitFor in functions/lib/join.js).
+function stationLimitFor(station, day) {
+  var dayLimit = station && station.dayLimits && day ? Number(station.dayLimits[day]) || 0 : 0;
+  if (dayLimit > 0) return dayLimit;
+  return Number(station && station.maxQueue) || 0;
+}
+
+function stationLimitToday(station) {
+  return stationLimitFor(station, queueDayKey(Date.now()));
 }
 
 function countStationTicketsToday(stationId) {
@@ -297,6 +316,10 @@ var joiningQueue = false;
 // Starts the student's enrollment at the first station of their student type's process.
 function joinEnrollment() {
   if (!user) return;
+  if (!enrollmentOpen()) {
+    say(ENROLLMENT_CLOSED_TEXT);
+    return;
+  }
   var flow = enrollmentFlowFor(user.studentType);
   if (!flow.length) {
     say("Enrollment isn't open for your student type yet.");
@@ -331,7 +354,7 @@ function joinQueue(stationId, purpose, options) {
     say("This station is currently unavailable.");
     return;
   }
-  if (station && station.maxQueue > 0 && countStationTicketsToday(stationId) >= station.maxQueue) {
+  if (station && stationLimitToday(station) > 0 && countStationTicketsToday(stationId) >= stationLimitToday(station)) {
     say("This station has reached its daily queue limit. Please try again tomorrow.");
     return;
   }
@@ -675,7 +698,7 @@ function transferServingTicket(sourceStationId, destStationId, purpose, priority
     say("That station is currently unavailable.");
     return Promise.resolve(null);
   }
-  if (destStation.maxQueue > 0 && countStationTicketsToday(destStationId) >= destStation.maxQueue) {
+  if (stationLimitToday(destStation) > 0 && countStationTicketsToday(destStationId) >= stationLimitToday(destStation)) {
     say("That station has reached its daily queue limit.");
     return Promise.resolve(null);
   }

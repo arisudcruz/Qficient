@@ -457,6 +457,10 @@ function openEnrollment() {
     say("Enrollment is for students. Please sign in with your school account.");
     return;
   }
+  if (!enrollmentOpen()) {
+    say(ENROLLMENT_CLOSED_TEXT);
+    return;
+  }
   if (!user.studentType) {
     promptStudentType(false);
     return;
@@ -716,8 +720,10 @@ function enrollmentCardHtml(cooldownMs, ticket) {
   var latest = today.filter(function (t) { return t.status === "serving"; })
     .sort(function (a, b) { return timestampToMs(b.servingAt, 0) - timestampToMs(a.servingAt, 0); })[0];
 
-  var typeReady = !!user.studentType && enrollmentFlowFor(user.studentType).length > 0;
-  var note = !user.studentType ? "Set your student type to start." :
+  var open = enrollmentOpen();
+  var typeReady = open && !!user.studentType && enrollmentFlowFor(user.studentType).length > 0;
+  var note = !open ? ENROLLMENT_CLOSED_TEXT :
+    !user.studentType ? "Set your student type to start." :
     !typeReady ? "Not open for " + (STUDENT_TYPE_LABELS[user.studentType] || "your") + " students yet." : "";
 
   return '<div class="ud-enroll-card">' +
@@ -728,7 +734,7 @@ function enrollmentCardHtml(cooldownMs, ticket) {
         '<p class="ud-serving">Now serving ' + escapeHtml(latest ? latest.ticketNo : "—") + '</p>' +
         (note ? '<p class="ud-enroll-note">' + escapeHtml(note) + '</p>' : '') +
       '</div>' +
-      '<button type="button" class="ud-join" onclick="openEnrollment()"' + (cooldownMs > 0 || ticket || studentBlockedUntilMs() || (user.studentType && !typeReady) ? ' disabled' : '') + '>Queue</button>' +
+      '<button type="button" class="ud-join" onclick="openEnrollment()"' + (cooldownMs > 0 || ticket || studentBlockedUntilMs() || !open || (user.studentType && !typeReady) ? ' disabled' : '') + '>Queue</button>' +
     '</div>';
 }
 
@@ -822,7 +828,8 @@ function renderEnrollmentCard(ticket) {
   var flow = ticket ? ticketEnrollmentFlow(ticket) : enrollmentFlowFor(user.studentType);
   var current = ticket ? (Number(ticket.enrollmentStep) || 0) : -1;
   var names = flow.map(function (id) { return stationNameById(id) || "Removed station"; });
-  var key = ["enroll", ticket ? ticket.id : "new", current, ticket ? ticket.status : "", names.join("|")].join("::");
+  var open = enrollmentOpen();
+  var key = ["enroll", ticket ? ticket.id : "new", current, ticket ? ticket.status : "", names.join("|"), open].join("::");
   if (key === lastJoinCardKey && card.innerHTML) return;
   lastJoinCardKey = key;
 
@@ -837,7 +844,8 @@ function renderEnrollmentCard(ticket) {
     '<p class="ud-join-text">As a ' + escapeHtml(STUDENT_TYPE_LABELS[user.studentType] || "student") + ' student you go to these stations in order. Each one sends you on to the next.</p>' +
     '<ol class="ud-steps" aria-label="Enrollment steps">' + steps + '</ol>' +
     '<div class="ud-join-row">' +
-      (flow.length ?
+      (!open ? '<p class="ud-notice">' + ENROLLMENT_CLOSED_TEXT + '</p>' :
+        flow.length ?
         '<button type="button" class="ud-generate ud-generate-wide" onclick="startEnrollment()">Start Enrollment</button>' :
         '<p class="ud-notice">Enrollment isn\'t open for your student type yet.</p>') +
     '</div>';

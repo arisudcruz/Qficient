@@ -131,6 +131,29 @@ async function station(id, extra) {
   const r3 = await attempt(student("c3"), { stationId: "small", purpose: "Three" });
   check("the daily queue cap counts live tickets only", r.ok && r2.ok && !r3.ok && r3.code === "resource-exhausted" && /limit/.test(r3.message), JSON.stringify([r, r2, r3]));
 
+  // A limit approved for one date (a staff request, saved in dayLimits) wins over the normal limit on that date only.
+  const todayKey = require("../lib/time").dayKey(config.tzOffsetMs, clock);
+  await station("dated", { name: "Dated", maxQueue: 5, dayLimits: { [todayKey]: 1, "2000-01-01": 99 } });
+  advance(10000);
+  const d1 = await attempt(student("lim1"), { stationId: "dated", purpose: "One" });
+  advance(10000);
+  const d2 = await attempt(student("lim2"), { stationId: "dated", purpose: "Two" });
+  check("a limit approved for today wins over the station's normal limit", d1.ok && !d2.ok && d2.code === "resource-exhausted", JSON.stringify([d1, d2]));
+  await station("dated2", { name: "Dated Two", maxQueue: 1, dayLimits: { "2000-01-01": 1, [require("../lib/time").dayKey(config.tzOffsetMs, clock + 86400000)]: 9 } });
+  advance(10000);
+  const d3 = await attempt(student("lim3"), { stationId: "dated2", purpose: "One" });
+  advance(10000);
+  const d4 = await attempt(student("lim4"), { stationId: "dated2", purpose: "Two" });
+  check("limits for other dates don't apply today: the normal limit does", d3.ok && !d4.ok && d4.code === "resource-exhausted", JSON.stringify([d3, d4]));
+  await station("dated3", { name: "Dated Three", dayLimits: { [todayKey]: 2 } });
+  advance(10000);
+  const d5 = await attempt(student("lim5"), { stationId: "dated3", purpose: "One" });
+  advance(10000);
+  const d6 = await attempt(student("lim6"), { stationId: "dated3", purpose: "Two" });
+  advance(10000);
+  const d7 = await attempt(student("lim7"), { stationId: "dated3", purpose: "Three" });
+  check("a date limit also caps a station that normally has no limit", d5.ok && d6.ok && !d7.ok && d7.code === "resource-exhausted", JSON.stringify([d5, d6, d7]));
+
   // Ticket numbers restart each day.
   await station("daily", { name: "Daily", count: 41, countDay: "2000-01-01" });
   r = await attempt(student("d1"), { stationId: "daily", purpose: "New day" });
@@ -183,6 +206,17 @@ async function station(id, extra) {
   advance(10000);
   r = await attempt(guest("f4"), { enrollment: true, guestName: "Guest Person" });
   check("enrollment: walk-in phones can't enroll on their own", !r.ok && r.code === "permission-denied", JSON.stringify(r));
+
+  // The Open / Closed switch (Enrollment Settings): closed refuses new enrollments; normal joins are unaffected.
+  await db.collection("settings").doc("enrollment").set({ open: false }, { merge: true });
+  await db.collection("students").doc("f7").set({ studentType: "regular" });
+  advance(10000);
+  r = await attempt(student("f7"), { enrollment: true });
+  check("enrollment: closed enrollment is refused", !r.ok && r.code === "failed-precondition" && /currently closed/.test(r.message), JSON.stringify(r));
+  advance(10000);
+  r = await attempt(student("f7"), { stationId: "cashier", purpose: "Pay tuition" });
+  check("enrollment: closed enrollment doesn't stop a normal join", r.ok, JSON.stringify(r));
+  await db.collection("settings").doc("enrollment").set({ open: true }, { merge: true });
 
   await db.collection("settings").doc("enrollment").set({ flows: { regular: ["en-a", "en-b"] } });
   await db.collection("students").doc("f5").set({ studentType: "transferee" });

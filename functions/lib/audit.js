@@ -92,6 +92,13 @@ function describeStationChange(before, after, id) {
   if (JSON.stringify(before.purposes || null) !== JSON.stringify(after.purposes || null)) changes.push("purposes set to " + listText(after.purposes));
   if ((before.maxQueue || null) !== (after.maxQueue || null)) changes.push("daily limit " + (after.maxQueue > 0 ? "set to " + after.maxQueue : "removed"));
   if ((Number(before.windows) || 1) !== (Number(after.windows) || 1)) changes.push("windows " + (Number(before.windows) || 1) + " → " + (Number(after.windows) || 1));
+  // Limits for one date (dayLimits) come from approved staff requests, which are logged with the request
+  // (describeLimitRequest). Only an admin removing one by hand (nothing added in the same change) is logged here.
+  const bd = before.dayLimits || {};
+  const ad = after.dayLimits || {};
+  const addedOrChanged = Object.keys(ad).some(function (d) { return bd[d] !== ad[d]; });
+  const removed = Object.keys(bd).filter(function (d) { return !(d in ad); }).sort();
+  if (!addedOrChanged && removed.length) changes.push("removed the daily limit for " + removed.map(dayLabel).join(", "));
   if (!changes.length) return null;
 
   return entry("station", "stationEdit", "Station " + name + ": " + changes.join("; "), { stationId: id, targetId: name });
@@ -158,6 +165,12 @@ function describeSettingsChange(docId, before, after, roleName, stationName) {
   }
 
   if (docId === "enrollment") {
+    // The on/off switch (missing = open).
+    const wasOpen = b.open !== false;
+    const isOpen = a.open !== false;
+    if (wasOpen !== isOpen) {
+      return entry("settings", "enrollmentOpen", isOpen ? "Opened enrollment" : "Closed enrollment");
+    }
     const bf = b.flows || {};
     const af = a.flows || {};
     const types = Object.keys(Object.assign({}, bf, af)).filter(function (t) { return JSON.stringify(bf[t] || []) !== JSON.stringify(af[t] || []); });
@@ -199,6 +212,33 @@ function describeJoinStateChange(before, after) {
   const wasBlocked = toMs(before.blockedUntil) > 0;
   if (wasBlocked && !after.blockedUntil && after.unblockedBy) {
     return entry("staff", "unblock", "Lifted the queue block on " + (before.ownerName || "a student") + (before.studentNumber ? " (" + before.studentNumber + ")" : ""), { targetId: before.studentNumber || "" });
+  }
+  return null;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2026-11-12" -> "Nov 12, 2026".
+function dayLabel(day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ""));
+  return m ? MONTHS[Number(m[2]) - 1] + " " + Number(m[3]) + ", " + m[1] : String(day || "");
+}
+
+// Staff asking for a daily limit on one date, and an admin approving or rejecting it (limitRequests).
+// `station(id)` gives { name }.
+function describeLimitRequest(before, after, station) {
+  const r = after || before;
+  if (!r) return null;
+  const what = "daily limit of " + r.limit + " for " + station(r.stationId).name + " on " + dayLabel(r.day);
+  const extra = { stationId: r.stationId, targetId: dayLabel(r.day) };
+
+  if (!before && after) return entry("station", "limitRequest", "Requested a " + what + (after.reason ? " (" + after.reason + ")" : ""), extra);
+  if (before && !after) {
+    return before.status === "pending" ? entry("station", "limitRequestCancel", "Cancelled their request for a " + what, extra) : null;
+  }
+  if (before.status === "pending" && after.status === "approved") return entry("station", "limitApprove", "Approved the " + what, extra);
+  if (before.status === "pending" && after.status === "rejected") {
+    return entry("station", "limitReject", "Rejected the request for a " + what + (after.decisionNote ? " (" + after.decisionNote + ")" : ""), extra);
   }
   return null;
 }
@@ -261,5 +301,5 @@ async function writeAudit(deps, actor, item) {
 
 module.exports = {
   describeTicketAction, describeStationChange, describeStaffChange, describeSettingsChange,
-  describeWalkinPass, describeJoinStateChange, roleLabel, actorOf, writeAudit, ROLE_RULE_NAMES
+  describeWalkinPass, describeJoinStateChange, describeLimitRequest, dayLabel, roleLabel, actorOf, writeAudit, ROLE_RULE_NAMES
 };

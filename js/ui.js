@@ -28,6 +28,38 @@ function setButtonLoading(button, loading) {
   else button.removeAttribute("aria-busy");
 }
 
+/* ---------- Password fields: an eye button that shows or hides what was typed ---------- */
+
+var PW_EYE_SVG = '<svg class="pw-eye-show" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>' +
+  '<svg class="pw-eye-hide" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.2A10.4 10.4 0 0 1 12 4c6.4 0 10 8 10 8a17.6 17.6 0 0 1-2.2 3.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 8 10 8a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>';
+
+// Wraps an <input type="password"> (as HTML) with the eye button.
+function passwordFieldHtml(inputHtml) {
+  return '<div class="pw-field">' + inputHtml +
+    '<button type="button" class="pw-eye" aria-label="Show password" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility(this)">' +
+      PW_EYE_SVG + '</button></div>';
+}
+
+function togglePasswordVisibility(button) {
+  var input = button && button.parentNode.querySelector("input");
+  if (!input) return;
+  setPasswordVisible(input, input.type === "password");
+  input.focus();
+  var end = input.value.length;
+  try { input.setSelectionRange(end, end); } catch (e) {}
+}
+
+function setPasswordVisible(input, visible) {
+  input.type = visible ? "text" : "password";
+  var button = input.parentNode.querySelector(".pw-eye");
+  if (!button) return;
+  var label = visible ? "Hide password" : "Show password";
+  button.classList.toggle("is-visible", visible);
+  button.setAttribute("aria-pressed", visible ? "true" : "false");
+  button.setAttribute("aria-label", label);
+  button.title = label;
+}
+
 // Swings a notification bell once ("something new arrived"). Can be played again as soon as it has finished.
 function ringBell(bell) {
   if (!bell) return;

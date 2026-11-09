@@ -8,7 +8,9 @@ var viewFiles = [
 
 var appScripts = [
   "js/ui.js",
+  "js/table-scroll.js",
   "js/notif-dropdown.js",
+  "js/admin-profile-menu.js",
   "js/navigation.js",
   "js/auth.js",
   "js/walkin.js",
@@ -23,6 +25,7 @@ var appScripts = [
   "js/admin-enrollment-settings.js",
   "js/admin-settings.js",
   "js/admin-password.js",
+  "js/admin-limit-requests.js",
   "js/admin-enforcer.js",
   "js/admin-notifications.js",
   "js/admin-rules.js",

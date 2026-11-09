@@ -55,7 +55,7 @@ db.collection("settings").doc("liveBoard").onSnapshot(function (doc) {
 // The enrollment process for each student type (Enrollment Settings).
 db.collection("settings").doc("enrollment").onSnapshot(function (doc) {
   var flows = doc.exists && doc.data().flows ? doc.data().flows : {};
-  enrollmentSettings = { flows: flows };
+  enrollmentSettings = { flows: flows, open: !(doc.exists && doc.data().open === false) };
   updateDashboard();
   renderQueueManagement();
   renderEnrollmentSettings();

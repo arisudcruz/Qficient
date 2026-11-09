@@ -1,6 +1,6 @@
 // Audit Trail: what admins and staff did. The entries are written by the server (functions/lib/audit.js) from the
 // account that made each change, so they can't be skipped or faked; this page only reads them. Admins see everyone;
-// the Queue Enforcer and station staff see only their own ("My Activity"). Sign-in and sign-out are the only entries
+// the Queue Enforcer and station staff see only their own ("Activity History", opened from the profile menu). Sign-in and sign-out are the only entries
 // the browser writes (logAccountEvent), and firestore.rules only lets it write them for the person signed in.
 
 var AUDIT_PAGE_SIZE = 200;
@@ -20,7 +20,8 @@ var AUDIT_ACTION_LABELS = {
   transfer: "Transferred", walkinPass: "Walk-in QR", manualTicket: "Manual Ticket", stationCreate: "Station Added", stationEdit: "Station Edited",
   stationDelete: "Station Deleted", staffAdd: "Staff Added", staffRole: "Role Changed", staffEdit: "Staff Edited",
   staffRemove: "Staff Removed", passwordReset: "Password Reset", passwordChange: "Password Changed", unblock: "Block Lifted", settingsTimeout: "Timeout Changed",
-  enrollmentFlow: "Enrollment Process", roleRules: "Role Rules", liveBoard: "Live Board Preset", signIn: "Signed In", signOut: "Signed Out"
+  enrollmentFlow: "Enrollment Process", enrollmentOpen: "Enrollment On/Off", roleRules: "Role Rules",
+  limitRequest: "Limit Request", limitRequestCancel: "Limit Request Cancelled", limitApprove: "Limit Approved", limitReject: "Limit Rejected", liveBoard: "Live Board Preset", signIn: "Signed In", signOut: "Signed Out"
 };
 
 var auditState = null;
@@ -144,7 +145,7 @@ function renderAudit() {
 
   var s = auditState;
   var admin = auditIsAdmin();
-  var title = admin ? "Audit Trail" : "My Activity";
+  var title = admin ? "Audit Trail" : "Activity History";
   var visible = auditVisibleItems();
 
   var staffOptions = '<option value="">All Staff</option>' + auditStaffChoices().map(function (choice) {

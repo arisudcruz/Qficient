@@ -9,8 +9,6 @@ var ROLE_RULE_GROUPS = [
   {
     title: "Pages",
     rules: [
-      { key: "page.dashboard", name: "Dashboard", roles: ["enforcer", "station"],
-        desc: "Open the Dashboard with the day's queue figures and charts." },
       { key: "page.notifications", name: "Notifications", roles: ["enforcer", "station"],
         desc: "Open the Notifications page and the bell in the header." },
       { key: "page.liveboard", name: "Live Board", roles: ["enforcer", "station"],
@@ -52,13 +50,11 @@ var ROLE_ALWAYS_ALLOWED = {
     ["Call Tickets", "Call Next, and call a ticket out of order (Call now)."],
     ["End Transaction", "Mark the ticket being served as completed."],
     ["Enrollment Hand-off", "Send an enrollee on to the next station of their process."],
-    ["System Rules", "Read the System Rules (only an administrator changes them)."],
-    ["My Activity", "See their own entries in the audit trail."]
+    ["Activity History", "See their own entries in the audit trail (from the profile menu)."]
   ],
   enforcer: [
     ["Queue Enforcer", "Open the Queue Enforcer page and its Queue List."],
-    ["System Rules", "Read the System Rules (only an administrator changes them)."],
-    ["My Activity", "See their own entries in the audit trail."]
+    ["Activity History", "See their own entries in the audit trail (from the profile menu)."]
   ]
 };
 

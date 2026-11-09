@@ -68,14 +68,30 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
 
   // "Now serving" pointers at a voided ticket are cleared. The old separate enrollment line's pointer
   // (enrollmentServingId) is removed: enrollment tickets now share each station's one line.
+  // Limits approved for one date (dayLimits) are dropped once that date has passed.
   const staleIds = new Set(stale.map(function (doc) { return doc.id; }));
+  const today = dayKey(config.tzOffsetMs, nowMs);
   const stations = await db.collection("stations").get();
   await Promise.all(stations.docs.map(function (doc) {
     const fix = {};
     if (staleIds.has(doc.data().nowServingId)) fix.nowServingId = null;
     if ("enrollmentServingId" in doc.data()) fix.enrollmentServingId = FieldValue.delete();
+    const dayLimits = doc.data().dayLimits;
+    if (dayLimits && typeof dayLimits === "object") {
+      Object.keys(dayLimits).filter(function (day) { return day < today; }).forEach(function (day) {
+        fix["dayLimits." + day] = FieldValue.delete();
+      });
+    }
     return Object.keys(fix).length ? doc.ref.update(fix) : null;
   }));
+
+  // Daily limit requests are kept for 30 days after their date.
+  const oldRequests = await db.collection("limitRequests").where("day", "<", dayKey(config.tzOffsetMs, nowMs - 30 * DAY_MS)).get();
+  for (let i = 0; i < oldRequests.docs.length; i += 400) {
+    const batch = db.batch();
+    oldRequests.docs.slice(i, i + 400).forEach(function (doc) { batch.delete(doc.ref); });
+    await batch.commit();
+  }
 
   // Device registrations that haven't been refreshed in a month belong to guests who never came back
   // or browsers that were uninstalled. (An active student's page re-saves theirs on every visit.)

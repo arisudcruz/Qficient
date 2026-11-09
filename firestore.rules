@@ -111,21 +111,65 @@ service cloud.firestore {
         (isStationStaff() && (isCounterBump() || isDailyCounterReset()));
     }
 
+    // ---------- Daily limit requests ----------
+    // Station staff ask for a daily limit on one date for their own station; an admin approves (which also saves
+    // stations/{id}.dayLimits[day], an admin-only write) or rejects it. The requester may cancel while it is pending.
+
+    function myRole() {
+      return get(staffPath()).data.role;
+    }
+
+    function isNewLimitRequest() {
+      let d = request.resource.data;
+      return isStationStaff() &&
+        d.keys().hasOnly(['stationId', 'day', 'limit', 'reason', 'status', 'requestedBy', 'requestedByName', 'createdAt']) &&
+        d.keys().hasAll(['stationId', 'day', 'limit', 'status', 'requestedBy', 'createdAt']) &&
+        d.stationId == myRole() &&
+        d.status == 'pending' &&
+        d.limit is int && d.limit >= 1 && d.limit <= 9999 &&
+        d.day is string && d.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && d.day >= today() &&
+        (!('reason' in d) || (d.reason is string && d.reason.size() <= 200)) &&
+        (!('requestedByName' in d) || (d.requestedByName is string && d.requestedByName.size() <= 120)) &&
+        d.requestedBy == userEmail() &&
+        d.createdAt == request.time;
+    }
+
+    function isLimitDecision() {
+      let d = request.resource.data;
+      return isAdmin() &&
+        resource.data.status == 'pending' &&
+        changedKeys().hasOnly(['status', 'decidedBy', 'decidedAt', 'decisionNote']) &&
+        d.status in ['approved', 'rejected'] &&
+        d.decidedBy == userEmail() &&
+        d.decidedAt == request.time &&
+        (!('decisionNote' in d) || (d.decisionNote is string && d.decisionNote.size() <= 200));
+    }
+
+    match /limitRequests/{requestId} {
+      allow read: if isAdmin() || (isStationStaff() && resource.data.stationId == myRole());
+      allow create: if isNewLimitRequest();
+      allow update: if isLimitDecision();
+      allow delete: if isStationStaff() && resource.data.requestedBy == userEmail() && resource.data.status == 'pending';
+    }
+
     // ---------- System settings ----------
 
-    // settings/enrollment: the stations each student type goes through to enroll, in order.
+    // settings/enrollment: the stations each student type goes through to enroll, in order, and `open`, the switch
+    // that lets new enrollments start (missing = open).
     function isEnrollmentFlow(flows, type) {
       return !(type in flows) || (flows[type] is list && flows[type].size() <= 20);
     }
 
     function isEnrollmentConfig(d) {
-      return d.keys().hasOnly(['flows', 'updatedAt']) &&
+      return d.keys().hasOnly(['flows', 'open', 'updatedAt']) &&
         d.updatedAt == request.time &&
-        d.flows is map &&
-        d.flows.keys().hasOnly(['regular', 'transferee', 'freshman']) &&
-        isEnrollmentFlow(d.flows, 'regular') &&
-        isEnrollmentFlow(d.flows, 'transferee') &&
-        isEnrollmentFlow(d.flows, 'freshman');
+        (!('open' in d) || d.open is bool) &&
+        // Turning the switch before any steps were saved writes `open` alone.
+        (!('flows' in d) || d.flows is map) &&
+        d.get('flows', {}).keys().hasOnly(['regular', 'transferee', 'freshman']) &&
+        isEnrollmentFlow(d.get('flows', {}), 'regular') &&
+        isEnrollmentFlow(d.get('flows', {}), 'transferee') &&
+        isEnrollmentFlow(d.get('flows', {}), 'freshman');
     }
 
     // settings/roleRules: what each role may do (System Rules > Role Rules), as
@@ -458,6 +502,8 @@ service cloud.firestore {
         d.purpose == 'Enrollment' &&
         d.studentType in ['regular', 'transferee', 'freshman'] &&
         d.enrollmentFlow is list && d.enrollmentFlow.size() > 0 &&
+        // Enrollment must be open (the switch in Enrollment Settings).
+        get(/databases/$(database)/documents/settings/enrollment).data.get('open', true) == true &&
         d.enrollmentFlow == get(/databases/$(database)/documents/settings/enrollment).data.flows[d.studentType] &&
         d.stationId == d.enrollmentFlow[0];
     }

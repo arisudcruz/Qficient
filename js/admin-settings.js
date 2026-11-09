@@ -43,10 +43,11 @@ function getListedRoles() {
 
 function computeSettingsSignature() {
   return JSON.stringify([
-    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s)]; }),
+    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s), s.dayLimits || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
-    blockedStudents.map(function (b) { return [b.id, b.untilMs]; })
+    blockedStudents.map(function (b) { return [b.id, b.untilMs]; }),
+    limitRequestsSignature()
   ]);
 }
 
@@ -384,6 +385,7 @@ function openEditStationModal(stationId) {
         '<input type="number" id="editStationMax" class="modal-input" min="1" step="1" placeholder="No limit" value="' + (station.maxQueue > 0 ? station.maxQueue : '') + '">' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStationMax(\'' + id + '\')">Save Changes</button>' +
       '</div>' +
+      stationDayLimitsEditHtml(station) +
     '</div>' +
     '<hr class="modal-divider">' +
     '<div class="modal-section">' +
@@ -941,14 +943,18 @@ function openEditStaffModal(email) {
   var parts = staffNameParts(account);
   var username = usernameOfEmail(account.email);
 
-  var passwordHtml = username ?
+  // One button puts the password back to the default; the person then chooses their own at sign-in. Not for your
+  // own account (or the built-in admin): that is changed from the profile menu instead.
+  var passwordHtml = !username ?
+    '<p class="rules-off-note">This account was made with an email, which can no longer sign in. Add the person again with a username, then delete this account.</p>' :
+    isProtectedAccount(account.email) ?
+    '<h3 class="modal-section-title">Password</h3>' +
+    '<p class="modal-help">Change your own password from the profile menu (Change Password) at the top right.</p>' :
     '<h3 class="modal-section-title">Reset Password</h3>' +
-    '<p class="modal-help">Set a new password if they forgot theirs (for example ' + escapeAdminText(DEFAULT_STAFF_PASSWORD) + '). They\'ll be asked to change it at their next sign-in. Leave both boxes empty to keep the current one.</p>' +
-    '<div class="modal-field"><label for="editStaffNew">New Password</label>' +
-      '<input type="password" id="editStaffNew" class="modal-input" placeholder="At least ' + STAFF_PASSWORD_MIN + ' characters" autocomplete="new-password"></div>' +
-    '<div class="modal-field"><label for="editStaffConfirm">Confirm New Password</label>' +
-      '<input type="password" id="editStaffConfirm" class="modal-input" autocomplete="new-password"></div>' :
-    '<p class="rules-off-note">This account was made with an email, which can no longer sign in. Add the person again with a username, then delete this account.</p>';
+    '<p class="modal-help">Forgot their password? Reset it to <b>' + escapeAdminText(DEFAULT_STAFF_PASSWORD) + '</b>. They\'ll be asked to choose their own at their next sign-in.</p>' +
+    (account.mustChangePassword === true ? '<p class="modal-help staff-reset-note">Currently on a temporary password.</p>' : '') +
+    '<div class="modal-field"><button type="button" class="settings-btn settings-btn-blue staff-reset-btn" onclick="confirmResetStaffPassword(\'' + id + '\')">' +
+      'Reset to ' + escapeAdminText(DEFAULT_STAFF_PASSWORD) + '</button></div>';
 
   showFormModal("Edit Staff Information",
     '<div class="modal-section">' +
@@ -972,23 +978,46 @@ function resetStaffPassword(username, password) {
   return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("resetStaffPassword")({ username: username, password: password });
 }
 
+// "Reset to staff123" in Edit Staff: asks first, then resets right away (the Edit dialog stays open underneath).
+function confirmResetStaffPassword(email) {
+  var account = staffAccounts.find(function (item) { return item.id === email; });
+  var username = account && usernameOfEmail(account.email);
+  if (!username || isProtectedAccount(account.email)) return;
+
+  showConfirmModal({
+    title: "Reset this password?",
+    message: staffDisplayName(account) + " (" + username + ") will sign in with " + DEFAULT_STAFF_PASSWORD +
+      " and be asked to choose a new password.",
+    confirmLabel: "Reset",
+    onConfirm: function () {
+      return resetStaffPassword(username, DEFAULT_STAFF_PASSWORD).then(function () {
+        var note = document.querySelector("#formModal .staff-reset-note");
+        if (!note) {
+          var button = document.querySelector("#formModal .staff-reset-btn");
+          if (button) button.closest(".modal-field").insertAdjacentHTML("beforebegin", '<p class="modal-help staff-reset-note"></p>');
+          note = document.querySelector("#formModal .staff-reset-note");
+        }
+        if (note) note.textContent = "Reset to " + DEFAULT_STAFF_PASSWORD + " just now.";
+        sayDone("Password reset. " + staffDisplayName(account) + " can sign in with " + DEFAULT_STAFF_PASSWORD +
+          " and will be asked to choose their own.");
+      }).catch(function (error) {
+        console.error("Reset password failed:", error);
+        say("Could not reset the password: " + staffAuthMessage(error));
+      });
+    }
+  });
+}
+
 function saveStaffEdit(email) {
   if (staffFormBusy) return;
 
   var account = staffAccounts.find(function (item) { return item.id === email; });
   if (!account) return;
 
-  var username = usernameOfEmail(account.email);
   var firstName = cleanPersonName(document.getElementById("editStaffFirst").value);
   var lastName = cleanPersonName(document.getElementById("editStaffLast").value);
-  var nextInput = document.getElementById("editStaffNew");
-  var next = nextInput ? nextInput.value : "";
-  var confirm = nextInput ? document.getElementById("editStaffConfirm").value : "";
-  var changingPassword = !!(username && (next || confirm));
 
-  var problem = personNameProblem(firstName, "first name") || personNameProblem(lastName, "last name") ||
-    (changingPassword ? passwordProblem(next, confirm, "new password") : "");
-
+  var problem = personNameProblem(firstName, "first name") || personNameProblem(lastName, "last name");
   if (problem) {
     say(problem);
     return;
@@ -996,27 +1025,22 @@ function saveStaffEdit(email) {
 
   var parts = staffNameParts(account);
   var nameChanged = firstName !== parts.first || lastName !== parts.last || !account.firstName;
-  if (!changingPassword && !nameChanged) {
+  if (!nameChanged) {
     closeFormModal();
     return;
   }
 
   setStaffFormBusy(true);
 
-  var passwordStep = changingPassword ? resetStaffPassword(username, next) : Promise.resolve();
-
-  passwordStep.then(function () {
-    if (!nameChanged) return null;
-    return db.collection("staff").doc(email).update({
-      firstName: firstName,
-      lastName: lastName,
-      name: firstName + " " + lastName,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+  db.collection("staff").doc(email).update({
+    firstName: firstName,
+    lastName: lastName,
+    name: firstName + " " + lastName,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function () {
     closeFormModal();
     renderSettings();
-    sayDone(changingPassword ? "Staff updated. The new password works from their next sign-in, and they'll be asked to choose their own." : "Staff updated.");
+    sayDone("Staff updated.");
   }).catch(function (error) {
     console.error("Edit staff failed:", error);
     say("Could not save the changes: " + staffAuthMessage(error));
@@ -1072,7 +1096,7 @@ function renderSettings() {
       '<button type="button" class="settings-btn settings-btn-red" onclick="confirmToggleStation(\'' + id + '\')">Disable</button>' :
       '<button type="button" class="settings-btn settings-btn-green" onclick="confirmToggleStation(\'' + id + '\')">Enable</button>';
 
-    return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + '</td>' +
+    return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + stationDayLimitsNoteHtml(station) + '</td>' +
       '<td>' + escapeAdminText(stationCodeOf(station.id)) + '</td>' +
       '<td class="settings-center">' + stationWindows(station) + '</td>' +
       '<td>' + badge + '</td>' +
@@ -1153,6 +1177,8 @@ function renderSettings() {
         '<button type="button" id="settingsCancelBtn" class="settings-btn ' + (dirty ? 'settings-btn-slate' : 'settings-btn-muted') + '"' + (dirty ? '' : ' disabled') + ' onclick="cancelTimeoutEdit()">Cancel</button>' +
       '</div>' +
     '</div>' +
+
+    limitRequestsPanelHtml() + // staff asking for a daily limit on one date (js/admin-limit-requests.js)
 
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Queue Rules &amp; Timeouts</h2></div>' +

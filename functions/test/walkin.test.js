@@ -127,6 +127,12 @@ const SECRET = "Abc123_-xyzXYZ789secret";
   r = await attempt(phone("w6"), { passId: "passFull001", secret: SECRET });
   check("a full station is refused", !r.ok && r.code === "resource-exhausted", JSON.stringify(r));
 
+  // A limit approved for today (dayLimits) wins over the normal one.
+  const todayKey = require("../lib/time").dayKey(config.tzOffsetMs, clock);
+  await db.collection("stations").doc("cashier").update({ ["dayLimits." + todayKey]: 99 });
+  r = await attempt(phone("w6"), { passId: "passFull001", secret: SECRET });
+  check("a limit approved for today lets the walk-in in", r.ok, JSON.stringify(r));
+
   console.log(failures ? "\n" + failures + " FAILED" : "\nALL PASSED");
   process.exit(failures ? 1 : 0);
 })().catch((error) => {

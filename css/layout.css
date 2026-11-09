@@ -350,11 +350,34 @@
   font-size: 1.05rem;
 }
 
+/* Tables scroll inside themselves; js/table-scroll.js caps each at its header plus a few rows. */
 .table-wrap {
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c3cede transparent;
   border: 1px solid #edf1f5;
   border-radius: 12px;
 }
+
+.table-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
+.table-wrap::-webkit-scrollbar-thumb { background: #c3cede; border-radius: 8px; }
+.table-wrap::-webkit-scrollbar-track { background: transparent; }
+
+/* The header row stays in view while the rows scroll under it. */
+.table-wrap .queue-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* A soft shadow at the bottom edge hints that there are more rows. */
+.table-wrap.is-scrollable {
+  box-shadow: inset 0 -10px 10px -10px rgba(15, 35, 70, 0.18);
+}
+
+/* Reports keep their full length (js/table-scroll.js leaves them alone). */
+.report-table-wrap .queue-table thead th { position: static; }
 
 .queue-table {
   width: 100%;
@@ -1110,6 +1133,48 @@ body.dark .modal-input[readonly] {
   color: #64748B;
 }
 
+/* Password box with an eye button that shows / hides the typed password (js/ui.js) */
+.pw-field {
+  position: relative;
+}
+
+.pw-field input {
+  padding-right: 44px;
+}
+
+.pw-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748B;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.pw-eye:hover { color: #0054A6; background: rgba(0, 84, 166, 0.08); }
+.pw-eye:focus-visible { outline: 2px solid #0054A6; outline-offset: 1px; color: #0054A6; }
+.pw-eye .pw-eye-hide,
+.pw-eye.is-visible .pw-eye-show { display: none; }
+.pw-eye.is-visible .pw-eye-hide { display: block; }
+
+/* "Passwords match" / "Passwords do not match" under Confirm New Password */
+.pw-match {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pw-match.is-match { color: #1F9D55; }
+.pw-match.is-mismatch { color: #D93636; }
+
 .modal-section-title {
   margin: 0 0 8px;
   font-size: 0.9rem;
@@ -1199,6 +1264,95 @@ body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color
 }
 
 body.dark .type-tag.staff-temp-pw-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+
+/* ---------- Daily limit requests (js/admin-limit-requests.js) ---------- */
+
+.type-tag.limit-tag-pending { background: #FFF4DB; color: #92400E; }
+.type-tag.limit-tag-approved { background: #E3F6EA; color: #166534; }
+.type-tag.limit-tag-rejected { background: #FDECEC; color: #B42318; }
+.type-tag.limit-tag-expired { background: #EEF1F5; color: #475569; }
+
+body.dark .type-tag.limit-tag-pending { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+body.dark .type-tag.limit-tag-approved { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
+body.dark .type-tag.limit-tag-rejected { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+body.dark .type-tag.limit-tag-expired { background: rgba(148, 165, 194, 0.16); color: #C5D2E6; }
+
+/* Settings: the panel admins decide in */
+.limit-req-panel { border-left: 4px solid var(--amber); }
+.limit-req-count {
+  display: inline-block;
+  min-width: 22px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #172033;
+  font-size: 0.75rem;
+  text-align: center;
+  vertical-align: middle;
+}
+.limit-req-reason { max-width: 240px; white-space: normal; }
+.limit-req-expired td { color: #94A3B8; }
+
+/* Service Station table and Edit Station: limits for one date */
+.station-day-limits {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0054A6;
+}
+body.dark .station-day-limits { color: var(--ad-accent); }
+
+.day-limit-list { margin-top: 12px; }
+.day-limit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid #E2E8F0;
+  font-size: 0.82rem;
+}
+.day-limit-row span { flex: 1; }
+body.dark .day-limit-row { border-top-color: var(--ad-line); }
+
+/* Request a Limit form (Staff Tools): today's limit at the top */
+.limit-today {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #DCE6F3;
+  border-radius: 10px;
+  background: #F5F9FF;
+  font-size: 0.85rem;
+}
+.limit-today-label { color: #64748B; }
+.limit-today .type-tag { margin-left: 0; }
+body.dark .limit-today { background: var(--ad-surface-2); border-color: var(--ad-line); }
+body.dark .limit-today-label { color: var(--ad-muted); }
+
+/* The request form's "My Requests" list */
+.limit-req-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.limit-req-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+}
+.limit-req-item .type-tag { margin-left: 0; }
+.limit-req-main { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: 0.82rem; }
+.limit-req-main span { color: #64748B; overflow-wrap: anywhere; }
+.limit-req-note { font-style: italic; }
+.limit-req-cancel { padding: 5px 12px; }
+.limit-req-empty { margin: 0; font-size: 0.82rem; color: #64748B; }
+body.dark .limit-req-item { border-color: var(--ad-line); }
+body.dark .limit-req-main span,
+body.dark .limit-req-empty { color: var(--ad-muted); }
 
 /* Add Staff: where the default password is shown */
 .modal-help.staff-default-pw {
@@ -1741,7 +1895,7 @@ body.dark .notif-empty-icon { color: #6B7C99; }
 .rules-table-wrap {
   border: 1px solid #e6ebf3;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .rules-table th {
@@ -2220,6 +2374,139 @@ button.is-loading::after {
   font-weight: 500;
 }
 
+/* Profile button and its menu (js/admin-profile-menu.js) */
+.admin-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 260px;
+  padding: 4px 10px 4px 4px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-profile-btn:hover,
+.admin-profile-btn.is-open { background: #EAF1FF; border-color: #9DB8DF; }
+
+.admin-profile-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0054A6;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.admin-profile-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.admin-profile-text .admin-header-name,
+.admin-profile-role {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-profile-role {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.admin-profile-chevron {
+  display: grid;
+  color: #64748b;
+  transition: transform 0.15s ease;
+}
+
+.admin-profile-btn.is-open .admin-profile-chevron { transform: rotate(180deg); }
+
+.admin-profile-menu {
+  position: fixed;
+  z-index: 1200;
+  width: 250px;
+  padding: 6px;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 35, 70, 0.16);
+}
+
+.admin-profile-menu[hidden] { display: none; }
+
+.apm-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.apm-avatar { width: 36px; height: 36px; font-size: 0.8rem; }
+
+.apm-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.apm-who strong,
+.apm-who span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.apm-who strong { font-family: var(--font-display); font-size: 0.88rem; font-weight: 600; color: #172033; }
+.apm-who span { font-size: 0.75rem; color: #64748b; }
+
+.apm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #172033;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.apm-item svg { flex: 0 0 auto; color: #475569; }
+.apm-item:hover,
+.apm-item:focus-visible { background: #EAF1FF; outline: none; }
+
+.apm-sep { height: 1px; margin: 4px 2px; background: #E2E8F0; }
+
+.apm-danger,
+.apm-danger svg { color: #D93636; }
+.apm-danger:hover,
+.apm-danger:focus-visible { background: #FDECEC; }
+
+@media (max-width: 520px) {
+  .admin-profile-btn { padding: 3px 6px 3px 3px; gap: 4px; }
+  .admin-profile-text { display: none; }
+  .admin-profile-menu { width: auto; }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -2583,6 +2870,28 @@ body[data-page="pageAdmin"] .themeToggle { display: none; }
 }
 
 /* ---------- Enrollment Settings ---------- */
+
+/* The Open / Closed switch above the process */
+.enrollment-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  border-left: 4px solid #1F9D55;
+}
+
+.enrollment-switch.is-closed { border-left-color: #D93636; }
+
+.enrollment-switch h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.enrollment-switch .settings-help { margin: 0; }
+.enrollment-switch-state { color: #1F9D55; }
+.enrollment-switch.is-closed .enrollment-switch-state { color: #D93636; }
+.enrollment-switch .switch { flex: 0 0 auto; }
 
 .enrollment-config-grid {
   display: grid;

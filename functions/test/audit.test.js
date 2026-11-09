@@ -65,6 +65,30 @@ test("station edits list every change", () => {
   assert.strictEqual(e.action, "stationEdit");
   assert.ok(/renamed/.test(e.summary) && /disabled/.test(e.summary) && /windows 1 → 3/.test(e.summary), e.summary);
 });
+test("a date limit added by approving a request is not logged again on the station", () => {
+  assert.strictEqual(audit.describeStationChange({ name: "Cashier" }, { name: "Cashier", dayLimits: { "2026-11-12": 50 } }, "cashier"), null);
+  assert.strictEqual(audit.describeStationChange({ name: "Cashier", dayLimits: { "2026-11-01": 9 } }, { name: "Cashier", dayLimits: { "2026-11-12": 50 } }, "cashier"), null);
+});
+test("removing a date limit by hand is logged", () => {
+  const e = audit.describeStationChange({ name: "Cashier", dayLimits: { "2026-11-12": 50 } }, { name: "Cashier", dayLimits: {} }, "cashier");
+  assert.strictEqual(e.action, "stationEdit");
+  assert.ok(/removed the daily limit for Nov 12, 2026/.test(e.summary), e.summary);
+});
+test("limit requests: asked, approved, rejected, cancelled", () => {
+  const r = { stationId: "cashier", day: "2026-11-12", limit: 50, status: "pending", reason: "One window open" };
+  const asked = audit.describeLimitRequest(null, r, station);
+  assert.strictEqual(asked.action, "limitRequest");
+  assert.strictEqual(asked.summary, "Requested a daily limit of 50 for Cashier on Nov 12, 2026 (One window open)");
+  assert.strictEqual(asked.stationId, "cashier");
+  const approved = audit.describeLimitRequest(r, Object.assign({}, r, { status: "approved" }), station);
+  assert.strictEqual(approved.summary, "Approved the daily limit of 50 for Cashier on Nov 12, 2026");
+  const rejected = audit.describeLimitRequest(r, Object.assign({}, r, { status: "rejected", decisionNote: "Too low" }), station);
+  assert.strictEqual(rejected.action, "limitReject");
+  assert.ok(/Rejected the request for a daily limit of 50 for Cashier on Nov 12, 2026 \(Too low\)/.test(rejected.summary), rejected.summary);
+  assert.strictEqual(audit.describeLimitRequest(r, null, station).action, "limitRequestCancel");
+  // A decided request removed by the nightly cleanup is not logged.
+  assert.strictEqual(audit.describeLimitRequest(Object.assign({}, r, { status: "approved" }), null, station), null);
+});
 test("ticket counter bumps and pointer moves are not logged", () => {
   assert.strictEqual(audit.describeStationChange({ name: "Cashier", count: 4 }, { name: "Cashier", count: 5, countDay: "2026-11-08" }, "cashier"), null);
   assert.strictEqual(audit.describeStationChange({ name: "Cashier", nowServingId: "a" }, { name: "Cashier", nowServingId: "b" }, "cashier"), null);
@@ -98,6 +122,14 @@ test("auto-void timeout change", () => {
 test("enrollment process change names the student types", () => {
   const e = audit.describeSettingsChange("enrollment", { flows: { regular: ["cashier"] } }, { flows: { regular: ["cashier", "registrar"], freshman: ["registrar"] } }, roleName);
   assert.ok(/Regular/.test(e.summary) && /Incoming Freshman/.test(e.summary), e.summary);
+});
+test("the enrollment switch is logged as opened / closed", () => {
+  const closed = audit.describeSettingsChange("enrollment", { flows: { regular: ["cashier"] } }, { flows: { regular: ["cashier"] }, open: false }, roleName);
+  assert.strictEqual(closed.action, "enrollmentOpen");
+  assert.strictEqual(closed.summary, "Closed enrollment");
+  const opened = audit.describeSettingsChange("enrollment", { flows: {}, open: false }, { flows: {}, open: true }, roleName);
+  assert.strictEqual(opened.summary, "Opened enrollment");
+  assert.strictEqual(audit.describeSettingsChange("enrollment", { flows: {} }, { flows: {}, open: true }, roleName), null);
 });
 test("role rules change names the role and each switch", () => {
   const e = audit.describeSettingsChange("roleRules", { roles: {} }, { roles: { cashier: { remove: false, recall: true }, enforcer: { walkin: false } } }, roleName);
