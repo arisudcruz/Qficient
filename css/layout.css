@@ -1316,24 +1316,23 @@ body.dark .station-day-limits { color: var(--ad-accent); }
 .day-limit-row span { flex: 1; }
 body.dark .day-limit-row { border-top-color: var(--ad-line); }
 
-/* Queue Management (station staff): today's limit and Request a Limit */
-.limit-bar {
+/* Request a Limit form (Staff Tools): today's limit at the top */
+.limit-today {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin: 0 0 14px;
-  padding: 10px 14px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
   border: 1px solid #DCE6F3;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #F5F9FF;
+  font-size: 0.85rem;
 }
-.limit-bar-copy { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.85rem; }
-.limit-bar-label { color: #64748B; }
-.limit-bar-copy .type-tag { margin-left: 0; }
-body.dark .limit-bar { background: var(--ad-surface); border-color: var(--ad-line); }
-body.dark .limit-bar-label { color: var(--ad-muted); }
+.limit-today-label { color: #64748B; }
+.limit-today .type-tag { margin-left: 0; }
+body.dark .limit-today { background: var(--ad-surface-2); border-color: var(--ad-line); }
+body.dark .limit-today-label { color: var(--ad-muted); }
 
 /* The request form's "My Requests" list */
 .limit-req-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }

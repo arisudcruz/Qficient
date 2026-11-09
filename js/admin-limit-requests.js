@@ -1,5 +1,5 @@
-// Daily limit requests. Station staff ask for a daily queue limit on one date for their own station (Queue
-// Management → Request a Limit); an administrator approves or rejects it in Settings → Limit Requests. Approving
+// Daily limit requests. Station staff ask for a daily queue limit on one date for their own station (sidebar →
+// Staff Tools → Request a Limit); an administrator approves or rejects it in Settings → Limit Requests. Approving
 // saves the limit on the station as dayLimits[date], which wins over its normal maxQueue on that date only
 // (stationLimitFor, js/queue.js; the server checks the same in functions/lib/join.js).
 //
@@ -42,9 +42,9 @@ function onLimitRequestsChanged() {
   if (adminKind() === "admin") {
     if (typeof refreshSettings === "function") refreshSettings();
   } else {
+    // The request form, if open, keeps its list current.
     var list = document.getElementById("limitReqList");
     if (list) list.innerHTML = myLimitRequestsHtml();
-    if (typeof currentAdminSection === "function" && currentAdminSection() === "queue") renderQueueManagement();
   }
 }
 
@@ -87,10 +87,17 @@ function pendingLimitRequests() {
     });
 }
 
+// Admins: requests waiting for a decision (on Settings). Station staff: their station's requests still waiting
+// (on Staff Tools → Request a Limit).
 function updateLimitRequestsBadge() {
-  var count = typeof adminKind === "function" && adminKind() === "admin" ?
-    pendingLimitRequests().filter(function (r) { return !isLimitRequestExpired(r); }).length : 0;
-  document.querySelectorAll("[data-limit-badge]").forEach(function (badge) {
+  var kind = typeof adminKind === "function" ? adminKind() : null;
+  var waiting = pendingLimitRequests().filter(function (r) { return !isLimitRequestExpired(r); }).length;
+  setLimitBadges("[data-limit-badge]", kind === "admin" ? waiting : 0);
+  setLimitBadges("[data-limit-staff-badge]", kind === "station" ? waiting : 0);
+}
+
+function setLimitBadges(selector, count) {
+  document.querySelectorAll(selector).forEach(function (badge) {
     badge.textContent = count > 99 ? "99+" : String(count);
     badge.hidden = count === 0;
   });
@@ -299,31 +306,29 @@ function confirmRemoveDayLimit(stationId, day) {
   });
 }
 
-/* ---------- Station staff: the Daily Limit bar in Queue Management, and the request form ---------- */
+/* ---------- Station staff: Staff Tools → Request a Limit ---------- */
 
 function myLimitStation() {
   return adminKind() === "station" ? stations.find(function (s) { return s.id === adminRole; }) : null;
 }
 
-function limitRequestsBarHtml() {
-  var station = myLimitStation();
-  if (!station) return "";
+// From the sidebar: on phones the sidebar is a drawer, which closes first.
+function openLimitRequestFromNav() {
+  closeAdminNav();
+  openLimitRequestModal();
+}
 
+// "Today: 12 / 40 tickets", or "No limit today (12 so far)", at the top of the request form.
+function limitTodayLineHtml(station) {
   var today = limitToday();
   var limit = stationLimitFor(station, today);
   var used = countStationTicketsToday(station.id);
   var forToday = station.dayLimits && Number(station.dayLimits[today]) > 0;
-  var pending = limitRequests.filter(function (r) { return r.status === "pending" && !isLimitRequestExpired(r); }).length;
-
-  return '<div class="limit-bar">' +
-    '<div class="limit-bar-copy">' +
-      '<span class="limit-bar-label">Daily limit today</span>' +
-      '<strong>' + escapeAdminText(limit > 0 ? used + " / " + limit + " tickets" : "No limit (" + used + " today)") + '</strong>' +
-      (forToday ? '<span class="type-tag limit-tag-approved">Approved for today</span>' : '') +
-      (pending ? '<span class="type-tag limit-tag-pending">' + pending + ' request' + (pending === 1 ? '' : 's') + ' pending</span>' : '') +
-    '</div>' +
-    '<button type="button" class="settings-btn settings-btn-blue" onclick="openLimitRequestModal()">Request a Limit</button>' +
-  '</div>';
+  return '<p class="limit-today">' +
+    '<span class="limit-today-label">Today</span>' +
+    '<strong>' + escapeAdminText(limit > 0 ? used + " / " + limit + " tickets" : "No limit (" + used + " so far)") + '</strong>' +
+    (forToday ? '<span class="type-tag limit-tag-approved">Approved for today</span>' : '') +
+  '</p>';
 }
 
 function limitStatusTagHtml(request) {
@@ -362,6 +367,7 @@ function openLimitRequestModal() {
 
   showFormModal("Request a Daily Limit",
     '<div class="modal-section">' +
+      limitTodayLineHtml(station) +
       '<p class="modal-help">Ask for the most tickets ' + escapeAdminText(station.name) + ' takes on one date. An administrator has to approve it before it takes effect. Normal limit: ' + escapeAdminText(limitText(Number(station.maxQueue) || 0)) + '.</p>' +
       '<div class="modal-field"><label for="limitReqDay">Date</label>' +
         '<input type="date" id="limitReqDay" class="modal-input" min="' + today + '" max="' + limitDayPlus(LIMIT_REQUEST_DAYS_AHEAD) + '" value="' + today + '"></div>' +

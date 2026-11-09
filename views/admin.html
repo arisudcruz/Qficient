@@ -48,7 +48,13 @@
       </nav>
 
       <div class="admin-tools">
-        <div class="tool-label">ADMIN TOOLS</div>
+        <div class="tool-label" id="adminToolLabel">ADMIN TOOLS</div>
+        <!-- Station staff only (js/admin-console.js applyAdminAccess); opens a form, not a page. -->
+        <button type="button" class="tool-item" data-staff-tool="limit" title="Request a Limit" onclick="openLimitRequestFromNav()" style="display: none">
+          <span class="nav-icon">⇲</span>
+          <span class="nav-text">Request a Limit</span>
+          <span class="nav-badge" data-limit-staff-badge title="Your requests waiting for approval" hidden></span>
+        </button>
         <button type="button" class="tool-item" data-section="settings" title="Settings" onclick="setAdminSection('settings')">
           <span class="nav-icon">⚙</span>
           <span class="nav-text">Settings</span>

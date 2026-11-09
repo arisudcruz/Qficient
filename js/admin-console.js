@@ -238,8 +238,17 @@ function applyAdminAccess(stayOnPage) {
     item.style.display = shown ? "" : "none";
   });
 
+  // Station staff get their own tools (Request a Limit, js/admin-limit-requests.js) under "STAFF TOOLS".
+  var staffTools = kind === "station";
+  document.querySelectorAll("#pageAdmin [data-staff-tool]").forEach(function (item) {
+    item.style.display = staffTools ? "" : "none";
+  });
+
   var toolLabel = document.querySelector("#pageAdmin .tool-label");
-  if (toolLabel) toolLabel.style.display = canOpenSection("rules") || canOpenSection("settings") ? "" : "none";
+  if (toolLabel) {
+    toolLabel.textContent = staffTools ? "STAFF TOOLS" : "ADMIN TOOLS";
+    toolLabel.style.display = staffTools || canOpenSection("rules") || canOpenSection("settings") ? "" : "none";
+  }
 
   if (kind === "station") {
     activeQueueStation = adminRole;
