@@ -123,7 +123,8 @@ function toggleNotifDropdown(kind, event) {
     return;
   }
   if (typeof closeUserMenu === "function") closeUserMenu();
-  notifDropdown = { kind: kind, tab: "all", scroll: 0 };
+  if (typeof closeProfileMenu === "function") closeProfileMenu();
+  notifDropdown ={ kind: kind, tab: "all", scroll: 0 };
   notifDropdownOpenedAt = Date.now();
   renderNotifDropdown();
 }

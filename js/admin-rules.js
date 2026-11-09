@@ -50,11 +50,11 @@ var ROLE_ALWAYS_ALLOWED = {
     ["Call Tickets", "Call Next, and call a ticket out of order (Call now)."],
     ["End Transaction", "Mark the ticket being served as completed."],
     ["Enrollment Hand-off", "Send an enrollee on to the next station of their process."],
-    ["My Activity", "See their own entries in the audit trail."]
+    ["Activity History", "See their own entries in the audit trail (from the profile menu)."]
   ],
   enforcer: [
     ["Queue Enforcer", "Open the Queue Enforcer page and its Queue List."],
-    ["My Activity", "See their own entries in the audit trail."]
+    ["Activity History", "See their own entries in the audit trail (from the profile menu)."]
   ]
 };
 

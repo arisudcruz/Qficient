@@ -10,6 +10,7 @@ var appScripts = [
   "js/ui.js",
   "js/table-scroll.js",
   "js/notif-dropdown.js",
+  "js/admin-profile-menu.js",
   "js/navigation.js",
   "js/auth.js",
   "js/walkin.js",

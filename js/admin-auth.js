@@ -59,11 +59,6 @@ function adminRoleLabel() {
   return adminName ? "Administrator" : "QFicient Admin";
 }
 
-// "Juan Dela Cruz · Cashier Staff"; just the role when the account has no name saved (e.g. the built-in admin).
-function adminDisplayName() {
-  return adminName ? adminName + " · " + adminRoleLabel() : adminRoleLabel();
-}
-
 // Staff of one station only see that station's numbers and notifications. Admins and enforcers see them all.
 function canViewStationData(stationId) {
   return adminKind() !== "station" || stationId === adminRole;
@@ -105,7 +100,7 @@ function startStaffListener() {
     var me = adminUser && staffAccounts.find(function (a) { return a.id === staffKey(adminUser.email); });
     if (me && (me.name || "") !== adminName) {
       adminName = me.name || "";
-      document.querySelectorAll(".admin-header-name").forEach(function (el) { el.textContent = adminDisplayName(); });
+      refreshAdminProfileButtons();
     }
     refreshSettings();
   }, function (error) {
@@ -152,6 +147,7 @@ function resolveAdminAccess(firebaseUser) {
 }
 
 function deactivateAdminSession() {
+  closeProfileMenu();
   if (adminUser) resetAdminPageState();
   adminUser = null;
   adminName = "";

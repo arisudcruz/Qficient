@@ -261,6 +261,31 @@ body.dark .admin-bell:hover { background: var(--ad-selected); }
 body.dark .admin-bell.active { background: #2F6FCE; border-color: #2F6FCE; color: #fff; }
 body.dark .admin-header-divider { background: var(--ad-line); }
 
+body.dark .admin-profile-btn { background: var(--ad-surface); border-color: var(--ad-line-strong); color: var(--ad-text); }
+body.dark .admin-profile-btn:hover,
+body.dark .admin-profile-btn.is-open { background: var(--ad-selected); border-color: #4A7FD0; }
+body.dark .admin-profile-avatar { background: #2F6FCE; }
+body.dark .admin-profile-role,
+body.dark .admin-profile-chevron { color: var(--ad-muted); }
+body.dark .admin-profile-menu {
+  background: var(--ad-surface);
+  border-color: var(--ad-line);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+body.dark .apm-head,
+body.dark .apm-sep { border-color: var(--ad-line); }
+body.dark .apm-sep { background: var(--ad-line); }
+body.dark .apm-who strong { color: var(--ad-text); }
+body.dark .apm-who span { color: var(--ad-muted); }
+body.dark .apm-item { color: var(--ad-text-2); }
+body.dark .apm-item svg { color: var(--ad-muted); }
+body.dark .apm-item:hover,
+body.dark .apm-item:focus-visible { background: var(--ad-selected); }
+body.dark .apm-danger,
+body.dark .apm-danger svg { color: #FF8A8A; }
+body.dark .apm-danger:hover,
+body.dark .apm-danger:focus-visible { background: rgba(229, 72, 77, 0.16); }
+
 
 /* ---------- Badges and tags ---------- */
 
