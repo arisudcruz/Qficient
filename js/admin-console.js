@@ -187,13 +187,13 @@ var ADMIN_SECTION_AREAS = {
   enrollmentsettings: "adminEnrollmentSettingsArea"
 };
 
-// Which pages each kind of account can open. Admins have no restrictions. Everyone sees the Dashboard and
-// Notifications; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
-// (their own station only); both can read the Rules but never open Settings.
+// Which pages each kind of account can open. Admins have no restrictions. Staff see Notifications, the Live Board
+// and their own activity; the Enforcer adds the Queue Enforcer page, Queue Management staff add Queue Management
+// (their own station only) and Reports. The Dashboard, System Rules and Settings are for administrators only.
 var ADMIN_ROLE_SECTIONS = {
   admin: ["dashboard", "queue", "enforcer", "notifications", "liveboard", "reports", "rules", "settings", "enrollmentsettings", "audit"],
-  enforcer: ["dashboard", "notifications", "liveboard", "enforcer", "rules", "audit"],
-  station: ["dashboard", "queue", "notifications", "liveboard", "reports", "rules", "audit"]
+  enforcer: ["notifications", "liveboard", "enforcer", "audit"],
+  station: ["queue", "notifications", "liveboard", "reports", "audit"]
 };
 
 // Where each kind of account lands after signing in.
@@ -220,7 +220,7 @@ function resetAdminPageState() {
 }
 
 // Pages an administrator can switch off for a role in System Rules > Role Rules (js/admin-rules.js).
-var PAGE_ROLE_RULES = { dashboard: "page.dashboard", notifications: "page.notifications", liveboard: "page.liveboard", reports: "page.reports" };
+var PAGE_ROLE_RULES = { notifications: "page.notifications", liveboard: "page.liveboard", reports: "page.reports" };
 
 function canOpenSection(section) {
   var kind = adminKind();
