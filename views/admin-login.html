@@ -15,18 +15,13 @@
       </div>
 
       <h1 class="al-title">Welcome Back <span aria-hidden="true">👋</span></h1>
-      <p class="al-sub" id="adminLoginSub">Sign in with your administrator account to continue.</p>
-
-      <div class="al-switch" role="tablist" aria-label="Sign in as">
-        <button type="button" role="tab" id="adminModeAdmin" class="active" aria-selected="true" onclick="setAdminLoginMode('admin')">As an Admin</button>
-        <button type="button" role="tab" id="adminModeStaff" aria-selected="false" onclick="setAdminLoginMode('staff')">As a Staff</button>
-      </div>
+      <p class="al-sub" id="adminLoginSub">Sign in with your admin or staff account to continue.</p>
 
       <hr class="al-divider">
 
       <form id="adminLoginForm" onsubmit="adminLogin(event)" novalidate>
         <label for="adminEmail">Username</label>
-        <input type="text" id="adminEmail" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" placeholder="admin">
+        <input type="text" id="adminEmail" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" placeholder="Enter your username">
 
         <label for="adminPassword">Password</label>
         <input type="password" id="adminPassword" autocomplete="current-password" placeholder="Enter your password">

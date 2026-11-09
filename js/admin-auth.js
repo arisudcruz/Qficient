@@ -234,33 +234,8 @@ function adminLoginErrorMessage(code) {
   }
 }
 
-// "As an Admin" lets only administrators in; "As a Staff" lets in the Queue Enforcer and Queue Management staff.
-var adminLoginMode = "admin";
+// One form for administrators and staff alike: the account's role decides what the console shows.
 var adminLoginInProgress = false; // the sign-in form decides where to go, not the background auth listener
-
-function setAdminLoginMode(mode) {
-  adminLoginMode = mode === "staff" ? "staff" : "admin";
-  var isAdmin = adminLoginMode === "admin";
-
-  var adminTab = document.getElementById("adminModeAdmin");
-  var staffTab = document.getElementById("adminModeStaff");
-  adminTab.classList.toggle("active", isAdmin);
-  staffTab.classList.toggle("active", !isAdmin);
-  adminTab.setAttribute("aria-selected", isAdmin ? "true" : "false");
-  staffTab.setAttribute("aria-selected", isAdmin ? "false" : "true");
-
-  document.getElementById("adminLoginSub").textContent = isAdmin ?
-    "Sign in with your administrator account to continue." :
-    "Sign in with your staff account to continue.";
-  document.getElementById("adminEmail").placeholder = isAdmin ? "admin" : "juan.cruz";
-  setAdminLoginError("");
-}
-
-// Whether the signed-in role fits the tab that was chosen.
-function adminRoleFitsMode(mode) {
-  var kind = adminKind();
-  return mode === "admin" ? kind === "admin" : (kind === "enforcer" || kind === "station");
-}
 
 function setAdminLoginError(text) {
   var el = document.getElementById("adminLoginError");
@@ -298,21 +273,11 @@ function adminLogin(event) {
   adminLoginInProgress = true;
 
   var signedIn = false;
-  var mode = adminLoginMode;
 
   firebase.auth().signInWithEmailAndPassword(email, passwordInput.value)
     .then(function (credential) {
       signedIn = true;
       return activateAdminSession(credential.user).then(function (allowed) {
-        if (allowed && !adminRoleFitsMode(mode)) {
-          passwordInput.value = "";
-          setAdminLoginError(mode === "admin" ?
-            "This is a staff account. Choose \"As a Staff\" to sign in." :
-            "This is an administrator account. Choose \"As an Admin\" to sign in.");
-          deactivateAdminSession();
-          return firebase.auth().signOut();
-        }
-
         if (allowed) {
           var typedPassword = passwordInput.value;
           document.getElementById("adminLoginForm").reset();
