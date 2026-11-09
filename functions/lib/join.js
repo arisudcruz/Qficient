@@ -63,11 +63,19 @@ function wait(ms) {
   return Math.ceil(ms / 1000) + " second" + (Math.ceil(ms / 1000) === 1 ? "" : "s");
 }
 
+// A station's daily cap on a given day ("YYYY-MM-DD"): a limit approved for that date (a staff request, saved in
+// dayLimits) wins over the station's normal maxQueue; 0 = no limit.
+function stationLimitFor(station, day) {
+  const dayLimit = station && station.dayLimits && day ? Number(station.dayLimits[day]) || 0 : 0;
+  if (dayLimit > 0) return dayLimit;
+  return Number(station && station.maxQueue) || 0;
+}
+
 // The station's daily cap counts tickets that are still in play today. Shared with walk-in passes (walkin.js).
-async function stationCapReached(db, stationId, dayStart) {
+async function stationCapReached(db, stationId, dayStart, today) {
   const stationPeek = await db.collection("stations").doc(stationId).get();
   if (!stationPeek.exists) throw new JoinError("not-found", "That station doesn't exist.");
-  const maxQueue = Number(stationPeek.data().maxQueue) || 0;
+  const maxQueue = stationLimitFor(stationPeek.data(), today);
   if (maxQueue <= 0) return false;
 
   const used = await db.collection("tickets")
@@ -180,7 +188,7 @@ async function joinQueue(deps, auth, data) {
   const today = dayKey(config.tzOffsetMs, now);
   const dayStart = startOfTodayMs(config.tzOffsetMs, now);
 
-  if (await stationCapReached(db, stationId, dayStart)) {
+  if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please try again tomorrow.");
   }
 
@@ -278,4 +286,4 @@ async function joinQueue(deps, auth, data) {
   }
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, nextTicketNo, withContentionRetry };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, nextTicketNo, withContentionRetry };

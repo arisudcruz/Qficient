@@ -578,6 +578,7 @@ function renderQueueManagement() {
 
   area.innerHTML =
     headerHtml +
+    limitRequestsBarHtml() + // station staff: today's limit and Request a Limit (js/admin-limit-requests.js)
     '<div class="station-tabs" role="tablist">' + tabsHtml + '</div>' +
     queueWindowPickerHtml(activeQueueStation) +
     '<div class="queue-mgmt-grid qm-grid">' +

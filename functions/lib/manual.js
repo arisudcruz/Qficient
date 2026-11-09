@@ -98,7 +98,7 @@ async function createManualTicket(deps, auth, data) {
   const dayStart = startOfTodayMs(config.tzOffsetMs, now);
   const stationRef = db.collection("stations").doc(stationId);
 
-  if (await stationCapReached(db, stationId, dayStart)) {
+  if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit.");
   }
 

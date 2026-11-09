@@ -1265,6 +1265,96 @@ body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color
 
 body.dark .type-tag.staff-temp-pw-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
 
+/* ---------- Daily limit requests (js/admin-limit-requests.js) ---------- */
+
+.type-tag.limit-tag-pending { background: #FFF4DB; color: #92400E; }
+.type-tag.limit-tag-approved { background: #E3F6EA; color: #166534; }
+.type-tag.limit-tag-rejected { background: #FDECEC; color: #B42318; }
+.type-tag.limit-tag-expired { background: #EEF1F5; color: #475569; }
+
+body.dark .type-tag.limit-tag-pending { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+body.dark .type-tag.limit-tag-approved { background: rgba(34, 197, 94, 0.16); color: #86EFAC; }
+body.dark .type-tag.limit-tag-rejected { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+body.dark .type-tag.limit-tag-expired { background: rgba(148, 165, 194, 0.16); color: #C5D2E6; }
+
+/* Settings: the panel admins decide in */
+.limit-req-panel { border-left: 4px solid var(--amber); }
+.limit-req-count {
+  display: inline-block;
+  min-width: 22px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #172033;
+  font-size: 0.75rem;
+  text-align: center;
+  vertical-align: middle;
+}
+.limit-req-reason { max-width: 240px; white-space: normal; }
+.limit-req-expired td { color: #94A3B8; }
+
+/* Service Station table and Edit Station: limits for one date */
+.station-day-limits {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0054A6;
+}
+body.dark .station-day-limits { color: var(--ad-accent); }
+
+.day-limit-list { margin-top: 12px; }
+.day-limit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid #E2E8F0;
+  font-size: 0.82rem;
+}
+.day-limit-row span { flex: 1; }
+body.dark .day-limit-row { border-top-color: var(--ad-line); }
+
+/* Queue Management (station staff): today's limit and Request a Limit */
+.limit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #DCE6F3;
+  border-radius: 12px;
+  background: #F5F9FF;
+}
+.limit-bar-copy { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.85rem; }
+.limit-bar-label { color: #64748B; }
+.limit-bar-copy .type-tag { margin-left: 0; }
+body.dark .limit-bar { background: var(--ad-surface); border-color: var(--ad-line); }
+body.dark .limit-bar-label { color: var(--ad-muted); }
+
+/* The request form's "My Requests" list */
+.limit-req-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.limit-req-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+}
+.limit-req-item .type-tag { margin-left: 0; }
+.limit-req-main { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: 0.82rem; }
+.limit-req-main span { color: #64748B; overflow-wrap: anywhere; }
+.limit-req-note { font-style: italic; }
+.limit-req-cancel { padding: 5px 12px; }
+.limit-req-empty { margin: 0; font-size: 0.82rem; color: #64748B; }
+body.dark .limit-req-item { border-color: var(--ad-line); }
+body.dark .limit-req-main span,
+body.dark .limit-req-empty { color: var(--ad-muted); }
+
 /* Add Staff: where the default password is shown */
 .modal-help.staff-default-pw {
   padding: 10px 12px;

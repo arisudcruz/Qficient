@@ -113,6 +113,12 @@ const form = (over) => Object.assign({ ownerName: "Lola Cruz", stationId: "cashi
   r = await attempt(enforcer, form({ enrollment: true, studentType: "freshman" }));
   check("a full station is refused", !r.ok && r.code === "resource-exhausted", JSON.stringify(r));
 
+  // A limit approved for today (dayLimits) wins over the normal one: raising it lets the manual ticket in.
+  const todayKey = require("../lib/time").dayKey(config.tzOffsetMs, Date.now());
+  await db.collection("stations").doc("registrar").update({ ["dayLimits." + todayKey]: 50 });
+  r = await attempt(enforcer, form({ enrollment: true, studentType: "freshman" }));
+  check("a limit approved for today replaces the normal one", r.ok, JSON.stringify(r));
+
   console.log(failures ? "\n" + failures + " FAILED" : "\nALL PASSED");
   process.exit(failures ? 1 : 0);
 })().catch((error) => {

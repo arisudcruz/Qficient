@@ -298,3 +298,7 @@ exports.auditWalkinPasses = auditTrigger("walkinPasses/{passId}", function (befo
 exports.auditJoinState = auditTrigger("joinState/{uid}", function (before, after) {
   return audit.describeJoinStateChange(before, after);
 });
+
+exports.auditLimitRequests = auditTrigger("limitRequests/{requestId}", function (before, after, params, station) {
+  return audit.describeLimitRequest(before, after, station);
+});

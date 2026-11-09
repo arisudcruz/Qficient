@@ -156,6 +156,7 @@ function deactivateAdminSession() {
   setTicketsScope(1);
   stopStaffListener();
   stopBlockedListener();
+  stopLimitRequestsListener();
   stopServerStatusListener();
   stopNotificationsListener();
 }
@@ -194,6 +195,8 @@ function activateAdminSession(firebaseUser) {
           startBlockedListener();
           startServerStatusListener();
         }
+        // Daily limit requests: admins see the pending ones, station staff their station's (js/admin-limit-requests.js).
+        startLimitRequestsListener();
         applyAdminAccess();
       } else {
         adminDeniedRole = role;

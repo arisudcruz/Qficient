@@ -43,10 +43,11 @@ function getListedRoles() {
 
 function computeSettingsSignature() {
   return JSON.stringify([
-    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s)]; }),
+    stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s), s.dayLimits || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
-    blockedStudents.map(function (b) { return [b.id, b.untilMs]; })
+    blockedStudents.map(function (b) { return [b.id, b.untilMs]; }),
+    limitRequestsSignature()
   ]);
 }
 
@@ -384,6 +385,7 @@ function openEditStationModal(stationId) {
         '<input type="number" id="editStationMax" class="modal-input" min="1" step="1" placeholder="No limit" value="' + (station.maxQueue > 0 ? station.maxQueue : '') + '">' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="saveStationMax(\'' + id + '\')">Save Changes</button>' +
       '</div>' +
+      stationDayLimitsEditHtml(station) +
     '</div>' +
     '<hr class="modal-divider">' +
     '<div class="modal-section">' +
@@ -1094,7 +1096,7 @@ function renderSettings() {
       '<button type="button" class="settings-btn settings-btn-red" onclick="confirmToggleStation(\'' + id + '\')">Disable</button>' :
       '<button type="button" class="settings-btn settings-btn-green" onclick="confirmToggleStation(\'' + id + '\')">Enable</button>';
 
-    return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + '</td>' +
+    return '<tr><td class="settings-strong">' + escapeAdminText(station.name) + stationDayLimitsNoteHtml(station) + '</td>' +
       '<td>' + escapeAdminText(stationCodeOf(station.id)) + '</td>' +
       '<td class="settings-center">' + stationWindows(station) + '</td>' +
       '<td>' + badge + '</td>' +
@@ -1175,6 +1177,8 @@ function renderSettings() {
         '<button type="button" id="settingsCancelBtn" class="settings-btn ' + (dirty ? 'settings-btn-slate' : 'settings-btn-muted') + '"' + (dirty ? '' : ' disabled') + ' onclick="cancelTimeoutEdit()">Cancel</button>' +
       '</div>' +
     '</div>' +
+
+    limitRequestsPanelHtml() + // staff asking for a daily limit on one date (js/admin-limit-requests.js)
 
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Queue Rules &amp; Timeouts</h2></div>' +

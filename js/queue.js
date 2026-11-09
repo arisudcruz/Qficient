@@ -182,6 +182,18 @@ function myServingTicket(stationId) {
   return servingTicketAt(stations.find(function (s) { return s.id === stationId; }), myWindow(stationId));
 }
 
+// A station's daily cap on a day ("YYYY-MM-DD"): a limit approved for that date (staff request, dayLimits) wins over
+// its normal maxQueue; 0 = no limit. The server checks the same (stationLimitFor in functions/lib/join.js).
+function stationLimitFor(station, day) {
+  var dayLimit = station && station.dayLimits && day ? Number(station.dayLimits[day]) || 0 : 0;
+  if (dayLimit > 0) return dayLimit;
+  return Number(station && station.maxQueue) || 0;
+}
+
+function stationLimitToday(station) {
+  return stationLimitFor(station, queueDayKey(Date.now()));
+}
+
 function countStationTicketsToday(stationId) {
   return tickets.filter(function (t) {
     if (t.stationId !== stationId || t.status === "cancelled" || t.status === "void") return false;
@@ -342,7 +354,7 @@ function joinQueue(stationId, purpose, options) {
     say("This station is currently unavailable.");
     return;
   }
-  if (station && station.maxQueue > 0 && countStationTicketsToday(stationId) >= station.maxQueue) {
+  if (station && stationLimitToday(station) > 0 && countStationTicketsToday(stationId) >= stationLimitToday(station)) {
     say("This station has reached its daily queue limit. Please try again tomorrow.");
     return;
   }
@@ -686,7 +698,7 @@ function transferServingTicket(sourceStationId, destStationId, purpose, priority
     say("That station is currently unavailable.");
     return Promise.resolve(null);
   }
-  if (destStation.maxQueue > 0 && countStationTicketsToday(destStationId) >= destStation.maxQueue) {
+  if (stationLimitToday(destStation) > 0 && countStationTicketsToday(destStationId) >= stationLimitToday(destStation)) {
     say("That station has reached its daily queue limit.");
     return Promise.resolve(null);
   }

@@ -64,7 +64,7 @@ async function redeemWalkinPass(deps, auth, data) {
   const stationRef = db.collection("stations").doc(stationId);
   const stateRef = db.collection("joinState").doc(auth.uid);
 
-  if (await stationCapReached(db, stationId, dayStart)) {
+  if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please see the Queue Enforcer.");
   }
 
