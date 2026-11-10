@@ -75,7 +75,7 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("stations").doc("cashier").set({ name: "Cashier", count: 5, nowServingId: "old1", active: true });
   await db.collection("stations").doc("registrar").set({ name: "Registrar", count: 0, nowServingId: null, active: true });
   await db.collection("settings").doc("system").set({ autoVoidMinutes: 0.02 }); // about 1.2 seconds
-  for (const u of ["u1", "u2", "u3", "u5"]) await db.collection("deviceTokens").doc(u).set({ token: "tok-" + u });
+  for (const u of ["u1", "u2", "u3", "u5", "u9"]) await db.collection("deviceTokens").doc(u).set({ token: "tok-" + u });
 
   // Students join an idle station.
   await ticket("t1", "CA-001", "u1", "cashier");
@@ -83,6 +83,8 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await ticket("t2", "CA-002", "u2", "cashier");
   await wait(250);
   await ticket("t3", "CA-003", "u3", "cashier");
+  await wait(250);
+  await ticket("t9", "CA-009", "u9", "cashier");
   await wait(2500);
   check("no pushes when students just join an idle station", (await pushes()).length === 0, JSON.stringify(await pushes()));
   check("history: joining is saved in the student's notifications", await until(hasHistory("u1", "joined")) && await until(hasHistory("u3", "joined")));
@@ -96,6 +98,7 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   check("soon: the ticket 2nd in line is told it's almost up", await until(hasPush("t3:soon:CA-003")));
   const soon = (await pushesFor("t3:soon:CA-003"))[0];
   check("soon: message says 2nd in line", soon && /2nd in line/.test(soon.title), soon && soon.title);
+  check("soon: the ticket 3rd in line is told too", await until(hasPush("t9:soon:CA-009")) && /3rd in line/.test((await pushesFor("t9:soon:CA-009"))[0].title));
   const serving = (await pushesFor("t1:serving"))[0];
   check("serving: message names the station and ticket", serving && /CA-001/.test(serving.body) && /Cashier/.test(serving.body), serving && serving.body);
   check("serving: the push goes to the owner's device token", serving && serving.token === "tok-u1");
@@ -119,7 +122,10 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await db.collection("tickets").doc("t2").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
   check("serving: second ticket is told it's their turn", await until(hasPush("t2:serving")));
   check("next: third ticket is told they're next", await until(hasPush("t3:next:cashier")));
-  check("soon: a ticket is reminded only once", (await pushesFor("t3:soon:CA-003")).length === 1);
+  check("soon: a ticket told at 2nd isn't told again", (await pushesFor("t3:soon:CA-003")).length === 1);
+  check("soon: moving from 3rd to 2nd is announced again", await until(hasPush("t9:soon:CA-009", 2)) &&
+    (await pushesFor("t9:soon:CA-009")).some((p) => /2nd in line/.test(p.title)));
+  check("soon: both reminders are in the student's history", await until(async () => (await historyOf("u9")).filter((h) => h.type === "soon").length === 2));
 
   // Last call, then the scheduled sweep voids it.
   await db.collection("tickets").doc("t1").update({ lastCalled: true, lastCallAt: FieldValue.serverTimestamp() });
@@ -220,12 +226,13 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
   await wait(2000);
   const counts = {};
   // The same message twice is a duplicate; an enrollment student is told "your turn" once at each station.
-  (await pushes()).forEach((p) => { const key = p.tag + " | " + p.body; counts[key] = (counts[key] || 0) + 1; });
+  // ("3rd in line" then "2nd in line" share a tag and body, but not the title.)
+  (await pushes()).forEach((p) => { const key = p.tag + " | " + p.title + " | " + p.body; counts[key] = (counts[key] || 0) + 1; });
   const dupes = Object.keys(counts).filter((k) => counts[k] > 1);
   check("no push was sent twice", dupes.length === 0, JSON.stringify(dupes));
   const historyCounts = {};
   (await db.collection("userNotifications").get()).docs.forEach((d) => {
-    const key = d.data().ticketId + ":" + d.data().type + ":" + d.data().ticketNo;
+    const key = d.data().ticketId + ":" + d.data().type + ":" + d.data().ticketNo + ":" + d.data().title;
     historyCounts[key] = (historyCounts[key] || 0) + 1;
   });
   const historyDupes = Object.keys(historyCounts).filter((k) => historyCounts[k] > 1);

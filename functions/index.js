@@ -58,7 +58,7 @@ exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", se
   if (!after) return;
 
   // Our own bookkeeping write (marking "next in line" as sent) must not trigger anything.
-  if (before && onlyChanged(before, after, ["nextNotified", "soonNotified"])) return;
+  if (before && onlyChanged(before, after, ["nextNotified", "soonNotified", "soonPlace"])) return;
 
   const ticket = Object.assign({ id: event.params.ticketId }, after);
 
