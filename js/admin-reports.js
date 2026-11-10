@@ -17,19 +17,30 @@ var REPORT_LIBS = {
 };
 
 // The data that can go into a report. Each ticked item is a KPI card and a column in every table; Peak Hour is
-// a whole-report figure, so it is a card only.
+// a whole-report figure, so it is a card only. `desc` is its meaning, listed under Definitions in the PDF.
 var REPORT_FIELDS = [
-  { key: "issued", label: "Tickets Issued", tone: "amber", value: function (row) { return row.issued; } },
-  { key: "served", label: "Served", tone: "green", value: function (row) { return row.served; } },
-  { key: "cancelled", label: "Cancelled", tone: "navy", value: function (row) { return row.cancelled; } },
-  { key: "removed", label: "Removed", tone: "blue", value: function (row) { return row.removed; } },
-  { key: "voided", label: "Voided", tone: "blue", value: function (row) { return row.voided; } },
-  { key: "completionRate", label: "Completion Rate", tone: "green", value: function (row) { return percentText(row.served, row.issued); } },
-  { key: "voidRate", label: "Void / No-show Rate", tone: "navy", value: function (row) { return percentText(row.cancelled + row.removed + row.voided, row.issued); } },
-  { key: "avgWait", label: "Avg Wait Time", tone: "blue", value: function (row) { return formatDuration(row.waitCount ? row.waitSum / row.waitCount : null); } },
-  { key: "avgService", label: "Avg Service Time", tone: "blue", value: function (row) { return formatDuration(row.serviceCount ? row.serviceSum / row.serviceCount : null); } },
-  { key: "longestWait", label: "Longest Wait", tone: "amber", value: function (row) { return formatDuration(row.longestWait); } },
-  { key: "peakHour", label: "Peak Hour", tone: "amber", cardOnly: true, value: function (row, report) { return reportPeakText(report); } }
+  { key: "issued", label: "Tickets Issued", tone: "amber", value: function (row) { return row.issued; },
+    desc: "All tickets created in the report period, including any still in line when the report was generated." },
+  { key: "served", label: "Served", tone: "green", value: function (row) { return row.served; },
+    desc: "Tickets whose transaction was completed at the counter." },
+  { key: "cancelled", label: "Cancelled", tone: "navy", value: function (row) { return row.cancelled; },
+    desc: "Tickets the student cancelled themselves." },
+  { key: "removed", label: "Removed", tone: "blue", value: function (row) { return row.removed; },
+    desc: "Tickets taken off the queue by staff." },
+  { key: "voided", label: "Voided", tone: "blue", value: function (row) { return row.voided; },
+    desc: "Tickets voided automatically when the last call ran out (the student did not come back), or left over at the end of the day." },
+  { key: "completionRate", label: "Completion Rate", tone: "green", value: function (row) { return percentText(row.served, row.issued); },
+    desc: "Served ÷ Tickets Issued: the share of tickets that were completed." },
+  { key: "voidRate", label: "Void / No-show Rate", tone: "navy", value: function (row) { return percentText(row.cancelled + row.removed + row.voided, row.issued); },
+    desc: "(Cancelled + Removed + Voided) ÷ Tickets Issued: the share of tickets that did not end in a completed transaction." },
+  { key: "avgWait", label: "Avg Wait Time", tone: "blue", value: function (row) { return formatDuration(row.waitCount ? row.waitSum / row.waitCount : null); },
+    desc: "Average time from getting a ticket to being called to the counter." },
+  { key: "avgService", label: "Avg Service Time", tone: "blue", value: function (row) { return formatDuration(row.serviceCount ? row.serviceSum / row.serviceCount : null); },
+    desc: "Average time from being called to the end of the transaction." },
+  { key: "longestWait", label: "Longest Wait", tone: "amber", value: function (row) { return formatDuration(row.longestWait); },
+    desc: "The longest time any ticket waited from being issued to being called." },
+  { key: "peakHour", label: "Peak Hour", tone: "amber", cardOnly: true, value: function (row, report) { return reportPeakText(report); },
+    desc: "The hour of the day with the most tickets issued (the number of tickets in parentheses)." }
 ];
 
 var REPORT_SECTIONS = [
@@ -214,6 +225,7 @@ function buildReport(allTickets, draft, include) {
     draft: { start: draft.start, end: draft.end, stationId: draft.stationId },
     include: include,
     stationLabel: draft.stationId === "all" ? "All stations" : getStationName(draft.stationId),
+    preparedBy: reportPreparedByText(),
     generatedAt: new Date(),
     tickets: visible,
     total: total,
@@ -289,6 +301,35 @@ function reportGeneratedText(r) {
   return r.generatedAt.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
 }
 
+// "2026-11-01" -> "Nov 1, 2026".
+function reportDayText(day) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ""));
+  if (!m) return String(day || "");
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+    .toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
+}
+
+// "Nov 1, 2026 – Nov 10, 2026", or one date.
+function reportPeriodText(r) {
+  return r.draft.start === r.draft.end ? reportDayText(r.draft.start) :
+    reportDayText(r.draft.start) + " – " + reportDayText(r.draft.end);
+}
+
+// "Nov 10, 2026, 2:30 PM" (Philippine time).
+function reportGeneratedLongText(r) {
+  return r.generatedAt.toLocaleString("en-US", {
+    timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
+  });
+}
+
+// Who generated the report: "Jay-Ar Dela Cruz (Cashier Staff)", or the role/username for an account without a name.
+function reportPreparedByText() {
+  var role = typeof adminRoleLabel === "function" ? adminRoleLabel() : "";
+  if (adminName) return adminName + (role ? " (" + role + ")" : "");
+  var username = adminUser ? usernameOfEmail(adminUser.email) : "";
+  return username ? username + (role ? " (" + role + ")" : "") : role || "—";
+}
+
 function reportTableHtml(firstHeader, rows, total, fields, emptyText) {
   var head = '<tr><th>' + firstHeader + '</th>' + fields.map(function (f) { return '<th>' + escapeAdminText(f.label) + '</th>'; }).join("") + '</tr>';
 
@@ -307,10 +348,14 @@ function reportTableHtml(firstHeader, rows, total, fields, emptyText) {
 
 // The enrollment table has its own columns, written as data fields so the table and the exports can share them.
 var REPORT_ENROLLMENT_FIELDS = [
-  { label: "Started", value: function (row) { return row.started; } },
-  { label: "Completed", value: function (row) { return row.completed; } },
-  { label: "In Progress", value: function (row) { return row.active; } },
-  { label: "Completion Rate", value: function (row) { return percentText(row.completed, row.started); } }
+  { label: "Started", value: function (row) { return row.started; },
+    desc: "Students who started an enrollment in the period." },
+  { label: "Completed", value: function (row) { return row.completed; },
+    desc: "Enrollments finished at the last station of the student type's process." },
+  { label: "In Progress", value: function (row) { return row.active; },
+    desc: "Enrollments still moving through their stations when the report was generated." },
+  { label: "Completion Rate", value: function (row) { return percentText(row.completed, row.started); },
+    desc: "Completed ÷ Started." }
 ];
 
 function reportPanelHtml(title, inner) {
@@ -497,17 +542,40 @@ function exportReportPdf() {
     var r = reportResult;
     var doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     var navy = [0, 84, 166];
+    var pageWidth = doc.internal.pageSize.getWidth();
     var pageBottom = doc.internal.pageSize.getHeight() - 60;
-    var y = 96;
 
+    // Title, then the report's details as labelled lines.
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.setTextColor(23, 32, 51);
     doc.text("QFicient Queue Report", 40, 48);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text(r.stationLabel + "   |   " + reportRangeText(r) + "   |   Generated " + reportGeneratedText(r), 40, 66);
+    doc.text("STI College Malolos", 40, 66);
+
+    doc.autoTable({
+      startY: 78,
+      theme: "plain",
+      tableWidth: 460,
+      margin: { left: 40 },
+      styles: { fontSize: 10, cellPadding: { top: 2, bottom: 2, left: 0, right: 8 }, textColor: [23, 32, 51] },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 100, textColor: [71, 85, 105] } },
+      body: [
+        ["Report Period:", reportPeriodText(r)],
+        ["Station:", r.stationLabel],
+        ["Generated on:", reportGeneratedLongText(r)],
+        ["Prepared by:", r.preparedBy || "—"],
+        ["Total Tickets:", String(r.total.issued)]
+      ]
+    });
+
+    var y = doc.lastAutoTable.finalY + 10;
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.8);
+    doc.line(40, y, pageWidth - 40, y);
+    y += 26;
 
     // A title starts a new page unless its table's first rows fit under it.
     function addTable(title, rows, hasTotal) {
@@ -539,6 +607,34 @@ function exportReportPdf() {
     }
     reportExportTables(r).forEach(function (table) {
       addTable(table[1], table[2], true);
+    });
+
+    // Definitions: what each figure in this report means (only the data it includes), then how to read the values.
+    var terms = reportFieldsOf(r.include).map(function (f) { return [f.label, f.desc]; });
+    if (r.include.sections.enrollment) {
+      terms = terms.concat(REPORT_ENROLLMENT_FIELDS.map(function (f) { return ["Enrollment: " + f.label, f.desc]; }));
+    }
+    terms = terms.concat([
+      ["Time format", "Times are shown in hours, minutes and seconds (e.g. 1h 05m, 5m 03s, 45s). A dash (—) means there is no data for it."],
+      ["Per station visit", "Wait and service times are counted for each station visit; an enrollment student is timed at each station they visit."],
+      ["Time zone", "All dates and times are Philippine time (UTC+8)."]
+    ]);
+    if (y + 90 > pageBottom) {
+      doc.addPage();
+      y = 48;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(23, 32, 51);
+    doc.text("Definitions", 40, y);
+    doc.autoTable({
+      startY: y + 8,
+      head: [["Term", "Meaning"]],
+      body: terms,
+      theme: "grid",
+      headStyles: { fillColor: [226, 232, 240], textColor: [23, 32, 51] },
+      styles: { fontSize: 9, overflow: "linebreak" },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 170 } }
     });
 
     doc.save(reportFileName("pdf"));

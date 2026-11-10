@@ -90,13 +90,68 @@ function buzzUntilTouched() {
   document.addEventListener(type, function () { stopInsistentBuzz(false); }, { passive: true });
 });
 
+/* ---------- Voice (optional, account menu) ---------- */
+
+// Reads each alert aloud with the phone's own text-to-speech, in English, while QFicient is open (with it closed,
+// the push notification's sound does the job). Off unless the student turns it on; remembered on this device.
+// The voice, rate and the spelled-out ticket numbers are the Live Board's (speakTv / spokenTicketNo in
+// js/tv-announcer.js).
+var STUDENT_VOICE_KEY = "qficient.studentVoice";
+var studentVoicePrimed = false;
+
+function studentVoiceSupported() {
+  return typeof tvSpeechSupported === "function" && tvSpeechSupported();
+}
+
+function studentVoiceOn() {
+  if (!studentVoiceSupported()) return false;
+  try { return localStorage.getItem(STUDENT_VOICE_KEY) === "on"; } catch (e) { return false; }
+}
+
+function speakStudent(text) {
+  if (!text || !studentVoiceOn()) return;
+  window.speechSynthesis.cancel(); // the newest alert replaces one still being read
+  speakTv(text);
+}
+
+// From the account menu. The tap that turns it on also lets the page speak, so it says so straight away.
+function toggleStudentVoice() {
+  var on = !studentVoiceOn();
+  try { localStorage.setItem(STUDENT_VOICE_KEY, on ? "on" : "off"); } catch (e) {}
+  if (on) {
+    studentVoicePrimed = true;
+    speakStudent("Voice announcements are on. We'll read your ticket alerts aloud.");
+  } else if (studentVoiceSupported()) {
+    window.speechSynthesis.cancel();
+  }
+  return on;
+}
+
+// After a reload the page may not speak until it is touched; the first tap primes it with a silent word.
+document.addEventListener("pointerdown", function () {
+  if (studentVoicePrimed || !studentVoiceOn()) return;
+  studentVoicePrimed = true;
+  try {
+    var silent = new SpeechSynthesisUtterance(" ");
+    silent.volume = 0;
+    window.speechSynthesis.speak(silent);
+  } catch (e) {}
+}, { passive: true });
+
+// "Ticket C A, 0 1 2." in front of a spoken message.
+function spokenTicketPrefix(ticket) {
+  return ticket && ticket.ticketNo ? "Ticket " + spokenTicketNo(ticket.ticketNo) + ". " : "";
+}
+
 // tone: "alert" (red), "info" (blue) or "good" (green). insist: keep buzzing until the student touches the screen.
-// icon: the matching notification icon (NOTIF_ICON_PATHS in js/notif-dropdown.js).
-function studentAlert(text, tone, urgent, insist, icon) {
+// icon: the matching notification icon (NOTIF_ICON_PATHS in js/notif-dropdown.js). spoken: what the voice says, when
+// it should differ from the text (e.g. a ticket number spelled out); defaults to the text.
+function studentAlert(text, tone, urgent, insist, icon, spoken) {
   showStudentToast(text, tone, icon);
   playChime(!!urgent);
   if (insist) buzzUntilTouched();
   else buzz(!!urgent);
+  speakStudent(spoken || text);
 }
 
 /* ---------- What changed on the student's ticket ---------- */
@@ -146,9 +201,11 @@ function watchTicketEvents(ticket) {
 
   if (ticket.stationId !== w.stationId || ticket.ticketNo !== w.ticketNo) {
     if (ticket.enrollment === true) {
-      studentAlert("Next enrollment step: please go to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", true, false, "nextStation");
+      studentAlert("Next enrollment step: please go to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", true, false, "nextStation",
+        "Next enrollment step. Please go to " + stationName + ". Your new number is " + spokenTicketNo(ticket.ticketNo) + ".");
     } else {
-      studentAlert("Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false, false, "transfer");
+      studentAlert("Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false, false, "transfer",
+        "Your ticket moved to " + stationName + ". Your new number is " + spokenTicketNo(ticket.ticketNo) + ".");
     }
     // A new queue: start counting again from where they are now, without a second message straight away.
     w.soonPlace = soonPlaceSeen(place, someoneServed);
@@ -156,9 +213,11 @@ function watchTicketEvents(ticket) {
   } else if (ticket.status !== w.status) {
     if (ticket.status === "serving") {
       var windowText = windowLabel(station, ticketWindow(ticket));
-      studentAlert("It's your turn! Please go to " + stationName + (windowText ? ", " + windowText : "") + " now.", "good", true, true, "bellRing");
+      studentAlert("It's your turn! Please go to " + stationName + (windowText ? ", " + windowText : "") + " now.", "good", true, true, "bellRing",
+        spokenTicketPrefix(ticket) + "It's your turn. Please go to " + stationName + (windowText ? ", " + windowText : "") + ", now.");
     } else if (ticket.status === "skipped") {
-      studentAlert("Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause");
+      studentAlert("Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause",
+        spokenTicketPrefix(ticket) + "Your ticket is on hold. Please return to " + stationName + " within " + formatVoidWindow() + " to keep it.");
     }
   }
 
@@ -201,6 +260,9 @@ function showEndNotice(ticket) {
     var text = expired ?
       "Ticket " + ticket.ticketNo + " was voided because the last call ran out. You can get a new ticket anytime." :
       "Ticket " + ticket.ticketNo + " was removed by " + stationNameOf(ticket.stationId) + ". If you think this is a mistake, please ask the staff at the counter.";
+    speakStudent(expired ?
+      spokenTicketPrefix(ticket) + "Your ticket expired because the last call ran out. You can get a new ticket anytime." :
+      spokenTicketPrefix(ticket) + "Your ticket was removed by " + stationNameOf(ticket.stationId) + ".");
 
     if (typeof Swal !== "undefined") {
       Swal.fire({ icon: "warning", title: title, text: text, confirmButtonText: "OK", confirmButtonColor: "#0054A6" });
@@ -212,7 +274,8 @@ function showEndNotice(ticket) {
     var enrolled = ticket.enrollment === true;
     studentAlert(enrolled ?
       "Your enrollment is complete. Thank you!" :
-      "Your transaction for ticket " + ticket.ticketNo + " is complete. Thank you!", "good", false, false, enrolled ? "graduate" : "done");
+      "Your transaction for ticket " + ticket.ticketNo + " is complete. Thank you!", "good", false, false, enrolled ? "graduate" : "done",
+      enrolled ? "Your enrollment is complete. Thank you!" : "Your transaction is complete. Thank you!");
   }
 }
 

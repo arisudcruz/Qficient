@@ -318,7 +318,7 @@ function openLimitRequestFromNav() {
   openLimitRequestModal();
 }
 
-// "Today: 12 / 40 tickets", or "No limit today (12 so far)", at the top of the request form.
+// "Today: 12 / 40 tickets", or "Today: No limit", at the top of the request form.
 function limitTodayLineHtml(station) {
   var today = limitToday();
   var limit = stationLimitFor(station, today);
@@ -326,7 +326,7 @@ function limitTodayLineHtml(station) {
   var forToday = station.dayLimits && Number(station.dayLimits[today]) > 0;
   return '<p class="limit-today">' +
     '<span class="limit-today-label">Today</span>' +
-    '<strong>' + escapeAdminText(limit > 0 ? used + " / " + limit + " tickets" : "No limit (" + used + " so far)") + '</strong>' +
+    '<strong>' + escapeAdminText(limit > 0 ? used + " / " + limit + " tickets" : "No limit") + '</strong>' +
     (forToday ? '<span class="type-tag limit-tag-approved">Approved for today</span>' : '') +
   '</p>';
 }

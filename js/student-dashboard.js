@@ -74,8 +74,8 @@ function checkTicketAlerts(ticket) {
 
   if (firstSight) alertBaseline = { ticketId: ticket.id, recallMs: 0, lastCallMs: 0 };
 
-  if (recallMs && recallMs !== alertBaseline.recallMs && (!firstSight || now - recallMs < FRESH_ALERT_MS)) notifyRecall();
-  if (lastCallMs && lastCallMs !== alertBaseline.lastCallMs && (!firstSight || now - lastCallMs < FRESH_ALERT_MS)) notifyLastCall();
+  if (recallMs && recallMs !== alertBaseline.recallMs && (!firstSight || now - recallMs < FRESH_ALERT_MS)) notifyRecall(ticket);
+  if (lastCallMs && lastCallMs !== alertBaseline.lastCallMs && (!firstSight || now - lastCallMs < FRESH_ALERT_MS)) notifyLastCall(ticket);
 
   alertBaseline.recallMs = recallMs;
   alertBaseline.lastCallMs = lastCallMs;
@@ -107,12 +107,15 @@ function showStudentToast(text, tone, icon) {
   }).showToast();
 }
 
-function notifyRecall() {
-  studentAlert("Please go to the counter. You're being called.", "alert", true, true, "megaphone");
+// The spoken versions (when voice announcements are on, js/alerts.js) name the ticket and the station.
+function notifyRecall(ticket) {
+  studentAlert("Please go to the counter. You're being called.", "alert", true, true, "megaphone",
+    spokenTicketPrefix(ticket) + "You're being called. Please go to " + (ticket ? stationNameOf(ticket.stationId) : "the counter") + " now.");
 }
 
-function notifyLastCall() {
-  studentAlert("Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm");
+function notifyLastCall(ticket) {
+  studentAlert("Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm",
+    spokenTicketPrefix(ticket) + "Last call! Please return to " + (ticket ? stationNameOf(ticket.stationId) : "the counter") + " within " + formatVoidWindow() + ", or your ticket will be voided.");
 }
 
 // A small icon in front of a line of text (banners, the ticket's countdown); icons from js/notif-dropdown.js.
@@ -344,6 +347,13 @@ function enableAlertsFromMenu() {
 function changeStudentTypeFromMenu() {
   closeUserMenu();
   promptStudentType(false);
+}
+
+function toggleVoiceFromMenu() {
+  closeUserMenu();
+  var on = toggleStudentVoice();
+  renderHeader();
+  showStudentToast(on ? "Voice announcements are on while QFicient is open." : "Voice announcements are off.", "info", on ? "bellRing" : "bell");
 }
 
 function toggleThemeFromMenu() {
@@ -706,6 +716,13 @@ function renderHeader() {
 
   var themeBtn = document.getElementById("udMenuTheme");
   if (themeBtn) themeBtn.textContent = document.body.classList.contains("dark") ? "Light mode" : "Dark mode";
+
+  // Voice announcements (js/alerts.js): only where the phone's browser can speak.
+  var voiceBtn = document.getElementById("udMenuVoice");
+  if (voiceBtn) {
+    voiceBtn.hidden = !studentVoiceSupported();
+    voiceBtn.textContent = "Voice announcements: " + (studentVoiceOn() ? "On" : "Off");
+  }
 
   var logoutBtn = document.getElementById("udMenuLogout");
   if (logoutBtn) logoutBtn.textContent = user && user.type === "walkin" ? "End visit" : "Log out";
