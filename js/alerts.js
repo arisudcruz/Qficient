@@ -119,6 +119,15 @@ function stationNameOf(stationId) {
   return station ? station.name : "the counter";
 }
 
+// The closest "almost your turn" place already announced (3, then 2), or 99 for none yet. Where the ticket stands
+// when the page first sees it counts as announced (the join message, or the student already knows), so only moving
+// up from there alerts. The server's push follows the same rule (functions/lib/push.js); with the page open and in
+// view, the page's own alert is the one the student gets.
+function soonPlaceSeen(place, someoneServed) {
+  if (place === 1) return someoneServed ? 1 : 2;
+  return place >= 2 && place <= 3 ? place : 99;
+}
+
 // Called on every dashboard update while the student has a live ticket.
 function watchTicketEvents(ticket) {
   var place = placeInLine(ticket);
@@ -129,7 +138,7 @@ function watchTicketEvents(ticket) {
   // First look at this ticket (just joined, or the page was reopened): note where it stands, without alerts.
   if (!ticketWatch || ticketWatch.id !== ticket.id) {
     ticketWatch = { id: ticket.id, ticketNo: ticket.ticketNo, stationId: ticket.stationId, status: ticket.status,
-                    soon: place > 0 && place <= 3, next: place === 1 && someoneServed };
+                    soonPlace: soonPlaceSeen(place, someoneServed), next: place === 1 && someoneServed };
     return;
   }
 
@@ -142,7 +151,7 @@ function watchTicketEvents(ticket) {
       studentAlert("Your ticket moved to " + stationName + ". Your new number is " + ticket.ticketNo + ".", "info", false, false, "transfer");
     }
     // A new queue: start counting again from where they are now, without a second message straight away.
-    w.soon = place > 0 && place <= 3;
+    w.soonPlace = soonPlaceSeen(place, someoneServed);
     w.next = place === 1 && someoneServed;
   } else if (ticket.status !== w.status) {
     if (ticket.status === "serving") {
@@ -157,10 +166,11 @@ function watchTicketEvents(ticket) {
     if (place === 1 && someoneServed && !w.next) {
       studentAlert("You're next at " + stationName + ". Please get ready.", "info", true, false, "next");
       w.next = true;
-      w.soon = true;
-    } else if (place >= 2 && place <= 3 && !w.soon) {
+      w.soonPlace = 1;
+    } else if (place >= 2 && place <= 3 && place < w.soonPlace) {
+      // Once at 3rd and once at 2nd (not again if someone is prioritized ahead and they slip back).
       studentAlert("You're " + ordinalWord(place) + " in line at " + stationName + ". Please stay nearby.", "info", false, false, "hourglass");
-      w.soon = true;
+      w.soonPlace = place;
     }
   }
 

@@ -8,6 +8,7 @@ var TV_MAX_PRESETS = 20;
 var TV_PRESET_NAME_MAX = 40;
 var TV_DEFAULT_STATIONS = ["admission", "cashier", "registrar"]; // listed first when picking stations for a preset
 var TV_WAITING_ROWS = 4;
+var TV_HOLD_CHIPS = 6; // on-hold numbers shown per column; the rest are "+N more"
 var TV_IDLE_MS = 3 * 1000;
 var TV_PRESET_ID_PATTERN = /^[a-z0-9]{4,24}$/;
 
@@ -344,11 +345,38 @@ function tvNowHtml(station) {
   return '<ul class="tv-now-windows">' + rows.join("") + '</ul>';
 }
 
+// Today's tickets put on hold at a station, the longest-held first.
+function tvHoldTicketsOf(stationId) {
+  return tickets.filter(function (t) {
+    return t.stationId === stationId && t.status === "skipped" && isTodayTicket(t);
+  }).sort(function (a, b) { return timestampToMs(a.skippedAt, 0) - timestampToMs(b.skippedAt, 0); });
+}
+
+// "On Hold" at the bottom of a column: their numbers as chips, so someone who stepped away sees they are expected
+// back. A ticket on its last call is marked red. Nothing is shown when no one is on hold.
+function tvHoldHtml(held) {
+  if (!held.length) return "";
+  var shown = held.slice(0, TV_HOLD_CHIPS);
+  var more = held.length - shown.length;
+  return '<div class="tv-hold">' +
+    '<p class="tv-label">On Hold</p>' +
+    '<div class="tv-hold-list">' + shown.map(function (ticket) {
+      var last = getSkipPhase(ticket).phase === "final";
+      return '<span class="tv-hold-chip' + (last ? ' is-last' : '') + '">' + escapeHtml(ticket.ticketNo) +
+        (last ? '<small>Last call</small>' : '') + '</span>';
+    }).join("") +
+    (more > 0 ? '<span class="tv-hold-chip tv-hold-more">+' + more + ' more</span>' : '') +
+    '</div>' +
+  '</div>';
+}
+
 function tvColumnHtml(station) {
   var line = waitingTicketsOf(station.id);
   var next = line[0];
-  // Each window past the second takes a row's worth of space in "Now Serving", so fewer waiting rows fit.
-  var rows = Math.max(1, TV_WAITING_ROWS - Math.max(0, stationWindows(station) - 2));
+  var held = tvHoldTicketsOf(station.id);
+  // Each window past the second takes a row's worth of space in "Now Serving", so fewer waiting rows fit; so does the
+  // On Hold section.
+  var rows = Math.max(1, TV_WAITING_ROWS - Math.max(0, stationWindows(station) - 2) - (held.length ? 1 : 0));
   var waiting = line.slice(1, 1 + rows);
   var more = line.length - 1 - waiting.length;
 
@@ -363,7 +391,9 @@ function tvColumnHtml(station) {
         '<ul class="tv-wait">' + waiting.map(function (ticket, i) {
           return '<li class="tv-row">' + tvRowHtml(ticket, i + 2) + '</li>';
         }).join("") + '</ul>' : '') +
-      (more > 0 ? '<p class="tv-more">+' + more + ' more waiting</p>' : '') +
+      // With an On Hold section, that section sits at the bottom and "+N more waiting" stays under the list.
+      (more > 0 ? '<p class="tv-more' + (held.length ? ' is-above-hold' : '') + '">+' + more + ' more waiting</p>' : '') +
+      tvHoldHtml(held) +
     '</div>' +
   '</section>';
 }

@@ -2,6 +2,14 @@ const messages = require("./messages");
 const { compareQueueOrder } = require("./events");
 const { startOfTodayMs } = require("./time");
 
+// Whether this ticket number was already told it is at `place` (or closer). A ticket reminded before soonPlace
+// existed counts as told about 3rd, so it still hears about 2nd.
+function soonAlreadyAnnounced(ticket, place) {
+  if (!ticket || ticket.soonNotified !== ticket.ticketNo) return false;
+  const told = Number(ticket.soonPlace) || 3;
+  return told <= place;
+}
+
 function isDeadTokenError(err) {
   const code = err && err.code;
   return code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token";
@@ -138,20 +146,23 @@ function createPusher({ db, FieldValue, Timestamp, messaging, config, log, force
 
     const line = waiting.docs.map(function (doc) { return Object.assign({ id: doc.id, ref: doc.ref }, doc.data()); }).sort(compareQueueOrder);
 
-    // 2nd and 3rd in line get one "almost your turn" reminder per ticket number (a transfer gives a new number,
-    // so they are reminded again in the new queue).
+    // "Almost your turn": once on reaching 3rd and again on reaching 2nd, per ticket number. soonNotified holds the
+    // ticket number and soonPlace the closest place already announced, so moving back (someone prioritized ahead)
+    // isn't announced again, and a transfer (a new number) starts afresh. The same tag makes "2nd" replace "3rd"
+    // on the phone (and ring again).
     for (let i = 1; i < Math.min(3, line.length); i++) {
       const ticket = line[i];
-      if (ticket.soonNotified === ticket.ticketNo) continue;
+      const place = i + 1;
+      if (soonAlreadyAnnounced(ticket, place)) continue;
 
       const claimedSoon = await db.runTransaction(async function (transaction) {
         const snap = await transaction.get(ticket.ref);
         const data = snap.data();
-        if (!snap.exists || data.status !== "waiting" || data.soonNotified === data.ticketNo) return false;
-        transaction.update(ticket.ref, { soonNotified: data.ticketNo });
+        if (!snap.exists || data.status !== "waiting" || soonAlreadyAnnounced(data, place)) return false;
+        transaction.update(ticket.ref, { soonNotified: data.ticketNo, soonPlace: place });
         return true;
       });
-      if (claimedSoon) await notifyTicket(ticket, messages.soon(ticket, stationName, i + 1), ticket.id + ":soon:" + ticket.ticketNo);
+      if (claimedSoon) await notifyTicket(ticket, messages.soon(ticket, stationName, place), ticket.id + ":soon:" + ticket.ticketNo);
     }
 
     const first = line[0];
