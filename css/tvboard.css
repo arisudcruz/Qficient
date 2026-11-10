@@ -355,6 +355,58 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   text-align: center;
 }
 
+.tv-more.is-above-hold { margin-top: 0; }
+
+/* On Hold: at the bottom of the column, the numbers of tickets waiting for their owner to come back */
+.tv-hold {
+  margin-top: auto;
+  padding-top: 1.2vh;
+  border-top: 1px solid #E2E8F0;
+}
+
+.tv-hold .tv-label { margin-top: 0; }
+
+.tv-hold-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8vh 0.5vw;
+}
+
+.tv-hold-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5vh 0.8vw;
+  border-radius: 999px;
+  background: #FFF4DB;
+  color: #7C4A03;
+  font-family: var(--font-display);
+  font-size: 2.6vh;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.tv-hold-chip small {
+  font-size: 0.5em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tv-hold-chip.is-last {
+  border-radius: 1vh;
+  background: #FDE2E2;
+  color: #B42318;
+}
+
+.tv-hold-chip.tv-hold-more {
+  background: #EEF1F5;
+  color: #64748B;
+  font-weight: 500;
+}
+
+.tv-main[data-columns="4"] .tv-hold-chip { font-size: min(2.6vh, 1.4vw); padding: 0.5vh 0.6vw; }
+
 .tv-none {
   margin: 0;
   padding: 1vh 0;
