@@ -22,6 +22,7 @@ var NOTIF_ICON_PATHS = {
   done: '<circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/>',
   warning: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
   blocked: '<circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   people: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'
 };
 
@@ -79,12 +80,11 @@ var NOTIF_DROPDOWN_SOURCES = {
     error: function () { return ""; },
     items: function () {
       return getNotifications().map(function (item) {
-        var t = item.ticket;
         return {
           id: item.id,
-          icon: staffNotifIcon(t),
-          title: notifTitle(t),
-          detail: notifDetail(t),
+          icon: notifItemIcon(item),
+          title: notifItemTitle(item),
+          detail: notifItemDetail(item),
           ms: item.ms,
           unread: !isNotifRead(item)
         };

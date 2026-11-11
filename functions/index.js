@@ -173,6 +173,7 @@ exports.dailyCleanup = onSchedule({ schedule: "5 0 * * *", timeZone: "Asia/Manil
   logger.info("daily cleanup voided " + cleaned + " leftover ticket(s)");
   try {
     await signInLock.cleanOldFailures(lockDeps());
+    await signInLock.cleanOldAlerts(lockDeps());
   } catch (error) {
     logger.error("cleaning sign-in failures failed: " + (error && error.stack ? error.stack : error));
   }
@@ -236,7 +237,7 @@ exports.resetStaffPassword = onCall(async function (request) {
 // while. The first two need no sign-in (the person is at the login page); they only ever take a username.
 
 function lockDeps() {
-  return { db, Timestamp, adminAuth: getAuth(), config };
+  return { db, Timestamp, FieldValue, adminAuth: getAuth(), config };
 }
 
 function lockCall(name, run) {
@@ -253,6 +254,7 @@ function lockCall(name, run) {
 
 exports.recordFailedSignIn = lockCall("recordFailedSignIn", async function (request) {
   const result = await signInLock.recordFailedSignIn(lockDeps(), request.data);
+  if (result.alertError) logger.error("lock alert failed: " + (result.alertError.stack || result.alertError));
   if (result.lockedUid) {
     const rules = config.signInLock;
     await logAudit(result.lockedUid, "app_user", {

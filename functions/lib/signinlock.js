@@ -69,6 +69,26 @@ async function releaseLock(deps, email, force) {
   return data;
 }
 
+// Admins are told in their notification inbox (js/admin-notifications.js) when a real login is locked. Usernames
+// without an account never make one, so guessing names can't fill the inbox. Kept for ALERT_DAYS (dailyCleanup).
+const ALERTS = "securityAlerts";
+const ALERT_DAYS = 7; // the inbox's look-back (NOTIF_LOOKBACK_DAYS in js/admin-notifications.js)
+
+async function writeLockAlert(deps, email, username, lockedUntilMs, failures) {
+  const { db, Timestamp, FieldValue } = deps;
+  const staff = await db.collection("staff").doc(email).get();
+  const data = staff.exists ? staff.data() : {};
+  await db.collection(ALERTS).add({
+    type: "accountLocked",
+    at: FieldValue ? FieldValue.serverTimestamp() : Timestamp.fromMillis(nowOf(deps)),
+    username: username,
+    name: data.name || "",
+    role: data.role || "",
+    lockedUntil: Timestamp.fromMillis(lockedUntilMs),
+    failures: failures
+  });
+}
+
 // The login page reports a wrong password. Usernames without an account are counted the same way, so the answer
 // never reveals which usernames exist; only a real login is ever disabled.
 // Returns { locked, lockedUntilMs, attemptsLeft, lockedUid } (lockedUid only when this failure started the lock).
@@ -110,6 +130,7 @@ async function recordFailedSignIn(deps, data) {
   });
 
   let lockedUid = "";
+  let alertError = null;
   if (outcome.started) {
     const user = await authUserOf(adminAuth, email);
     // Marked before the login is switched off, so a failure in between can never leave it off with no record.
@@ -117,10 +138,18 @@ async function recordFailedSignIn(deps, data) {
       await ref.update({ disabledByLock: true });
       await adminAuth.updateUser(user.uid, { disabled: true });
     }
-    if (user) lockedUid = user.uid;
+    if (user) {
+      lockedUid = user.uid;
+      // The alert never holds up the lock or the reply; a failure is handed back for the log.
+      try {
+        await writeLockAlert(deps, email, username, outcome.lockedUntilMs, maxFailures);
+      } catch (error) {
+        alertError = error;
+      }
+    }
   }
 
-  return { locked: outcome.locked, lockedUntilMs: outcome.lockedUntilMs, attemptsLeft: outcome.attemptsLeft, lockedUid: lockedUid };
+  return { locked: outcome.locked, lockedUntilMs: outcome.lockedUntilMs, attemptsLeft: outcome.attemptsLeft, lockedUid: lockedUid, alertError: alertError };
 }
 
 // Sign-in said the account is disabled: is that this lock, and has it run out? Returns { locked, lockedUntilMs } while
@@ -184,6 +213,15 @@ async function cleanOldFailures(deps) {
   return stale.length;
 }
 
+// Each night (dailyCleanup): lock alerts older than the inbox shows are removed.
+async function cleanOldAlerts(deps) {
+  const { db, Timestamp } = deps;
+  const old = await db.collection(ALERTS).where("at", "<", Timestamp.fromMillis(nowOf(deps) - ALERT_DAYS * 24 * 60 * 60 * 1000)).get();
+  await Promise.all(old.docs.map(function (doc) { return doc.ref.delete(); }));
+  return old.size;
+}
+
 module.exports = {
+  cleanOldAlerts,
   recordFailedSignIn, signInLockStatus, clearSignInFailures, unlockStaffAccount, releaseLock, releaseExpiredLocks, cleanOldFailures
 };

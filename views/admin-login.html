@@ -21,7 +21,7 @@
 
       <form id="adminLoginForm" onsubmit="adminLogin(event)" novalidate>
         <label for="adminEmail">Username</label>
-        <input type="text" id="adminEmail" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" placeholder="Enter your username">
+        <input type="text" id="adminEmail" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" placeholder="Enter your username" oninput="updateAdminLoginLock()">
 
         <label for="adminPassword">Password</label>
         <div class="pw-field">

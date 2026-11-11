@@ -503,6 +503,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // "Account Locked" alerts for the admins' notification inbox, written by the same functions.
+    match /securityAlerts/{alertId} {
+      allow get, list: if isAdmin();
+      allow write: if false;
+    }
+
     // ---------- Walk-in QR passes ----------
     // The Queue Enforcer (or an admin) fills in a walk-in's details and shows a one-time QR code. Only the SHA-256
     // of the code's secret is stored. The walk-in's phone redeems it through the redeemWalkinPass Cloud Function,

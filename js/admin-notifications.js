@@ -1,4 +1,5 @@
-// Admin inbox: every ticket is a "New Queue Request". Which ones a staff member has read or deleted
+// Admin inbox: every ticket is a "New Queue Request", and full admins also see "Account Locked" when a staff login
+// is locked after too many wrong passwords (securityAlerts, written by functions/lib/signinlock.js). Which ones a staff member has read or deleted
 // is stored in Firestore (staffNotifications/{their email}), so it follows them across computers.
 var NOTIF_LOOKBACK_DAYS = 7;
 var NOTIF_PAGE_SIZE = 30;
@@ -15,6 +16,8 @@ var notifState = {
 
 var notifUnsubscribe = null;
 var notifTimer = null;
+var lockAlerts = []; // { id, ms, username, name, failures, lockedUntilMs }: full admins only
+var lockAlertsUnsubscribe = null;
 var notifLastUnread = null; // unread count after the last load; null until the first one (which doesn't ring)
 
 // Every page header has its own bell; the visible one rings when the unread count goes up after the inbox has
@@ -61,6 +64,25 @@ function startNotificationsListener() {
 
   // Keeps the "2h ago" style labels fresh.
   notifTimer = setInterval(refreshNotifications, 30 * 1000);
+
+  if (adminKind() === "admin") startLockAlertsListener();
+}
+
+function startLockAlertsListener() {
+  if (lockAlertsUnsubscribe) return;
+  var since = firebase.firestore.Timestamp.fromMillis(Date.now() - NOTIF_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  lockAlertsUnsubscribe = db.collection("securityAlerts").where("at", ">=", since).onSnapshot(function (snapshot) {
+    lockAlerts = snapshot.docs.map(function (doc) {
+      var d = doc.data({ serverTimestamps: "estimate" });
+      return {
+        id: doc.id, ms: timestampToMs(d.at, Date.now()), username: d.username || "", name: d.name || "",
+        failures: Number(d.failures) || 0, lockedUntilMs: timestampToMs(d.lockedUntil, 0)
+      };
+    });
+    refreshNotifications();
+  }, function (error) {
+    console.error("Could not load lock alerts: " + error.message);
+  });
 }
 
 function stopNotificationsListener() {
@@ -68,6 +90,11 @@ function stopNotificationsListener() {
     notifUnsubscribe();
     notifUnsubscribe = null;
   }
+  if (lockAlertsUnsubscribe) {
+    lockAlertsUnsubscribe();
+    lockAlertsUnsubscribe = null;
+  }
+  lockAlerts = [];
   if (notifTimer) {
     clearInterval(notifTimer);
     notifTimer = null;
@@ -92,17 +119,40 @@ function isNotifRead(item) {
   return !!notifState.readIds[item.id] || item.ms <= readBefore;
 }
 
-// Newest first; deleted ones are left out.
+// Newest first; deleted ones are left out. kind "ticket" (item.ticket) or "lock" (item.alert).
 function getNotifications() {
   var cutoff = Date.now() - NOTIF_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 
-  return tickets.map(function (ticket) {
-    return { id: notifKey(ticket), ticket: ticket, ms: notifCreatedMs(ticket) };
+  var ticketItems = tickets.map(function (ticket) {
+    return { id: notifKey(ticket), kind: "ticket", ticket: ticket, ms: notifCreatedMs(ticket) };
   }).filter(function (item) {
-    return item.ms >= cutoff && !notifState.deletedIds[item.id] && canViewStationData(item.ticket.stationId);
+    return canViewStationData(item.ticket.stationId);
+  });
+  var lockItems = adminKind() === "admin" ? lockAlerts.map(function (alert) {
+    return { id: "lock:" + alert.id, kind: "lock", alert: alert, ms: alert.ms };
+  }) : [];
+
+  return ticketItems.concat(lockItems).filter(function (item) {
+    return item.ms >= cutoff && !notifState.deletedIds[item.id];
   }).sort(function (a, b) {
     return b.ms - a.ms;
   });
+}
+
+function notifItemTitle(item) {
+  return item.kind === "lock" ? "Account Locked" : notifTitle(item.ticket);
+}
+
+function notifItemDetail(item) {
+  if (item.kind !== "lock") return notifDetail(item.ticket);
+  var a = item.alert;
+  var who = a.name ? a.name + " (" + a.username + ")" : a.username;
+  return who + " · " + (a.failures || "Too many") + " failed sign-ins" +
+    (a.lockedUntilMs ? " · locked until " + manilaTimeText(a.lockedUntilMs) : "");
+}
+
+function notifItemIcon(item) {
+  return item.kind === "lock" ? { name: "lock", tone: "danger" } : staffNotifIcon(item.ticket);
 }
 
 function formatNotifTime(ms) {
@@ -185,12 +235,15 @@ function notifPruneEntries() {
   tickets.forEach(function (ticket) {
     if (notifCreatedMs(ticket) >= cutoff) live[notifKey(ticket)] = true;
   });
+  // Lock alerts are only known to full admins; anyone else leaves "lock:" marks alone rather than prune them.
+  lockAlerts.forEach(function (alert) { live["lock:" + alert.id] = true; });
+  var keepLocks = adminKind() !== "admin" || !lockAlertsUnsubscribe;
 
   var patch = {};
   ["readIds", "deletedIds"].forEach(function (field) {
     var stale = {};
     Object.keys(notifState[field]).forEach(function (id) {
-      if (!live[id]) stale[id] = firebase.firestore.FieldValue.delete();
+      if (!live[id] && !(keepLocks && id.indexOf("lock:") === 0)) stale[id] = firebase.firestore.FieldValue.delete();
     });
     if (Object.keys(stale).length) patch[field] = stale;
   });
@@ -273,6 +326,16 @@ function openNotification(id) {
 
   if (!isNotifRead(item)) markNotificationRead(id);
 
+  // A locked account: Settings > Staffs, where its Locked tag and Unlock button are.
+  if (item.kind === "lock") {
+    setAdminSection("settings");
+    var staffHeading = Array.prototype.find.call(document.querySelectorAll("#adminSettingsArea .panel-header h2"), function (h) {
+      return h.textContent === "Staffs";
+    });
+    if (staffHeading) staffHeading.scrollIntoView({ block: "start" });
+    return;
+  }
+
   // An enforcer has no Queue Management page: they land on the Queue Enforcer list for that station instead.
   if (adminKind() === "enforcer") {
     if (getEnforcerStations().some(function (station) { return station.id === item.ticket.stationId; })) {
@@ -346,10 +409,10 @@ function renderNotifications() {
         var read = isNotifRead(item);
 
         return '<article class="notif-card' + (read ? ' read' : '') + '" onclick="openNotification(\'' + id + '\')">' +
-          notifIconHtml("notif-icon", staffNotifIcon(item.ticket), 18) +
+          notifIconHtml("notif-icon", notifItemIcon(item), 18) +
           '<div class="notif-copy">' +
-            '<p class="notif-title">' + escapeAdminText(notifTitle(item.ticket)) + '</p>' +
-            '<p class="notif-detail">' + escapeAdminText(notifDetail(item.ticket)) + '</p>' +
+            '<p class="notif-title">' + escapeAdminText(notifItemTitle(item)) + '</p>' +
+            '<p class="notif-detail">' + escapeAdminText(notifItemDetail(item)) + '</p>' +
           '</div>' +
           '<div class="notif-side">' +
             '<button type="button" class="notif-menu-btn" aria-label="More options" onclick="toggleNotifMenu(\'' + id + '\', event)">•••</button>' +

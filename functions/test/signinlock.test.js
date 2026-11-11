@@ -3,7 +3,7 @@
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080";
 
 const admin = require("firebase-admin");
-const { Timestamp } = require("firebase-admin/firestore");
+const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { JoinError } = require("../lib/join");
 const lock = require("../lib/signinlock");
 const config = require("../config");
@@ -40,7 +40,7 @@ let clock = Date.UTC(2026, 10, 11, 2, 0, 0);
 const MIN = 60 * 1000;
 
 function depsWith(adminAuth) {
-  return { db, Timestamp, adminAuth, config, now: function () { return clock; } };
+  return { db, Timestamp, FieldValue, adminAuth, config, now: function () { return clock; } };
 }
 
 async function attempt(fn) {
@@ -60,12 +60,13 @@ async function failTimes(deps, username, n) {
 const caller = (email, provider) => ({ uid: "uid-" + email, token: { email: email, firebase: { sign_in_provider: provider || "password" } } });
 
 (async () => {
-  for (const name of ["signInLocks", "staff"]) {
+  for (const name of ["signInLocks", "staff", "securityAlerts"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
   await db.collection("staff").doc("boss.admin@staff.qficient.app").set({ email: "boss.admin@staff.qficient.app", role: "admin" });
-  await db.collection("staff").doc("juan.cruz@staff.qficient.app").set({ email: "juan.cruz@staff.qficient.app", role: "cashier" });
+  await db.collection("staff").doc("juan.cruz@staff.qficient.app").set({ email: "juan.cruz@staff.qficient.app", role: "cashier", name: "Juan Cruz" });
+  const alerts = async () => (await db.collection("securityAlerts").get()).docs.map((d) => d.data());
 
   const auth = fakeAuth([
     { uid: "u-juan", email: "juan.cruz@staff.qficient.app" },
@@ -85,11 +86,17 @@ const caller = (email, provider) => ({ uid: "uid-" + email, token: { email: emai
   check("the Firebase login is switched off", auth.users["juan.cruz@staff.qficient.app"].disabled === true);
   let doc = (await db.collection("signInLocks").doc("juan.cruz@staff.qficient.app").get()).data();
   check("the record says the lock switched it off", doc.disabledByLock === true && doc.failures.length === 0, JSON.stringify(doc));
+  let list = await alerts();
+  check("admins get one 'Account Locked' alert", list.length === 1 && list[0].type === "accountLocked" && list[0].username === "juan.cruz" &&
+    list[0].name === "Juan Cruz" && list[0].role === "cashier" && list[0].failures === rules.maxFailures &&
+    list[0].lockedUntil.toMillis() === r.lockedUntilMs && list[0].at, JSON.stringify(list));
+  check("4 failures before it made no alert", list.length === 1);
 
   const firstUntil = r.lockedUntilMs;
   clock += 5 * MIN;
   r = await lock.recordFailedSignIn(deps, { username: "juan.cruz" });
   check("a wrong password while locked doesn't make the lock longer", r.locked && r.lockedUntilMs === firstUntil && !r.lockedUid, JSON.stringify(r));
+  check("and makes no new alert", (await alerts()).length === 1);
 
   r = await lock.signInLockStatus(deps, { username: "juan.cruz" });
   check("status while locked says until when", r.locked && r.lockedUntilMs === firstUntil && !r.released, JSON.stringify(r));
@@ -134,6 +141,7 @@ const caller = (email, provider) => ({ uid: "uid-" + email, token: { email: emai
   r = await lock.recordFailedSignIn(deps, { username: "nobody.here" });
   check("and 'locks' the same way", r.locked && !r.lockedUid, JSON.stringify(r));
   check("but no login is touched", auth.updates.length === before);
+  check("and no alert is made for a username with no account", !(await alerts()).some((a) => a.username === "nobody.here"));
 
   r = await failTimes(deps, "off.user", rules.maxFailures);
   check("an account an admin disabled is locked like any other", r.locked, JSON.stringify(r));
@@ -153,6 +161,9 @@ const caller = (email, provider) => ({ uid: "uid-" + email, token: { email: emai
   // ---- The built-in admin is locked too ----
   r = await failTimes(deps, "admin", rules.maxFailures);
   check("the built-in admin is locked too", r.locked && auth.users["admin@qficient.com"].disabled === true, JSON.stringify(r));
+  list = await alerts();
+  const adminAlert = list.find((a) => a.username === "admin");
+  check("with an alert (no staff record: no name)", !!adminAlert && adminAlert.name === "" && !r.alertError, JSON.stringify(list));
 
   // ---- An administrator unlocks ----
   r = await attempt(() => lock.unlockStaffAccount(deps, caller("juan.cruz@staff.qficient.app"), { username: "admin" }));
@@ -179,7 +190,15 @@ const caller = (email, provider) => ({ uid: "uid-" + email, token: { email: emai
   const cleaned = await lock.cleanOldFailures(deps);
   check("old failure counts are removed each night", cleaned >= 1 && !(await db.collection("signInLocks").doc("juan.cruz@staff.qficient.app").get()).exists, "cleaned " + cleaned);
 
-  for (const name of ["signInLocks", "staff"]) {
+  const alertCount = (await alerts()).length;
+  clock = Date.now() + 6 * 24 * 60 * MIN;
+  let removed2 = await lock.cleanOldAlerts(deps);
+  check("alerts within 7 days are kept", removed2 === 0 && (await alerts()).length === alertCount, "removed " + removed2);
+  clock = Date.now() + 8 * 24 * 60 * MIN;
+  removed2 = await lock.cleanOldAlerts(deps);
+  check("alerts older than 7 days are removed each night", removed2 === alertCount && (await alerts()).length === 0, "removed " + removed2 + " of " + alertCount);
+
+  for (const name of ["signInLocks", "staff", "securityAlerts"]) {
     const snap = await db.collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
