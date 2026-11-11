@@ -494,6 +494,15 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ---------- Sign-in lockout ----------
+    // Wrong admin/staff passwords, counted by the Cloud Functions (functions/lib/signinlock.js). Admins can see
+    // which accounts are locked (Settings > Staff); unlocking goes through the unlockStaffAccount function.
+
+    match /signInLocks/{email} {
+      allow get, list: if isAdmin();
+      allow write: if false;
+    }
+
     // ---------- Walk-in QR passes ----------
     // The Queue Enforcer (or an admin) fills in a walk-in's details and shows a one-time QR code. Only the SHA-256
     // of the code's secret is stored. The walk-in's phone redeems it through the redeemWalkinPass Cloud Function,

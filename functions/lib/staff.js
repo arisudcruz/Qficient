@@ -73,4 +73,4 @@ async function resetStaffPassword(deps, auth, data) {
   return { username: username };
 }
 
-module.exports = { resetStaffPassword, emailForUsername, USERNAME_PATTERN };
+module.exports = { resetStaffPassword, emailForUsername, isAdminCaller, USERNAME_PATTERN, ADMIN_USERNAME };

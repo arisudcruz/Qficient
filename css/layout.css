@@ -1271,6 +1271,14 @@ body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color
 
 body.dark .type-tag.staff-temp-pw-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
 
+/* Locked after too many wrong passwords (functions/lib/signinlock.js) */
+.type-tag.staff-locked-tag {
+  background: #FDECEC;
+  color: #B42318;
+}
+
+body.dark .type-tag.staff-locked-tag { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
+
 /* ---------- Daily limit requests (js/admin-limit-requests.js) ---------- */
 
 .type-tag.limit-tag-pending { background: #FFF4DB; color: #92400E; }

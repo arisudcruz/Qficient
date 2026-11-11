@@ -297,6 +297,15 @@ function manilaDateTimeText(ms) {
   }
 }
 
+// The time of day in Philippine time (e.g. "3:45 PM").
+function manilaTimeText(ms) {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+}
+
 // A student blocked for missing their turn too often (functions/lib/strikes.js) can't join until then.
 function blockedJoinText() {
   var until = typeof studentBlockedUntilMs === "function" ? studentBlockedUntilMs() : 0;

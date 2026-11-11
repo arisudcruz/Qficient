@@ -156,6 +156,7 @@ function deactivateAdminSession() {
   setTicketsScope(1);
   stopStaffListener();
   stopBlockedListener();
+  stopLockedListener();
   stopLimitRequestsListener();
   stopServerStatusListener();
   stopNotificationsListener();
@@ -193,6 +194,7 @@ function activateAdminSession(firebaseUser) {
         if (role === "admin") {
           startStaffListener();
           startBlockedListener();
+          startLockedListener();
           startServerStatusListener();
         }
         // Daily limit requests: admins see the pending ones, station staff their station's (js/admin-limit-requests.js).
@@ -231,6 +233,43 @@ function adminLoginErrorMessage(code) {
     default:
       return "Could not sign in. Please try again.";
   }
+}
+
+/* ---------- Sign-in lockout (functions/lib/signinlock.js) ----------
+   Firebase checks the password here in the browser, so each wrong one is reported to the server, which counts them and,
+   at the limit, switches the account's login off for a while. If a report can't be sent (offline), the usual
+   message is shown and nothing else changes. */
+
+function signInLockCall(name, data) {
+  return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable(name)(data || {}).then(function (result) {
+    return result.data || {};
+  });
+}
+
+function signInLockedText(untilMs) {
+  return "Too many failed sign-ins. This account is locked until " + manilaTimeText(untilMs) +
+    ". An administrator can unlock it sooner.";
+}
+
+// After a wrong password: the message to show, with how many tries are left once only a few remain.
+function failedSignInText(username) {
+  return signInLockCall("recordFailedSignIn", { username: username }).then(function (r) {
+    if (r.locked && r.lockedUntilMs) return signInLockedText(r.lockedUntilMs);
+    if (r.attemptsLeft > 0 && r.attemptsLeft <= 2) {
+      return "Incorrect username or password. " + r.attemptsLeft + " attempt" + (r.attemptsLeft === 1 ? "" : "s") +
+        " left before this account is locked.";
+    }
+    return adminLoginErrorMessage("auth/invalid-credential");
+  }).catch(function () {
+    return adminLoginErrorMessage("auth/invalid-credential");
+  });
+}
+
+// The login is switched off: by a lock (still running, or just ended and now switched back on) or by an administrator.
+function disabledSignInStatus(username) {
+  return signInLockCall("signInLockStatus", { username: username }).catch(function () {
+    return {};
+  });
 }
 
 // One form for administrators and staff alike: the account's role decides what the console shows.
@@ -272,8 +311,21 @@ function adminLogin(event) {
   adminLoginInProgress = true;
 
   var signedIn = false;
+  var password = passwordInput.value;
 
-  firebase.auth().signInWithEmailAndPassword(email, passwordInput.value)
+  // A lock that has just ended is switched back on by signInLockStatus; the sign-in is then tried once more.
+  function signInOnce(retried) {
+    return firebase.auth().signInWithEmailAndPassword(email, password).catch(function (error) {
+      if (retried || !error || error.code !== "auth/user-disabled") throw error;
+      return disabledSignInStatus(username).then(function (status) {
+        if (status.released) return signInOnce(true);
+        if (status.locked && status.lockedUntilMs) error.lockMessage = signInLockedText(status.lockedUntilMs);
+        throw error;
+      });
+    });
+  }
+
+  signInOnce(false)
     .then(function (credential) {
       signedIn = true;
       return activateAdminSession(credential.user).then(function (allowed) {
@@ -282,6 +334,7 @@ function adminLogin(event) {
           document.getElementById("adminLoginForm").reset();
           goTo("pageAdmin");
           logAccountEvent("signIn"); // the audit trail (js/admin-audit.js); never holds up the sign-in
+          signInLockCall("clearSignInFailures").catch(function () {}); // a fresh count; never holds up the sign-in
           // Still on staff123 (or a password an admin reset): ask them to choose their own (js/admin-password.js).
           if (adminMustChangePassword) openChangePasswordModal({ firstTime: true, current: typedPassword });
           return null;
@@ -298,8 +351,16 @@ function adminLogin(event) {
     })
     .catch(function (error) {
       passwordInput.value = "";
-      setAdminLoginError(adminLoginErrorMessage(error.code));
-      return signedIn ? firebase.auth().signOut() : null;
+      if (signedIn) {
+        setAdminLoginError(adminLoginErrorMessage(error.code));
+        return firebase.auth().signOut();
+      }
+      var code = error && error.code;
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+        return failedSignInText(username).then(setAdminLoginError);
+      }
+      setAdminLoginError(error && error.lockMessage || adminLoginErrorMessage(code));
+      return null;
     })
     .then(function () {
       adminLoginInProgress = false;

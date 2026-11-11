@@ -49,6 +49,7 @@ function computeSettingsSignature() {
     systemSettings.autoVoidMinutes,
     systemSettings.cancelCooldownSeconds,
     blockedStudents.map(function (b) { return [b.id, b.untilMs]; }),
+    lockedAccounts,
     limitRequestsSignature()
   ]);
 }
@@ -128,6 +129,65 @@ function confirmUnblockStudent(uid) {
       }).catch(function (error) {
         say("Could not unblock the student: " + error.message);
       });
+    }
+  });
+}
+
+/* Locked staff accounts: too many wrong passwords at the admin login (functions/lib/signinlock.js) switch the
+   account's login off for a while. Admins only; Unlock (the unlockStaffAccount Cloud Function) ends it early. */
+
+var SIGN_IN_LOCK_TEXT = "5 wrong passwords within 15 minutes lock an account for 15 minutes"; // functions/config.js
+var lockedAccounts = {}; // staff email -> lockedUntil (ms)
+var lockedUnsubscribe = null;
+
+function startLockedListener() {
+  if (lockedUnsubscribe) return;
+  lockedUnsubscribe = db.collection("signInLocks")
+    .where("lockedUntil", ">", firebase.firestore.Timestamp.now())
+    .onSnapshot(function (snapshot) {
+      lockedAccounts = {};
+      snapshot.docs.forEach(function (doc) {
+        lockedAccounts[doc.id] = timestampToMs(doc.data().lockedUntil, 0);
+      });
+      refreshSettings();
+    }, function (error) {
+      console.error("Could not load locked accounts: " + error.message);
+    });
+}
+
+function stopLockedListener() {
+  if (lockedUnsubscribe) {
+    lockedUnsubscribe();
+    lockedUnsubscribe = null;
+  }
+  lockedAccounts = {};
+}
+
+// When the account's lock ends, or 0 when it isn't locked.
+function accountLockedUntil(email) {
+  var until = lockedAccounts[staffKey(email)] || 0;
+  return until > serverNow() ? until : 0;
+}
+
+function confirmUnlockStaff(email) {
+  var account = staffAccounts.find(function (a) { return a.id === email; });
+  var username = usernameOfEmail(email);
+  if (!account || !username || !accountLockedUntil(email)) return;
+
+  showConfirmModal({
+    title: "Unlock " + staffDisplayName(account) + "?",
+    message: "They can sign in again right away, and their failed attempts start from zero.",
+    confirmLabel: "Unlock",
+    tone: "primary",
+    onConfirm: function () {
+      return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("unlockStaffAccount")({ username: username })
+        .then(function () {
+          delete lockedAccounts[staffKey(email)];
+          refreshSettings();
+          sayDone(staffDisplayName(account) + " can sign in again.");
+        }).catch(function (error) {
+          say("Could not unlock the account: " + error.message);
+        });
     }
   });
 }
@@ -1169,13 +1229,16 @@ function renderSettings() {
     var id = escapeAdminText(account.id);
     var roleName = (roles.find(function (r) { return r.id === accountRole(account); }) || NO_ROLE).name;
     var locked = isProtectedAccount(account.email);
+    var lockedUntil = accountLockedUntil(account.email);
 
     return '<tr><td class="settings-strong">' + escapeAdminText(staffDisplayName(account)) + '</td>' +
       '<td>' + escapeAdminText(staffLoginText(account)) +
         (usernameOfEmail(account.email) ? '' : ' <span class="type-tag staff-email-tag" title="Made with an email, which can no longer sign in">Email account: re-create with a username</span>') +
-        (account.mustChangePassword === true ? ' <span class="type-tag staff-temp-pw-tag" title="Still using the default or a reset password; they\'ll be asked to change it at sign-in">Default password</span>' : '') + '</td>' +
+        (account.mustChangePassword === true ? ' <span class="type-tag staff-temp-pw-tag" title="Still using the default or a reset password; they\'ll be asked to change it at sign-in">Default password</span>' : '') +
+        (lockedUntil ? ' <span class="type-tag staff-locked-tag" title="Too many wrong passwords">Locked until ' + escapeAdminText(manilaTimeText(lockedUntil)) + '</span>' : '') + '</td>' +
       '<td>' + escapeAdminText(roleName) + '</td>' +
       '<td><div class="settings-actions">' +
+        (lockedUntil ? '<button type="button" class="settings-btn settings-btn-blue" onclick="confirmUnlockStaff(\'' + id + '\')">Unlock</button>' : '') +
         '<button type="button" class="settings-icon-btn settings-icon-blue" title="Edit staff" onclick="openEditStaffModal(\'' + id + '\')">✎</button>' +
         (locked ? '' : '<button type="button" class="settings-icon-btn settings-icon-red" title="Delete staff" onclick="confirmDeleteStaff(\'' + id + '\')">🗑</button>') +
       '</div></td></tr>';
@@ -1237,6 +1300,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Staffs</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStaffModal()">+ Add New Staff</button></div>' +
+      '<p class="settings-help">' + SIGN_IN_LOCK_TEXT + '. Unlock lets them sign in again right away; resetting their password does too.</p>' +
       '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Action</th></tr></thead>' +
         '<tbody>' + staffRowsHtml + '</tbody></table></div>' +
     '</section>';

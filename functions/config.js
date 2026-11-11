@@ -33,6 +33,10 @@ module.exports = {
   // day ends (midnight, Philippine time). From warnFrom on, each cancel notes a warning in their history.
   cancelBlock: { limit: 5, warnFrom: 3 },
 
+  // Admin and staff sign-in lockout (lib/signinlock.js): this many wrong passwords within windowMinutes disable the
+  // account's login for lockMinutes. Keep in step with SIGN_IN_LOCK_TEXT in js/admin-settings.js.
+  signInLock: { maxFailures: 5, windowMinutes: 15, lockMinutes: 15 },
+
   // Limits on joining the queue (enforced by the joinQueue function, per account).
   joinMinIntervalMs: 3 * 1000,   // shortest gap between two joins
   cancelCooldownMs: 20 * 1000,   // wait after cancelling a ticket before joining again, when System Settings has none
