@@ -35,7 +35,7 @@ module.exports = {
 
   // Limits on joining the queue (enforced by the joinQueue function, per account).
   joinMinIntervalMs: 3 * 1000,   // shortest gap between two joins
-  cancelCooldownMs: 20 * 1000,   // wait after cancelling a ticket before joining again
+  cancelCooldownMs: 20 * 1000,   // wait after cancelling a ticket before joining again, when System Settings has none
   maxJoinsPerDay: 10,            // tickets one account can create in a queue day
 
   // Switch individual notifications on or off.

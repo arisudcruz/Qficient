@@ -1012,6 +1012,12 @@ body.dark .qm-window.active .qm-window-now { color: #CFE0F8; }
   font-size: 0.85rem;
 }
 
+/* A second setting in the same panel (Queue Rules & Timeouts: the cancel cooldown under the Auto-Void timeout). */
+.settings-input + .settings-field-label {
+  display: block;
+  margin-top: 18px;
+}
+
 .settings-help {
   margin: 0 0 10px;
   font-size: 0.75rem;

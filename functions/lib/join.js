@@ -97,6 +97,14 @@ function isContention(error) {
     (error.code === 10 || error.code === "aborted" || /contention|ABORTED/i.test(String(error.message)));
 }
 
+// The wait after cancelling a ticket before joining again: System Settings (settings/system.cancelCooldownSeconds,
+// 0 to 3600, 0 = none), else config.cancelCooldownMs. js/firebase.js reads the same setting for the countdown.
+async function cancelCooldownMsOf(db, config) {
+  const doc = await db.collection("settings").doc("system").get();
+  const seconds = doc.exists ? doc.data().cancelCooldownSeconds : undefined;
+  return Number.isInteger(seconds) && seconds >= 0 && seconds <= 3600 ? seconds * 1000 : config.cancelCooldownMs;
+}
+
 async function withContentionRetry(work) {
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {
@@ -191,6 +199,7 @@ async function joinQueue(deps, auth, data) {
   if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please try again tomorrow.");
   }
+  const cancelCooldownMs = await cancelCooldownMsOf(db, config);
 
   // Step 1, this student only: the one-ticket rule and the join limits, then the join is reserved (lastJoinMs) so
   // a double tap can't make two tickets. Nobody else touches this record, so it never collides with the crowd.
@@ -218,8 +227,8 @@ async function joinQueue(deps, auth, data) {
         }
 
         const cancelledMs = p.status === "cancelled" ? toMs(p.cancelledAt) : 0;
-        if (cancelledMs && now - cancelledMs < config.cancelCooldownMs) {
-          throw new JoinError("resource-exhausted", "Please wait " + wait(config.cancelCooldownMs - (now - cancelledMs)) + " before joining again.");
+        if (cancelledMs && now - cancelledMs < cancelCooldownMs) {
+          throw new JoinError("resource-exhausted", "Please wait " + wait(cancelCooldownMs - (now - cancelledMs)) + " before joining again.");
         }
       }
     }
@@ -286,4 +295,4 @@ async function joinQueue(deps, auth, data) {
   }
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, nextTicketNo, withContentionRetry };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, cancelCooldownMsOf, nextTicketNo, withContentionRetry };

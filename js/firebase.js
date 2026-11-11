@@ -33,7 +33,15 @@ db.collection("settings").doc("system").onSnapshot(function (doc) {
   var minutes = doc.exists ? Number(doc.data().autoVoidMinutes) : 1;
   systemSettings.autoVoidMinutes = minutes > 0 ? minutes : 1;
   AUTO_VOID_WINDOW_MS = systemSettings.autoVoidMinutes * 60 * 1000;
+
+  var cooldown = doc.exists ? doc.data().cancelCooldownSeconds : undefined;
+  var cooldownSeconds = Number.isInteger(cooldown) && cooldown >= 0 && cooldown <= 3600 ? cooldown : DEFAULT_CANCEL_COOLDOWN_SECONDS;
+  var cooldownChanged = cooldownSeconds !== systemSettings.cancelCooldownSeconds;
+  systemSettings.cancelCooldownSeconds = cooldownSeconds;
+  CANCEL_COOLDOWN_MS = cooldownSeconds * 1000;
+
   refreshSettings();
+  if (cooldownChanged) updateDashboard(); // a student waiting out a cancel sees the new countdown right away
 }, function (err) {
   console.error("Could not load system settings: " + err.message);
 });

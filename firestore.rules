@@ -200,10 +200,15 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isAdmin() &&
         ((docId == 'system' &&
-          request.resource.data.keys().hasOnly(['autoVoidMinutes', 'updatedAt']) &&
+          request.resource.data.keys().hasOnly(['autoVoidMinutes', 'cancelCooldownSeconds', 'updatedAt']) &&
           request.resource.data.autoVoidMinutes is int &&
           request.resource.data.autoVoidMinutes >= 1 &&
-          request.resource.data.autoVoidMinutes <= 1440) ||
+          request.resource.data.autoVoidMinutes <= 1440 &&
+          // The wait after cancelling a ticket before joining again (missing = 20 seconds; 0 = no wait).
+          (!('cancelCooldownSeconds' in request.resource.data) ||
+           (request.resource.data.cancelCooldownSeconds is int &&
+            request.resource.data.cancelCooldownSeconds >= 0 &&
+            request.resource.data.cancelCooldownSeconds <= 3600))) ||
          (docId == 'enrollment' && isEnrollmentConfig(request.resource.data)) ||
          (docId == 'roleRules' && isRoleRulesConfig(request.resource.data)) ||
          (docId == 'liveBoard' && isLiveBoardConfig(request.resource.data)));

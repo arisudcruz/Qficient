@@ -160,8 +160,16 @@ function describeSettingsChange(docId, before, after, roleName, stationName) {
   const a = after || {};
 
   if (docId === "system") {
-    if (b.autoVoidMinutes === a.autoVoidMinutes) return null;
-    return entry("settings", "settingsTimeout", "Changed the on-hold / last-call timeout from " + (b.autoVoidMinutes || "?") + " to " + (a.autoVoidMinutes || "?") + " minute(s)");
+    const parts = [];
+    if (b.autoVoidMinutes !== a.autoVoidMinutes) {
+      parts.push("Changed the on-hold / last-call timeout from " + (b.autoVoidMinutes || "?") + " to " + (a.autoVoidMinutes || "?") + " minute(s)");
+    }
+    // Missing means the default, 20 seconds (functions/config.js).
+    const cooldown = function (d) { return Number.isInteger(d.cancelCooldownSeconds) ? d.cancelCooldownSeconds : 20; };
+    if (cooldown(b) !== cooldown(a)) {
+      parts.push("Changed the cancel cooldown from " + cooldown(b) + " to " + cooldown(a) + " second(s)");
+    }
+    return parts.length ? entry("settings", "settingsTimeout", parts.join("; ")) : null;
   }
 
   if (docId === "enrollment") {

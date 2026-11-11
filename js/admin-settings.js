@@ -14,6 +14,7 @@ var NO_ROLE = { id: "none", name: "No Role" };
 var settingsSelectedRole = "admin";
 var settingsRoleDrafts = {};
 var settingsTimeoutDraft = null;
+var settingsCooldownDraft = null;
 var settingsSignature = "";
 
 function getSortedStations() {
@@ -46,6 +47,7 @@ function computeSettingsSignature() {
     stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s), s.dayLimits || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
+    systemSettings.cancelCooldownSeconds,
     blockedStudents.map(function (b) { return [b.id, b.untilMs]; }),
     limitRequestsSignature()
   ]);
@@ -161,8 +163,11 @@ function refreshSettings() {
   renderSettings();
 }
 
-function isTimeoutDirty() {
-  return settingsTimeoutDraft !== null && settingsTimeoutDraft.trim() !== String(systemSettings.autoVoidMinutes);
+// Queue Rules & Timeouts: the Auto-Void minutes and the cancel cooldown share one Save / Cancel.
+function isConfigDirty() {
+  var timeout = settingsTimeoutDraft !== null && settingsTimeoutDraft.trim() !== String(systemSettings.autoVoidMinutes);
+  var cooldown = settingsCooldownDraft !== null && settingsCooldownDraft.trim() !== String(systemSettings.cancelCooldownSeconds);
+  return timeout || cooldown;
 }
 
 function updateConfigButtons() {
@@ -170,7 +175,7 @@ function updateConfigButtons() {
   var cancel = document.getElementById("settingsCancelBtn");
   if (!save || !cancel) return;
 
-  var dirty = isTimeoutDirty();
+  var dirty = isConfigDirty();
   save.disabled = !dirty;
   cancel.disabled = !dirty;
   save.className = "settings-btn " + (dirty ? "settings-btn-primary" : "settings-btn-muted");
@@ -182,15 +187,29 @@ function onTimeoutInput(value) {
   updateConfigButtons();
 }
 
+function onCooldownInput(value) {
+  settingsCooldownDraft = value;
+  updateConfigButtons();
+}
+
 function cancelTimeoutEdit() {
   settingsTimeoutDraft = null;
+  settingsCooldownDraft = null;
   renderSettings();
 }
 
 function confirmSaveConfiguration() {
-  var minutes = Number(settingsTimeoutDraft);
+  var minutesText = settingsTimeoutDraft !== null ? settingsTimeoutDraft.trim() : String(systemSettings.autoVoidMinutes);
+  var cooldownText = settingsCooldownDraft !== null ? settingsCooldownDraft.trim() : String(systemSettings.cancelCooldownSeconds);
+  var minutes = minutesText === "" ? NaN : Number(minutesText);
+  var cooldownSeconds = cooldownText === "" ? NaN : Number(cooldownText);
+
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
     say("Please enter a whole number of minutes between 1 and 1440.");
+    return;
+  }
+  if (!Number.isInteger(cooldownSeconds) || cooldownSeconds < 0 || cooldownSeconds > 3600) {
+    say("Please enter a cancel cooldown of 0 to 3600 seconds (0 means no wait).");
     return;
   }
 
@@ -202,9 +221,11 @@ function confirmSaveConfiguration() {
     onConfirm: function () {
       return db.collection("settings").doc("system").set({
         autoVoidMinutes: minutes,
+        cancelCooldownSeconds: cooldownSeconds,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true }).then(function () {
         settingsTimeoutDraft = null;
+        settingsCooldownDraft = null;
         renderSettings();
         sayDone("Configuration saved.");
       }).catch(function (error) {
@@ -1084,7 +1105,8 @@ function renderSettings() {
   }
 
   var timeoutValue = settingsTimeoutDraft !== null ? settingsTimeoutDraft : String(systemSettings.autoVoidMinutes);
-  var dirty = isTimeoutDirty();
+  var cooldownValue = settingsCooldownDraft !== null ? settingsCooldownDraft : String(systemSettings.cancelCooldownSeconds);
+  var dirty = isConfigDirty();
 
   var stationRowsHtml = getSortedStations().map(function (station) {
     var active = station.active !== false;
@@ -1185,6 +1207,9 @@ function renderSettings() {
       '<label class="settings-field-label" for="settingsTimeout">Auto-Void Timeout Minute</label>' +
       '<p class="settings-help">*Controls the number of minutes a queue entry on hold has to return to the counter. Once it runs out, staff can send a last call that gives the entry the same amount of time again. If the last call also runs out, the system automatically marks the queue entry as void.</p>' +
       '<input type="number" id="settingsTimeout" class="settings-input" min="1" max="1440" step="1" value="' + escapeAdminText(timeoutValue) + '" oninput="onTimeoutInput(this.value)">' +
+      '<label class="settings-field-label" for="settingsCooldown">Cancel Cooldown (seconds)</label>' +
+      '<p class="settings-help">*How long a student must wait after cancelling a ticket before they can join a queue again. 0 turns the wait off.</p>' +
+      '<input type="number" id="settingsCooldown" class="settings-input" min="0" max="3600" step="1" value="' + escapeAdminText(cooldownValue) + '" oninput="onCooldownInput(this.value)">' +
     '</section>' +
 
     blockedStudentsPanelHtml() +
