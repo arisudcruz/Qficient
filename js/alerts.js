@@ -216,8 +216,8 @@ function watchTicketEvents(ticket) {
       studentAlert("It's your turn! Please go to " + stationName + (windowText ? ", " + windowText : "") + " now.", "good", true, true, "bellRing",
         spokenTicketPrefix(ticket) + "It's your turn. Please go to " + stationName + (windowText ? ", " + windowText : "") + ", now.");
     } else if (ticket.status === "skipped") {
-      studentAlert("Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause",
-        spokenTicketPrefix(ticket) + "Your ticket is on hold. Please return to " + stationName + " within " + formatVoidWindow() + " to keep it.");
+      studentAlert("Your ticket is on hold. Proceed immediately to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause",
+        spokenTicketPrefix(ticket) + "Your ticket is on hold. Please proceed immediately to " + stationName + " within " + formatVoidWindow() + " to keep it.");
     }
   }
 

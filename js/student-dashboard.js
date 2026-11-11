@@ -114,8 +114,8 @@ function notifyRecall(ticket) {
 }
 
 function notifyLastCall(ticket) {
-  studentAlert("Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm",
-    spokenTicketPrefix(ticket) + "Last call! Please return to " + (ticket ? stationNameOf(ticket.stationId) : "the counter") + " within " + formatVoidWindow() + ", or your ticket will be voided.");
+  studentAlert("Last call! Proceed immediately to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm",
+    spokenTicketPrefix(ticket) + "Last call! Please proceed immediately to " + (ticket ? stationNameOf(ticket.stationId) : "the counter") + " within " + formatVoidWindow() + ", or your ticket will be voided.");
 }
 
 // A small icon in front of a line of text (banners, the ticket's countdown); icons from js/notif-dropdown.js.
@@ -126,10 +126,10 @@ function inlineIconHtml(name, id) {
 function ticketCountdownText(phase, remainingMs) {
   if (phase === "final") {
     return remainingMs > 0 ?
-      "Last call! Return to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
+      "Last call! Proceed immediately to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
       "Your ticket has expired. It will be removed from the queue shortly.";
   }
-  return "Please return to the counter. " + formatCountdown(remainingMs) + " left.";
+  return "Please proceed immediately to the counter. " + formatCountdown(remainingMs) + " left.";
 }
 
 function ticketCountdownIcon(phase, remainingMs) {
