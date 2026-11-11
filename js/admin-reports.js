@@ -1,5 +1,5 @@
 // Reports: KPIs, a summary per station, per day, per hour and per student type, and an enrollment summary, for a
-// chosen range of Philippine queue days, with PDF and Excel downloads. Before generating, staff tick what the report
+// chosen range of Philippine queue days, with PDF and Excel downloads (both carry the app logo). Before generating, staff tick what the report
 // should include; the screen and both downloads show only those parts. Admins see every station; Queue
 // Management staff see only their own.
 // The tickets are read fresh from Firestore when a report is generated, so any range (up to REPORT_MAX_DAYS) works.
@@ -9,7 +9,8 @@ var REPORT_MAX_DAYS = 92;
 
 // Export libraries are only downloaded when someone exports, with an integrity check on each file.
 var REPORT_LIBS = {
-  xlsx: [{ src: "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", integrity: "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" }],
+  // ExcelJS rather than SheetJS: it can put the logo in the spreadsheet.
+  xlsx: [{ src: "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js", integrity: "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz" }],
   pdf: [
     { src: "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", integrity: "sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" },
     { src: "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js", integrity: "sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" }
@@ -467,6 +468,40 @@ function loadReportLibs(kind) {
   }, Promise.resolve());
 }
 
+// The app logo for the exports, loaded once: { dataUrl, base64, width, height }, or null if it can't be loaded
+// (the export then goes ahead without it).
+var REPORT_LOGO_SRC = "/assets/qficient-logo-navy.png";
+var reportLogoPromise = null;
+
+function reportLogo() {
+  if (reportLogoPromise) return reportLogoPromise;
+  reportLogoPromise = fetch(REPORT_LOGO_SRC).then(function (response) {
+    if (!response.ok) throw new Error("logo " + response.status);
+    return response.blob();
+  }).then(function (blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }).then(function (dataUrl) {
+    return new Promise(function (resolve, reject) {
+      var image = new Image();
+      image.onload = function () {
+        resolve({ dataUrl: dataUrl, base64: dataUrl.split(",")[1], width: image.naturalWidth, height: image.naturalHeight });
+      };
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+  }).catch(function (error) {
+    console.warn("Report logo not loaded: " + (error && error.message));
+    reportLogoPromise = null; // try again next export
+    return null;
+  });
+  return reportLogoPromise;
+}
+
 function reportFileName(ext) {
   var r = reportResult;
   var station = r.draft.stationId === "all" ? "all-stations" : String(r.draft.stationId);
@@ -508,11 +543,32 @@ function exportReportExcel() {
   var button = document.getElementById("reportXlsxBtn");
   setButtonLoading(button, true);
 
-  loadReportLibs("xlsx").then(function () {
+  Promise.all([loadReportLibs("xlsx"), reportLogo()]).then(function (loaded) {
     var r = reportResult;
-    var book = XLSX.utils.book_new();
+    var logo = loaded[1];
+    var book = new ExcelJS.Workbook();
+    book.creator = "QFicient";
+
+    // Report sheet: the logo at the top left with the title beside it, then the details and the KPI Summary.
+    var sheet = book.addWorksheet("Report");
+    sheet.getColumn(1).width = 26;
+    sheet.getColumn(2).width = 34;
+    sheet.getRow(1).height = 24;
+    sheet.getRow(2).height = 20;
+    sheet.getCell("B1").value = "QFicient Queue Report";
+    sheet.getCell("B1").font = { bold: true, size: 16 };
+    sheet.getCell("B2").value = "STI College Malolos";
+    sheet.getCell("B2").font = { color: { argb: "FF64748B" } };
+    if (logo) {
+      var logoHeight = 40;
+      sheet.addImage(book.addImage({ base64: logo.base64, extension: "png" }), {
+        tl: { col: 0.15, row: 0.1 },
+        ext: { width: Math.round(logoHeight * logo.width / logo.height), height: logoHeight }
+      });
+    }
+
     var info = [
-      ["QFicient Queue Report"],
+      [],
       ["Station", r.stationLabel],
       ["From", r.draft.start],
       ["To", r.draft.end],
@@ -520,12 +576,36 @@ function exportReportExcel() {
     ];
     var kpis = reportKpiRows(r);
     if (kpis.length) info = info.concat([[], ["KPI Summary"]], kpis);
-
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(info), "Report");
-    reportExportTables(r).forEach(function (table) {
-      XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(table[2]), table[0]);
+    sheet.addRows(info);
+    sheet.eachRow(function (row, n) {
+      if (n > 2) row.getCell(1).font = { bold: true };
     });
-    XLSX.writeFile(book, reportFileName("xlsx"));
+
+    // One sheet per table, with the header row in navy like the PDF and the Total row in bold.
+    reportExportTables(r).forEach(function (table) {
+      var rows = table[2];
+      var tab = book.addWorksheet(table[0]);
+      tab.addRows(rows);
+      tab.getRow(1).eachCell(function (cell) {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0054A6" } };
+      });
+      tab.getRow(rows.length).font = { bold: true };
+      rows[0].forEach(function (header, i) {
+        tab.getColumn(i + 1).width = Math.max(i === 0 ? 18 : 12, String(header).length + 4);
+      });
+    });
+
+    return book.xlsx.writeBuffer().then(function (buffer) {
+      var url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = reportFileName("xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
   }).catch(function (error) {
     say("Could not export the report: " + error.message);
   }).then(function () {
@@ -538,22 +618,30 @@ function exportReportPdf() {
   var button = document.getElementById("reportPdfBtn");
   setButtonLoading(button, true);
 
-  loadReportLibs("pdf").then(function () {
+  Promise.all([loadReportLibs("pdf"), reportLogo()]).then(function (loaded) {
     var r = reportResult;
+    var logo = loaded[1];
     var doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     var navy = [0, 84, 166];
     var pageWidth = doc.internal.pageSize.getWidth();
     var pageBottom = doc.internal.pageSize.getHeight() - 60;
 
-    // Title, then the report's details as labelled lines.
+    // The logo, with the title beside it, then the report's details as labelled lines.
+    var titleX = 40;
+    if (logo) {
+      var logoHeight = 38;
+      var logoWidth = logoHeight * logo.width / logo.height;
+      doc.addImage(logo.dataUrl, "PNG", 40, 30, logoWidth, logoHeight);
+      titleX = 40 + logoWidth + 12;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.setTextColor(23, 32, 51);
-    doc.text("QFicient Queue Report", 40, 48);
+    doc.text("QFicient Queue Report", titleX, 48);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text("STI College Malolos", 40, 66);
+    doc.text("STI College Malolos", titleX, 66);
 
     doc.autoTable({
       startY: 78,
@@ -566,8 +654,7 @@ function exportReportPdf() {
         ["Report Period:", reportPeriodText(r)],
         ["Station:", r.stationLabel],
         ["Generated on:", reportGeneratedLongText(r)],
-        ["Prepared by:", r.preparedBy || "—"],
-        ["Total Tickets:", String(r.total.issued)]
+        ["Prepared by:", r.preparedBy || "—"]
       ]
     });
 

@@ -1012,6 +1012,12 @@ body.dark .qm-window.active .qm-window-now { color: #CFE0F8; }
   font-size: 0.85rem;
 }
 
+/* A second setting in the same panel (Queue Rules & Timeouts: the cancel cooldown under the Auto-Void timeout). */
+.settings-input + .settings-field-label {
+  display: block;
+  margin-top: 18px;
+}
+
 .settings-help {
   margin: 0 0 10px;
   font-size: 0.75rem;
@@ -1264,6 +1270,14 @@ body.dark .type-tag.staff-email-tag { background: rgba(239, 68, 68, 0.14); color
 }
 
 body.dark .type-tag.staff-temp-pw-tag { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
+
+/* Locked after too many wrong passwords (functions/lib/signinlock.js) */
+.type-tag.staff-locked-tag {
+  background: #FDECEC;
+  color: #B42318;
+}
+
+body.dark .type-tag.staff-locked-tag { background: rgba(239, 68, 68, 0.14); color: #FCA5A5; }
 
 /* ---------- Daily limit requests (js/admin-limit-requests.js) ---------- */
 

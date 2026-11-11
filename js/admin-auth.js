@@ -156,6 +156,7 @@ function deactivateAdminSession() {
   setTicketsScope(1);
   stopStaffListener();
   stopBlockedListener();
+  stopLockedListener();
   stopLimitRequestsListener();
   stopServerStatusListener();
   stopNotificationsListener();
@@ -193,6 +194,7 @@ function activateAdminSession(firebaseUser) {
         if (role === "admin") {
           startStaffListener();
           startBlockedListener();
+          startLockedListener();
           startServerStatusListener();
         }
         // Daily limit requests: admins see the pending ones, station staff their station's (js/admin-limit-requests.js).
@@ -233,6 +235,39 @@ function adminLoginErrorMessage(code) {
   }
 }
 
+/* ---------- Sign-in lockout (functions/lib/signinlock.js) ----------
+   Firebase checks the password here in the browser, so each wrong one is reported to the server, which counts them and,
+   at the limit, switches the account's login off for a while. If a report can't be sent (offline), the usual
+   message is shown and nothing else changes. */
+
+function signInLockCall(name, data) {
+  return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable(name)(data || {}).then(function (result) {
+    return result.data || {};
+  });
+}
+
+// After a wrong password: { lockedUntilMs } once the account is locked, otherwise { text } to show, with how many
+// tries are left once only a few remain.
+function failedSignInOutcome(username) {
+  return signInLockCall("recordFailedSignIn", { username: username }).then(function (r) {
+    if (r.locked && r.lockedUntilMs) return { lockedUntilMs: r.lockedUntilMs };
+    if (r.attemptsLeft > 0 && r.attemptsLeft <= 2) {
+      return { text: "Incorrect username or password. " + r.attemptsLeft + " attempt" + (r.attemptsLeft === 1 ? "" : "s") +
+        " left before this account is locked." };
+    }
+    return { text: adminLoginErrorMessage("auth/invalid-credential") };
+  }).catch(function () {
+    return { text: adminLoginErrorMessage("auth/invalid-credential") };
+  });
+}
+
+// The login is switched off: by a lock (still running, or just ended and now switched back on) or by an administrator.
+function disabledSignInStatus(username) {
+  return signInLockCall("signInLockStatus", { username: username }).catch(function () {
+    return {};
+  });
+}
+
 // One form for administrators and staff alike: the account's role decides what the console shows.
 var adminLoginInProgress = false; // the sign-in form decides where to go, not the background auth listener
 
@@ -244,6 +279,64 @@ function setAdminLoginError(text) {
 
 function setAdminLoginBusy(busy) {
   setButtonLoading(document.getElementById("adminLoginSubmit"), busy);
+}
+
+/* A locked account on the login page: a live "try again in 12:34" and no Sign In for that username until the lock
+   ends (another username can still sign in). Only the countdown digits change each second, and they are hidden
+   from screen readers, so the alert is read out once, with the time the lock ends. */
+var adminLoginLock = null; // { username, untilMs }
+var adminLoginLockTimer = null;
+
+function showAdminLoginLock(username, untilMs) {
+  adminLoginLock = { username: username, untilMs: untilMs };
+  if (!adminLoginLockTimer) adminLoginLockTimer = setInterval(updateAdminLoginLock, 1000);
+  updateAdminLoginLock();
+}
+
+function clearAdminLoginLock() {
+  adminLoginLock = null;
+  if (adminLoginLockTimer) {
+    clearInterval(adminLoginLockTimer);
+    adminLoginLockTimer = null;
+  }
+}
+
+function adminLoginLockApplies() {
+  var input = document.getElementById("adminEmail");
+  return !!adminLoginLock && !!input && normalizeUsername(input.value) === adminLoginLock.username;
+}
+
+// Runs each second while a lock is known, and whenever the username is edited.
+function updateAdminLoginLock() {
+  if (!adminLoginLock) return;
+  var el = document.getElementById("adminLoginError");
+  var button = document.getElementById("adminLoginSubmit");
+  var applies = adminLoginLockApplies();
+  var left = adminLoginLock.untilMs - serverNow();
+  var showing = !!el.querySelector("[data-lock-countdown]");
+
+  if (left <= 0) {
+    clearAdminLoginLock();
+    if (!adminLoginInProgress) button.disabled = false;
+    if (applies) setAdminLoginError("You can try signing in again.");
+    else if (showing) setAdminLoginError("");
+    return;
+  }
+
+  if (!adminLoginInProgress) button.disabled = applies;
+  if (!applies) {
+    if (showing) setAdminLoginError("");
+    return;
+  }
+
+  if (showing) {
+    el.querySelector("[data-lock-countdown]").textContent = formatCountdown(left);
+    return;
+  }
+  el.innerHTML = "Too many failed sign-ins. This account is locked until " + escapeAdminText(manilaTimeText(adminLoginLock.untilMs)) +
+    '<span aria-hidden="true"> (try again in <b data-lock-countdown>' + formatCountdown(left) + "</b>)</span>" +
+    ". An administrator can unlock it sooner.";
+  el.style.display = "block";
 }
 
 function adminLogin(event) {
@@ -265,6 +358,11 @@ function adminLogin(event) {
     setAdminLoginError("Incorrect username or password.");
     return;
   }
+  // Locked: the countdown stays up (Enter can't get past the turned-off button either).
+  if (adminLoginLockApplies() && adminLoginLock.untilMs > serverNow()) {
+    updateAdminLoginLock();
+    return;
+  }
   var email = staffEmailForUsername(username);
 
   setAdminLoginError("");
@@ -272,16 +370,31 @@ function adminLogin(event) {
   adminLoginInProgress = true;
 
   var signedIn = false;
+  var password = passwordInput.value;
 
-  firebase.auth().signInWithEmailAndPassword(email, passwordInput.value)
+  // A lock that has just ended is switched back on by signInLockStatus; the sign-in is then tried once more.
+  function signInOnce(retried) {
+    return firebase.auth().signInWithEmailAndPassword(email, password).catch(function (error) {
+      if (retried || !error || error.code !== "auth/user-disabled") throw error;
+      return disabledSignInStatus(username).then(function (status) {
+        if (status.released) return signInOnce(true);
+        if (status.locked && status.lockedUntilMs) error.lockedUntilMs = status.lockedUntilMs;
+        throw error;
+      });
+    });
+  }
+
+  signInOnce(false)
     .then(function (credential) {
       signedIn = true;
       return activateAdminSession(credential.user).then(function (allowed) {
         if (allowed) {
           var typedPassword = passwordInput.value;
+          clearAdminLoginLock();
           document.getElementById("adminLoginForm").reset();
           goTo("pageAdmin");
           logAccountEvent("signIn"); // the audit trail (js/admin-audit.js); never holds up the sign-in
+          signInLockCall("clearSignInFailures").catch(function () {}); // a fresh count; never holds up the sign-in
           // Still on staff123 (or a password an admin reset): ask them to choose their own (js/admin-password.js).
           if (adminMustChangePassword) openChangePasswordModal({ firstTime: true, current: typedPassword });
           return null;
@@ -298,12 +411,25 @@ function adminLogin(event) {
     })
     .catch(function (error) {
       passwordInput.value = "";
-      setAdminLoginError(adminLoginErrorMessage(error.code));
-      return signedIn ? firebase.auth().signOut() : null;
+      if (signedIn) {
+        setAdminLoginError(adminLoginErrorMessage(error.code));
+        return firebase.auth().signOut();
+      }
+      var code = error && error.code;
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+        return failedSignInOutcome(username).then(function (outcome) {
+          if (outcome.lockedUntilMs) showAdminLoginLock(username, outcome.lockedUntilMs);
+          else setAdminLoginError(outcome.text);
+        });
+      }
+      if (error && error.lockedUntilMs) showAdminLoginLock(username, error.lockedUntilMs);
+      else setAdminLoginError(adminLoginErrorMessage(code));
+      return null;
     })
     .then(function () {
       adminLoginInProgress = false;
       setAdminLoginBusy(false);
+      updateAdminLoginLock(); // Sign In stays off while the account typed in is locked
       setPasswordVisible(passwordInput, false); // a password shown with the eye doesn't stay on screen
     });
 }

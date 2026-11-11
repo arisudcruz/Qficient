@@ -97,6 +97,32 @@ async function station(id, extra) {
   r = await attempt(student("s3"), { stationId: "registrar", purpose: "Enrollment" });
   check("after the pause they can join again", r.ok, JSON.stringify(r));
 
+  // The pause is set in System Settings (settings/system.cancelCooldownSeconds).
+  await db.collection("settings").doc("system").set({ autoVoidMinutes: 1, cancelCooldownSeconds: 60 });
+  r = await attempt(student("cd1"), { stationId: "registrar", purpose: "Enrollment" });
+  await db.collection("tickets").doc(r.result.ticketId).update({ status: "cancelled", cancelledAt: Timestamp.fromMillis(clock) });
+  advance(25000);
+  r = await attempt(student("cd1"), { stationId: "registrar", purpose: "Enrollment" });
+  check("a 60-second cooldown from System Settings still refuses after 25 seconds", !r.ok && r.code === "resource-exhausted" && /35 seconds/.test(r.message), JSON.stringify(r));
+  advance(35000);
+  r = await attempt(student("cd1"), { stationId: "registrar", purpose: "Enrollment" });
+  check("after the 60 seconds they can join again", r.ok, JSON.stringify(r));
+
+  await db.collection("settings").doc("system").set({ autoVoidMinutes: 1, cancelCooldownSeconds: 0 });
+  r = await attempt(student("cd2"), { stationId: "registrar", purpose: "Enrollment" });
+  await db.collection("tickets").doc(r.result.ticketId).update({ status: "cancelled", cancelledAt: Timestamp.fromMillis(clock) });
+  advance(5000);
+  r = await attempt(student("cd2"), { stationId: "registrar", purpose: "Enrollment" });
+  check("a cooldown of 0 lets them join again right away", r.ok, JSON.stringify(r));
+
+  await db.collection("settings").doc("system").set({ autoVoidMinutes: 1, cancelCooldownSeconds: "60" });
+  r = await attempt(student("cd3"), { stationId: "registrar", purpose: "Enrollment" });
+  await db.collection("tickets").doc(r.result.ticketId).update({ status: "cancelled", cancelledAt: Timestamp.fromMillis(clock) });
+  advance(25000);
+  r = await attempt(student("cd3"), { stationId: "registrar", purpose: "Enrollment" });
+  check("an unusable setting falls back to the 20-second default", r.ok, JSON.stringify(r));
+  await db.collection("settings").doc("system").delete();
+
   // Minimum gap between joins and the daily limit.
   await station("fast", { name: "Fast" });
   const burst = [];

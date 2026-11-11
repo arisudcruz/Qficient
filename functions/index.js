@@ -13,7 +13,8 @@ const { createPusher } = require("./lib/push");
 const { sweepExpired, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
 const { redeemWalkinPass } = require("./lib/walkin");
-const { resetStaffPassword } = require("./lib/staff");
+const { resetStaffPassword, emailForUsername } = require("./lib/staff");
+const signInLock = require("./lib/signinlock");
 const { createManualTicket } = require("./lib/manual");
 const { getAuth } = require("firebase-admin/auth");
 const { isNoShow, recordNoShow, isOwnerCancel, recordCancel } = require("./lib/strikes");
@@ -151,6 +152,14 @@ exports.sweepExpiredTickets = onSchedule({ schedule: "every 1 minutes", timeZone
   const voided = await sweepExpired({ db, FieldValue, config });
   if (voided) logger.info("auto-voided " + voided + " ticket(s)");
 
+  // Sign-in locks that have run out: the login is switched back on (lib/signinlock.js). Never holds up the rest.
+  try {
+    const released = await signInLock.releaseExpiredLocks(lockDeps());
+    if (released) logger.info("released " + released + " sign-in lock(s)");
+  } catch (error) {
+    logger.error("releasing sign-in locks failed: " + (error && error.stack ? error.stack : error));
+  }
+
   await db.collection("serverStatus").doc("notifier").set({
     lastSeen: FieldValue.serverTimestamp(),
     pushEnabled: true,
@@ -162,6 +171,12 @@ exports.sweepExpiredTickets = onSchedule({ schedule: "every 1 minutes", timeZone
 exports.dailyCleanup = onSchedule({ schedule: "5 0 * * *", timeZone: "Asia/Manila" }, async function () {
   const cleaned = await cleanStale({ db, FieldValue, Timestamp, config });
   logger.info("daily cleanup voided " + cleaned + " leftover ticket(s)");
+  try {
+    await signInLock.cleanOldFailures(lockDeps());
+    await signInLock.cleanOldAlerts(lockDeps());
+  } catch (error) {
+    logger.error("cleaning sign-in failures failed: " + (error && error.stack ? error.stack : error));
+  }
 });
 
 // Students join the queue through this function instead of writing tickets themselves, so the
@@ -200,6 +215,12 @@ exports.createManualTicket = onCall(async function (request) {
 exports.resetStaffPassword = onCall(async function (request) {
   try {
     const result = await resetStaffPassword({ db, adminAuth: getAuth() }, request.auth, request.data);
+    // A new password works straight away: a sign-in lock on the account ends with the reset.
+    try {
+      await signInLock.releaseLock(lockDeps(), emailForUsername(result.username), true);
+    } catch (error) {
+      logger.error("releasing the sign-in lock of " + result.username + " failed: " + (error && error.stack ? error.stack : error));
+    }
     await logAudit(request.auth && request.auth.uid, "app_user", {
       category: "staff", action: "passwordReset", summary: "Reset the password of " + result.username, targetId: result.username
     });
@@ -209,6 +230,57 @@ exports.resetStaffPassword = onCall(async function (request) {
     logger.error("resetStaffPassword failed: " + (error && error.stack ? error.stack : error));
     throw new HttpsError("internal", "Something went wrong while resetting the password. Please try again.");
   }
+});
+
+/* ---------- Sign-in lockout (lib/signinlock.js) ---------- */
+// The admin login reports each wrong password; too many lock the account (its Firebase login is switched off) for a
+// while. The first two need no sign-in (the person is at the login page); they only ever take a username.
+
+function lockDeps() {
+  return { db, Timestamp, FieldValue, adminAuth: getAuth(), config };
+}
+
+function lockCall(name, run) {
+  return onCall(async function (request) {
+    try {
+      return await run(request);
+    } catch (error) {
+      if (error instanceof JoinError) throw new HttpsError(error.code, error.message);
+      logger.error(name + " failed: " + (error && error.stack ? error.stack : error));
+      throw new HttpsError("internal", "Something went wrong. Please try again.");
+    }
+  });
+}
+
+exports.recordFailedSignIn = lockCall("recordFailedSignIn", async function (request) {
+  const result = await signInLock.recordFailedSignIn(lockDeps(), request.data);
+  if (result.alertError) logger.error("lock alert failed: " + (result.alertError.stack || result.alertError));
+  if (result.lockedUid) {
+    const rules = config.signInLock;
+    await logAudit(result.lockedUid, "app_user", {
+      category: "account", action: "accountLocked",
+      summary: "Account locked for " + rules.lockMinutes + " minutes after " + rules.maxFailures + " failed sign-ins"
+    });
+  }
+  return { locked: result.locked, lockedUntilMs: result.lockedUntilMs, attemptsLeft: result.attemptsLeft };
+});
+
+exports.signInLockStatus = lockCall("signInLockStatus", function (request) {
+  return signInLock.signInLockStatus(lockDeps(), request.data);
+});
+
+exports.clearSignInFailures = lockCall("clearSignInFailures", function (request) {
+  return signInLock.clearSignInFailures(lockDeps(), request.auth);
+});
+
+exports.unlockStaffAccount = lockCall("unlockStaffAccount", async function (request) {
+  const result = await signInLock.unlockStaffAccount(lockDeps(), request.auth, request.data);
+  if (result.wasLocked) {
+    await logAudit(request.auth && request.auth.uid, "app_user", {
+      category: "account", action: "accountUnlocked", summary: "Unlocked the sign-in of " + result.username, targetId: result.username
+    });
+  }
+  return result;
 });
 
 exports.redeemWalkinPass = onCall(async function (request) {

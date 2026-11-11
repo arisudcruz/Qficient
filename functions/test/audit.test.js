@@ -119,6 +119,17 @@ test("auto-void timeout change", () => {
   const e = audit.describeSettingsChange("system", { autoVoidMinutes: 1 }, { autoVoidMinutes: 3 }, roleName);
   assert.ok(/from 1 to 3/.test(e.summary), e.summary);
 });
+test("cancel cooldown change (missing = 20 seconds)", () => {
+  const e = audit.describeSettingsChange("system", { autoVoidMinutes: 1 }, { autoVoidMinutes: 1, cancelCooldownSeconds: 60 }, roleName);
+  assert.strictEqual(e.action, "settingsTimeout");
+  assert.strictEqual(e.summary, "Changed the cancel cooldown from 20 to 60 second(s)");
+});
+test("timeout and cooldown changed together make one entry", () => {
+  const e = audit.describeSettingsChange("system", { autoVoidMinutes: 1, cancelCooldownSeconds: 60 }, { autoVoidMinutes: 3, cancelCooldownSeconds: 0 }, roleName);
+  assert.ok(/timeout from 1 to 3 minute\(s\); Changed the cancel cooldown from 60 to 0 second\(s\)/.test(e.summary), e.summary);
+});
+test("saving the same system settings isn't logged", () => assert.strictEqual(
+  audit.describeSettingsChange("system", { autoVoidMinutes: 2, cancelCooldownSeconds: 20 }, { autoVoidMinutes: 2 }, roleName), null));
 test("enrollment process change names the student types", () => {
   const e = audit.describeSettingsChange("enrollment", { flows: { regular: ["cashier"] } }, { flows: { regular: ["cashier", "registrar"], freshman: ["registrar"] } }, roleName);
   assert.ok(/Regular/.test(e.summary) && /Incoming Freshman/.test(e.summary), e.summary);

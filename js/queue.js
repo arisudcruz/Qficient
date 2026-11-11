@@ -1,6 +1,9 @@
-var systemSettings = { autoVoidMinutes: 1 };
+// settings/system, kept current by js/firebase.js. cancelCooldownSeconds: the wait after cancelling a ticket
+// before joining again (System Settings; the joinQueue function enforces the same value).
+var DEFAULT_CANCEL_COOLDOWN_SECONDS = 20;
+var systemSettings = { autoVoidMinutes: 1, cancelCooldownSeconds: DEFAULT_CANCEL_COOLDOWN_SECONDS };
 var AUTO_VOID_WINDOW_MS = systemSettings.autoVoidMinutes * 60 * 1000;
-var CANCEL_COOLDOWN_MS = 20 * 1000;
+var CANCEL_COOLDOWN_MS = systemSettings.cancelCooldownSeconds * 1000;
 var ACTIVE_TICKET_STATUSES = ["waiting", "serving", "skipped"];
 
 function getTicketPrefix(stationName) {
@@ -291,6 +294,15 @@ function manilaDateTimeText(ms) {
     }).format(new Date(ms));
   } catch (e) {
     return new Date(ms).toLocaleString();
+  }
+}
+
+// The time of day in Philippine time (e.g. "3:45 PM").
+function manilaTimeText(ms) {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
 }
 

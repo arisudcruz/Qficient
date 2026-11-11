@@ -14,6 +14,7 @@ var NO_ROLE = { id: "none", name: "No Role" };
 var settingsSelectedRole = "admin";
 var settingsRoleDrafts = {};
 var settingsTimeoutDraft = null;
+var settingsCooldownDraft = null;
 var settingsSignature = "";
 
 function getSortedStations() {
@@ -46,7 +47,9 @@ function computeSettingsSignature() {
     stations.map(function (s) { return [s.id, s.name, s.code || "", s.active !== false, s.maxQueue || null, stationWindows(s), s.dayLimits || null]; }),
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
+    systemSettings.cancelCooldownSeconds,
     blockedStudents.map(function (b) { return [b.id, b.untilMs]; }),
+    lockedAccounts,
     limitRequestsSignature()
   ]);
 }
@@ -130,6 +133,65 @@ function confirmUnblockStudent(uid) {
   });
 }
 
+/* Locked staff accounts: too many wrong passwords at the admin login (functions/lib/signinlock.js) switch the
+   account's login off for a while. Admins only; Unlock (the unlockStaffAccount Cloud Function) ends it early. */
+
+var SIGN_IN_LOCK_TEXT = "5 wrong passwords within 15 minutes lock an account for 15 minutes"; // functions/config.js
+var lockedAccounts = {}; // staff email -> lockedUntil (ms)
+var lockedUnsubscribe = null;
+
+function startLockedListener() {
+  if (lockedUnsubscribe) return;
+  lockedUnsubscribe = db.collection("signInLocks")
+    .where("lockedUntil", ">", firebase.firestore.Timestamp.now())
+    .onSnapshot(function (snapshot) {
+      lockedAccounts = {};
+      snapshot.docs.forEach(function (doc) {
+        lockedAccounts[doc.id] = timestampToMs(doc.data().lockedUntil, 0);
+      });
+      refreshSettings();
+    }, function (error) {
+      console.error("Could not load locked accounts: " + error.message);
+    });
+}
+
+function stopLockedListener() {
+  if (lockedUnsubscribe) {
+    lockedUnsubscribe();
+    lockedUnsubscribe = null;
+  }
+  lockedAccounts = {};
+}
+
+// When the account's lock ends, or 0 when it isn't locked.
+function accountLockedUntil(email) {
+  var until = lockedAccounts[staffKey(email)] || 0;
+  return until > serverNow() ? until : 0;
+}
+
+function confirmUnlockStaff(email) {
+  var account = staffAccounts.find(function (a) { return a.id === email; });
+  var username = usernameOfEmail(email);
+  if (!account || !username || !accountLockedUntil(email)) return;
+
+  showConfirmModal({
+    title: "Unlock " + staffDisplayName(account) + "?",
+    message: "They can sign in again right away, and their failed attempts start from zero.",
+    confirmLabel: "Unlock",
+    tone: "primary",
+    onConfirm: function () {
+      return firebase.app().functions(JOIN_FUNCTION_REGION).httpsCallable("unlockStaffAccount")({ username: username })
+        .then(function () {
+          delete lockedAccounts[staffKey(email)];
+          refreshSettings();
+          sayDone(staffDisplayName(account) + " can sign in again.");
+        }).catch(function (error) {
+          say("Could not unlock the account: " + error.message);
+        });
+    }
+  });
+}
+
 // Stations made before ticket codes existed get theirs saved the first time an admin opens the console, so the
 // code can't shift later when other stations are added or removed.
 var stationCodeBackfillKey = null;
@@ -161,8 +223,11 @@ function refreshSettings() {
   renderSettings();
 }
 
-function isTimeoutDirty() {
-  return settingsTimeoutDraft !== null && settingsTimeoutDraft.trim() !== String(systemSettings.autoVoidMinutes);
+// Queue Rules & Timeouts: the Auto-Void minutes and the cancel cooldown share one Save / Cancel.
+function isConfigDirty() {
+  var timeout = settingsTimeoutDraft !== null && settingsTimeoutDraft.trim() !== String(systemSettings.autoVoidMinutes);
+  var cooldown = settingsCooldownDraft !== null && settingsCooldownDraft.trim() !== String(systemSettings.cancelCooldownSeconds);
+  return timeout || cooldown;
 }
 
 function updateConfigButtons() {
@@ -170,7 +235,7 @@ function updateConfigButtons() {
   var cancel = document.getElementById("settingsCancelBtn");
   if (!save || !cancel) return;
 
-  var dirty = isTimeoutDirty();
+  var dirty = isConfigDirty();
   save.disabled = !dirty;
   cancel.disabled = !dirty;
   save.className = "settings-btn " + (dirty ? "settings-btn-primary" : "settings-btn-muted");
@@ -182,15 +247,29 @@ function onTimeoutInput(value) {
   updateConfigButtons();
 }
 
+function onCooldownInput(value) {
+  settingsCooldownDraft = value;
+  updateConfigButtons();
+}
+
 function cancelTimeoutEdit() {
   settingsTimeoutDraft = null;
+  settingsCooldownDraft = null;
   renderSettings();
 }
 
 function confirmSaveConfiguration() {
-  var minutes = Number(settingsTimeoutDraft);
+  var minutesText = settingsTimeoutDraft !== null ? settingsTimeoutDraft.trim() : String(systemSettings.autoVoidMinutes);
+  var cooldownText = settingsCooldownDraft !== null ? settingsCooldownDraft.trim() : String(systemSettings.cancelCooldownSeconds);
+  var minutes = minutesText === "" ? NaN : Number(minutesText);
+  var cooldownSeconds = cooldownText === "" ? NaN : Number(cooldownText);
+
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
     say("Please enter a whole number of minutes between 1 and 1440.");
+    return;
+  }
+  if (!Number.isInteger(cooldownSeconds) || cooldownSeconds < 0 || cooldownSeconds > 3600) {
+    say("Please enter a cancel cooldown of 0 to 3600 seconds (0 means no wait).");
     return;
   }
 
@@ -202,9 +281,11 @@ function confirmSaveConfiguration() {
     onConfirm: function () {
       return db.collection("settings").doc("system").set({
         autoVoidMinutes: minutes,
+        cancelCooldownSeconds: cooldownSeconds,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true }).then(function () {
         settingsTimeoutDraft = null;
+        settingsCooldownDraft = null;
         renderSettings();
         sayDone("Configuration saved.");
       }).catch(function (error) {
@@ -1084,7 +1165,8 @@ function renderSettings() {
   }
 
   var timeoutValue = settingsTimeoutDraft !== null ? settingsTimeoutDraft : String(systemSettings.autoVoidMinutes);
-  var dirty = isTimeoutDirty();
+  var cooldownValue = settingsCooldownDraft !== null ? settingsCooldownDraft : String(systemSettings.cancelCooldownSeconds);
+  var dirty = isConfigDirty();
 
   var stationRowsHtml = getSortedStations().map(function (station) {
     var active = station.active !== false;
@@ -1147,13 +1229,16 @@ function renderSettings() {
     var id = escapeAdminText(account.id);
     var roleName = (roles.find(function (r) { return r.id === accountRole(account); }) || NO_ROLE).name;
     var locked = isProtectedAccount(account.email);
+    var lockedUntil = accountLockedUntil(account.email);
 
     return '<tr><td class="settings-strong">' + escapeAdminText(staffDisplayName(account)) + '</td>' +
       '<td>' + escapeAdminText(staffLoginText(account)) +
         (usernameOfEmail(account.email) ? '' : ' <span class="type-tag staff-email-tag" title="Made with an email, which can no longer sign in">Email account: re-create with a username</span>') +
-        (account.mustChangePassword === true ? ' <span class="type-tag staff-temp-pw-tag" title="Still using the default or a reset password; they\'ll be asked to change it at sign-in">Default password</span>' : '') + '</td>' +
+        (account.mustChangePassword === true ? ' <span class="type-tag staff-temp-pw-tag" title="Still using the default or a reset password; they\'ll be asked to change it at sign-in">Default password</span>' : '') +
+        (lockedUntil ? ' <span class="type-tag staff-locked-tag" title="Too many wrong passwords">Locked until ' + escapeAdminText(manilaTimeText(lockedUntil)) + '</span>' : '') + '</td>' +
       '<td>' + escapeAdminText(roleName) + '</td>' +
       '<td><div class="settings-actions">' +
+        (lockedUntil ? '<button type="button" class="settings-btn settings-btn-blue" onclick="confirmUnlockStaff(\'' + id + '\')">Unlock</button>' : '') +
         '<button type="button" class="settings-icon-btn settings-icon-blue" title="Edit staff" onclick="openEditStaffModal(\'' + id + '\')">✎</button>' +
         (locked ? '' : '<button type="button" class="settings-icon-btn settings-icon-red" title="Delete staff" onclick="confirmDeleteStaff(\'' + id + '\')">🗑</button>') +
       '</div></td></tr>';
@@ -1185,6 +1270,9 @@ function renderSettings() {
       '<label class="settings-field-label" for="settingsTimeout">Auto-Void Timeout Minute</label>' +
       '<p class="settings-help">*Controls the number of minutes a queue entry on hold has to return to the counter. Once it runs out, staff can send a last call that gives the entry the same amount of time again. If the last call also runs out, the system automatically marks the queue entry as void.</p>' +
       '<input type="number" id="settingsTimeout" class="settings-input" min="1" max="1440" step="1" value="' + escapeAdminText(timeoutValue) + '" oninput="onTimeoutInput(this.value)">' +
+      '<label class="settings-field-label" for="settingsCooldown">Cancel Cooldown (seconds)</label>' +
+      '<p class="settings-help">*How long a student must wait after cancelling a ticket before they can join a queue again. 0 turns the wait off.</p>' +
+      '<input type="number" id="settingsCooldown" class="settings-input" min="0" max="3600" step="1" value="' + escapeAdminText(cooldownValue) + '" oninput="onCooldownInput(this.value)">' +
     '</section>' +
 
     blockedStudentsPanelHtml() +
@@ -1212,6 +1300,7 @@ function renderSettings() {
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Staffs</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStaffModal()">+ Add New Staff</button></div>' +
+      '<p class="settings-help">' + SIGN_IN_LOCK_TEXT + '. Unlock lets them sign in again right away; resetting their password does too.</p>' +
       '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Action</th></tr></thead>' +
         '<tbody>' + staffRowsHtml + '</tbody></table></div>' +
     '</section>';
