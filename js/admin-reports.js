@@ -566,8 +566,7 @@ function exportReportPdf() {
         ["Report Period:", reportPeriodText(r)],
         ["Station:", r.stationLabel],
         ["Generated on:", reportGeneratedLongText(r)],
-        ["Prepared by:", r.preparedBy || "—"],
-        ["Total Tickets:", String(r.total.issued)]
+        ["Prepared by:", r.preparedBy || "—"]
       ]
     });
 
