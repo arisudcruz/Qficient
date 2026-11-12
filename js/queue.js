@@ -361,6 +361,13 @@ function joinQueue(stationId, purpose, options) {
     return;
   }
 
+  // Window hours (js/window-hours.js); the server checks again.
+  var closed = windowHoursClosedText();
+  if (closed) {
+    sayProblem("You can't join the queue right now", closed, "warning");
+    return;
+  }
+
   var station = stations.find(function (s) { return s.id === stationId; });
   if (station && station.active === false) {
     say("This station is currently unavailable.");

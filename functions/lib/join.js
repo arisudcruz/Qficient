@@ -1,8 +1,9 @@
 // Joining the queue happens here, on the server, so the rules can't be sidestepped from the browser:
 // one live ticket per person, a short pause between joins, a pause after cancelling, a daily limit per
-// account and the station's daily queue cap. The app only asks; this file decides.
+// account, the station's daily queue cap and the window hours. The app only asks; this file decides.
 const { startOfTodayMs, dayKey, toMs } = require("./time");
 const { manilaTime } = require("./messages");
+const { windowHoursState, hoursClosedText } = require("./hours");
 
 const ACTIVE_STATUSES = ["waiting", "serving", "skipped"];
 const ENROLLMENT_PURPOSE = "Enrollment";
@@ -105,6 +106,12 @@ async function cancelCooldownMsOf(db, config) {
   return Number.isInteger(seconds) && seconds >= 0 && seconds <= 3600 ? seconds * 1000 : config.cancelCooldownMs;
 }
 
+// Window hours (lib/hours.js): no new tickets outside them, or in the last minutes before closing.
+async function requireWindowHoursOpen(deps) {
+  const state = await windowHoursState(deps);
+  if (!state.joinOpen) throw new JoinError("failed-precondition", hoursClosedText(state));
+}
+
 async function withContentionRetry(work) {
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {
@@ -167,6 +174,8 @@ async function joinQueue(deps, auth, data) {
   const ownerName = cleanText(token.name || token.email, 120);
   if (!ownerName) throw new JoinError("failed-precondition", "Your account has no name. Please sign in again.");
   const studentNumber = studentNumberFromEmail(token.email);
+
+  await requireWindowHoursOpen(deps);
 
   const profile = await db.collection("students").doc(auth.uid).get();
   const saved = profile.exists ? profile.data().studentType : "";
@@ -295,4 +304,4 @@ async function joinQueue(deps, auth, data) {
   }
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, cancelCooldownMsOf, nextTicketNo, withContentionRetry };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, cancelCooldownMsOf, nextTicketNo, withContentionRetry, requireWindowHoursOpen };

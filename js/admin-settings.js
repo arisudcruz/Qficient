@@ -15,6 +15,7 @@ var settingsSelectedRole = "admin";
 var settingsRoleDrafts = {};
 var settingsTimeoutDraft = null;
 var settingsCooldownDraft = null;
+var settingsHoursDraft = null; // the Window Hours form while being edited (null = showing what is saved)
 var settingsSignature = "";
 
 function getSortedStations() {
@@ -48,6 +49,7 @@ function computeSettingsSignature() {
     staffAccounts.map(function (a) { return [a.id, a.role, a.name || ""]; }),
     systemSettings.autoVoidMinutes,
     systemSettings.cancelCooldownSeconds,
+    windowHours,
     blockedStudents.map(function (b) { return [b.id, b.untilMs]; }),
     lockedAccounts,
     limitRequestsSignature()
@@ -223,11 +225,153 @@ function refreshSettings() {
   renderSettings();
 }
 
-// Queue Rules & Timeouts: the Auto-Void minutes and the cancel cooldown share one Save / Cancel.
+// Queue Rules & Timeouts (the Auto-Void minutes and the cancel cooldown) and the Window Hours share one Save / Cancel.
 function isConfigDirty() {
+  return isSystemConfigDirty() || isHoursDirty();
+}
+
+function isSystemConfigDirty() {
   var timeout = settingsTimeoutDraft !== null && settingsTimeoutDraft.trim() !== String(systemSettings.autoVoidMinutes);
   var cooldown = settingsCooldownDraft !== null && settingsCooldownDraft.trim() !== String(systemSettings.cancelCooldownSeconds);
   return timeout || cooldown;
+}
+
+/* Window Hours (settings/windowHours; js/window-hours.js, functions/lib/hours.js). The form holds the times as
+   <input type="time"> values ("08:00") and the minutes as typed, and is turned into the saved shape on Save. */
+
+var HOURS_FORM_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]; // Monday first, as on a school calendar
+
+// Used until an admin first saves the hours: weekdays 8 to 5, Saturday mornings, closed on Sunday.
+var HOURS_DEFAULT = {
+  enabled: false,
+  days: {
+    mon: { open: true, start: 480, end: 1020 }, tue: { open: true, start: 480, end: 1020 },
+    wed: { open: true, start: 480, end: 1020 }, thu: { open: true, start: 480, end: 1020 },
+    fri: { open: true, start: 480, end: 1020 }, sat: { open: true, start: 480, end: 720 },
+    sun: { open: false, start: 480, end: 1020 }
+  },
+  lastJoinMinutes: 30
+};
+
+function savedHoursForm() {
+  var saved = windowHours && windowHours.days ? windowHours : HOURS_DEFAULT;
+  var form = { enabled: !!(windowHours && windowHours.enabled === true), days: {}, lastJoin: "" };
+  HOURS_FORM_DAYS.forEach(function (key) {
+    var day = saved.days[key] || HOURS_DEFAULT.days[key];
+    form.days[key] = { open: day.open === true, start: hoursInputValue(day.start), end: hoursInputValue(Math.min(day.end, 1439)) };
+  });
+  form.lastJoin = String(hoursWholeMinute(saved.lastJoinMinutes, 0, 240) ? saved.lastJoinMinutes : HOURS_DEFAULT.lastJoinMinutes);
+  return form;
+}
+
+function hoursForm() {
+  return settingsHoursDraft || savedHoursForm();
+}
+
+function editHoursForm() {
+  if (!settingsHoursDraft) settingsHoursDraft = savedHoursForm();
+  return settingsHoursDraft;
+}
+
+// Edited and different from what is saved. Turning the hours on for the first time counts even with the
+// starting times unchanged (nothing is saved yet).
+function isHoursDirty() {
+  if (!settingsHoursDraft) return false;
+  var draft = JSON.parse(JSON.stringify(settingsHoursDraft));
+  draft.lastJoin = String(draft.lastJoin).trim();
+  return JSON.stringify(draft) !== JSON.stringify(savedHoursForm());
+}
+
+function onHoursEnabledInput(checked) {
+  editHoursForm().enabled = !!checked;
+  updateConfigButtons();
+}
+
+function onHoursDayOpenInput(key, checked) {
+  editHoursForm().days[key].open = !!checked;
+  ["Start", "End"].forEach(function (which) {
+    var input = document.getElementById("hours" + which + "_" + key);
+    if (input) input.disabled = !checked;
+  });
+  updateConfigButtons();
+}
+
+function onHoursTimeInput(key, which, value) {
+  editHoursForm().days[key][which] = value;
+  updateConfigButtons();
+}
+
+function onHoursLastJoinInput(value) {
+  editHoursForm().lastJoin = value;
+  updateConfigButtons();
+}
+
+// The form as the saved shape, or { error } with what to fix.
+function hoursFormToConfig(form) {
+  var text = String(form.lastJoin).trim();
+  var lastJoin = text === "" ? NaN : Number(text);
+  if (!Number.isInteger(lastJoin) || lastJoin < 0 || lastJoin > 240) {
+    return { error: "Please enter 0 to 240 minutes for when new tickets stop before closing." };
+  }
+
+  var days = {};
+  var openDays = 0;
+  for (var i = 0; i < HOURS_FORM_DAYS.length; i++) {
+    var key = HOURS_FORM_DAYS[i];
+    var row = form.days[key];
+    var name = HOURS_DAY_NAMES[HOURS_DAY_KEYS.indexOf(key)];
+    var start = hoursFromInput(row.start);
+    var end = hoursFromInput(row.end);
+    if (row.open) {
+      if (start === null || end === null) return { error: "Please enter both the opening and closing time for " + name + "." };
+      if (end <= start) return { error: "On " + name + ", the closing time must be later than the opening time." };
+      if (end - start <= lastJoin) {
+        return { error: "On " + name + ", the windows are open for less than the " + lastJoin + " minutes before closing when new tickets stop." };
+      }
+      openDays++;
+    }
+    // A closed day keeps its times (or the usual ones) so turning it back on later starts from something sensible.
+    if (start === null || end === null || end <= start) {
+      start = HOURS_DEFAULT.days[key].start;
+      end = HOURS_DEFAULT.days[key].end;
+    }
+    days[key] = { open: !!row.open, start: start, end: end };
+  }
+  if (form.enabled && !openDays) return { error: "Choose at least one open day, or turn Window Hours off." };
+
+  return { config: { enabled: !!form.enabled, days: days, lastJoinMinutes: lastJoin } };
+}
+
+function hoursPanelHtml() {
+  var form = hoursForm();
+  var rows = HOURS_FORM_DAYS.map(function (key) {
+    var row = form.days[key];
+    var name = HOURS_DAY_NAMES[HOURS_DAY_KEYS.indexOf(key)];
+    var off = row.open ? '' : ' disabled';
+    return '<tr>' +
+      '<td>' + name + '</td>' +
+      '<td class="settings-center"><input type="checkbox" class="hours-open" aria-label="Open on ' + name + '"' + (row.open ? ' checked' : '') +
+        ' onchange="onHoursDayOpenInput(\'' + key + '\', this.checked)"></td>' +
+      '<td><input type="time" id="hoursStart_' + key + '" class="settings-input hours-time" aria-label="' + name + ' opening time" value="' + escapeAdminText(row.start) + '"' + off +
+        ' oninput="onHoursTimeInput(\'' + key + '\', \'start\', this.value)"></td>' +
+      '<td><input type="time" id="hoursEnd_' + key + '" class="settings-input hours-time" aria-label="' + name + ' closing time" value="' + escapeAdminText(row.end) + '"' + off +
+        ' oninput="onHoursTimeInput(\'' + key + '\', \'end\', this.value)"></td>' +
+    '</tr>';
+  }).join("");
+
+  return '<section class="panel settings-panel hours-panel">' +
+    '<div class="panel-header"><h2>Window Hours</h2>' +
+      '<label class="switch" title="Use window hours"><input type="checkbox" id="hoursEnabled" aria-label="Use window hours"' + (form.enabled ? ' checked' : '') +
+        ' onchange="onHoursEnabledInput(this.checked)"><span class="switch-track"></span></label></div>' +
+    '<p class="settings-help">*When on, students, walk-ins and the Queue Enforcer can only get tickets during these hours (Philippine time). ' +
+      'At closing, tickets still waiting or on hold are voided and the students are notified; this doesn\'t count as a missed turn. ' +
+      'Tickets being served can still be finished. When off, tickets can be made at any time.</p>' +
+    '<div class="table-wrap"><table class="queue-table settings-table hours-table"><thead><tr><th>Day</th><th class="settings-center">Open</th><th>Opens</th><th>Closes</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>' +
+    '<label class="settings-field-label" for="hoursLastJoin">Stop New Tickets Before Closing (minutes)</label>' +
+    '<p class="settings-help">*New tickets stop this many minutes before the windows close, so the line can be finished. 0 lets students get tickets until closing.</p>' +
+    '<input type="number" id="hoursLastJoin" class="settings-input" min="0" max="240" step="1" value="' + escapeAdminText(form.lastJoin) + '" oninput="onHoursLastJoinInput(this.value)">' +
+  '</section>';
 }
 
 function updateConfigButtons() {
@@ -255,6 +399,7 @@ function onCooldownInput(value) {
 function cancelTimeoutEdit() {
   settingsTimeoutDraft = null;
   settingsCooldownDraft = null;
+  settingsHoursDraft = null;
   renderSettings();
 }
 
@@ -273,19 +418,38 @@ function confirmSaveConfiguration() {
     return;
   }
 
+  var hoursDirty = isHoursDirty();
+  var hours = hoursDirty ? hoursFormToConfig(settingsHoursDraft) : null;
+  if (hours && hours.error) {
+    say(hours.error);
+    return;
+  }
+  var systemDirty = isSystemConfigDirty();
+
   showConfirmModal({
     title: "Save Configuration Changes?",
-    message: "The updated system configuration will be applied and take effect across the system.",
+    message: "The updated system configuration will be applied and take effect across the system." +
+      (hours && hours.config.enabled ? " Outside the window hours no new tickets can be made, and tickets still in line at closing are voided." : ""),
     confirmLabel: "Save Changes",
     tone: "danger",
     onConfirm: function () {
-      return db.collection("settings").doc("system").set({
-        autoVoidMinutes: minutes,
-        cancelCooldownSeconds: cooldownSeconds,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true }).then(function () {
+      var writes = [];
+      if (systemDirty || !hours) {
+        writes.push(db.collection("settings").doc("system").set({
+          autoVoidMinutes: minutes,
+          cancelCooldownSeconds: cooldownSeconds,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }));
+      }
+      if (hours) {
+        writes.push(db.collection("settings").doc("windowHours").set(Object.assign({}, hours.config, {
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        })));
+      }
+      return Promise.all(writes).then(function () {
         settingsTimeoutDraft = null;
         settingsCooldownDraft = null;
+        settingsHoursDraft = null;
         renderSettings();
         sayDone("Configuration saved.");
       }).catch(function (error) {
@@ -1274,6 +1438,8 @@ function renderSettings() {
       '<p class="settings-help">*How long a student must wait after cancelling a ticket before they can join a queue again. 0 turns the wait off.</p>' +
       '<input type="number" id="settingsCooldown" class="settings-input" min="0" max="3600" step="1" value="' + escapeAdminText(cooldownValue) + '" oninput="onCooldownInput(this.value)">' +
     '</section>' +
+
+    hoursPanelHtml() +
 
     blockedStudentsPanelHtml() +
 

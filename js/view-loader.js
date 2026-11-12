@@ -15,6 +15,7 @@ var appScripts = [
   "js/auth.js",
   "js/walkin.js",
   "js/queue.js",
+  "js/window-hours.js",
   "js/student-dashboard.js",
   "js/alerts.js",
   "js/user-notifications.js",

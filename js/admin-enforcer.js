@@ -155,6 +155,10 @@ function clearEnforcerForm() {
 function enforcerFormProblem() {
   var d = enforcerDraft;
 
+  // Window hours (js/window-hours.js): no walk-in QR codes or manual tickets outside them; the server checks again.
+  var closed = windowHoursClosedText();
+  if (closed) return closed;
+
   if (!/\p{L}/u.test(d.firstName.trim())) return "Please enter the first name.";
   if (!/\p{L}/u.test(d.lastName.trim())) return "Please enter the last name.";
   if (!d.stationId) return "Please select the station.";
@@ -620,6 +624,7 @@ function renderEnforcer() {
       '<div class="enforcer-main">' +
         '<section class="panel settings-panel enforcer-panel">' +
           '<div class="panel-header"><h2>Walk-in Form</h2></div>' +
+          (windowHoursClosedText() ? '<p class="enforcer-hours-closed">' + escapeAdminText(windowHoursClosedText()) + '</p>' : '') +
           '<p class="settings-help">For walk-ins who can\'t get a ticket on their own. Fill in their details and press Generate QR: they scan it with their phone camera, and the ticket (with its queue number) opens on their phone until their visit is done.</p>' +
           '<div class="enforcer-form-grid">' +
             '<div class="enforcer-field"><label for="enforcerFirstName">First Name*</label><input type="text" id="enforcerFirstName" placeholder="First Name" maxlength="50" value="' + escapeAdminText(d.firstName) + '" oninput="onEnforcerInput(\'firstName\', this.value)"></div>' +

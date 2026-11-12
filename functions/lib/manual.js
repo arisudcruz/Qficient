@@ -5,7 +5,7 @@
 // Same safe path as joinQueue and redeemWalkinPass: daily cap, the station's next number in a transaction.
 const crypto = require("crypto");
 const { startOfTodayMs, dayKey } = require("./time");
-const { JoinError, stationCapReached, nextTicketNo, withContentionRetry } = require("./join");
+const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, requireWindowHoursOpen } = require("./join");
 
 const ADMIN_EMAIL = "admin@qficient.com";
 const ENROLLMENT_PURPOSE = "Enrollment";
@@ -50,6 +50,7 @@ async function createManualTicket(deps, auth, data) {
   if (!(await roleAllows(db, caller.role, "walkin"))) {
     throw new JoinError("permission-denied", "Making walk-in tickets is turned off for your role in System Rules.");
   }
+  await requireWindowHoursOpen(deps);
 
   const ownerName = cleanText(input.ownerName, 120);
   if (!/\p{L}/u.test(ownerName)) throw new JoinError("invalid-argument", "Please enter the walk-in's name.");

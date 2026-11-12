@@ -196,6 +196,28 @@ service cloud.firestore {
         d.presets.size() <= 20;
     }
 
+    // settings/windowHours: one weekly schedule for when the windows take tickets (functions/lib/hours.js), as
+    // { enabled, days: { sun..sat: { open, start, end } }, lastJoinMinutes }. start/end are minutes after midnight,
+    // Philippine time; the hours can't run past midnight.
+    function isDayHours(h) {
+      return h is map &&
+        h.keys().hasOnly(['open', 'start', 'end']) && h.keys().hasAll(['open', 'start', 'end']) &&
+        h.open is bool && h.start is int && h.end is int &&
+        h.start >= 0 && h.start < h.end && h.end <= 1440;
+    }
+
+    function isWindowHoursConfig(d) {
+      return d.keys().hasOnly(['enabled', 'days', 'lastJoinMinutes', 'updatedAt']) &&
+        d.keys().hasAll(['enabled', 'days', 'lastJoinMinutes', 'updatedAt']) &&
+        d.updatedAt == request.time &&
+        d.enabled is bool &&
+        d.days is map &&
+        d.days.keys().hasOnly(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) && d.days.size() == 7 &&
+        isDayHours(d.days.sun) && isDayHours(d.days.mon) && isDayHours(d.days.tue) && isDayHours(d.days.wed) &&
+        isDayHours(d.days.thu) && isDayHours(d.days.fri) && isDayHours(d.days.sat) &&
+        d.lastJoinMinutes is int && d.lastJoinMinutes >= 0 && d.lastJoinMinutes <= 240;
+    }
+
     match /settings/{docId} {
       allow read: if true;
       allow create, update: if isAdmin() &&
@@ -211,7 +233,8 @@ service cloud.firestore {
             request.resource.data.cancelCooldownSeconds <= 3600))) ||
          (docId == 'enrollment' && isEnrollmentConfig(request.resource.data)) ||
          (docId == 'roleRules' && isRoleRulesConfig(request.resource.data)) ||
-         (docId == 'liveBoard' && isLiveBoardConfig(request.resource.data)));
+         (docId == 'liveBoard' && isLiveBoardConfig(request.resource.data)) ||
+         (docId == 'windowHours' && isWindowHoursConfig(request.resource.data)));
       allow delete: if false;
     }
 

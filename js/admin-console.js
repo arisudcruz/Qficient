@@ -211,6 +211,7 @@ function resetAdminPageState() {
   settingsSelectedRole = "admin";
   settingsRoleDrafts = {};
   settingsTimeoutDraft = null;
+  settingsHoursDraft = null;
   settingsCooldownDraft = null;
   resetReportState();
   resetAuditState();

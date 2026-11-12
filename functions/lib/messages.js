@@ -119,6 +119,12 @@ module.exports = {
     body: "Ticket " + t.ticketNo + " was voided because the time ran out."
   }),
 
+  // Window hours (lib/hours.js): still in line when the windows closed. Not a strike.
+  voidedClosed: (t) => ({
+    title: "Windows closed",
+    body: "The windows closed for today, so ticket " + t.ticketNo + " was voided. This doesn't count against you."
+  }),
+
   voidedManual: (t) => ({
     title: "Ticket removed",
     body: "Ticket " + t.ticketNo + " was removed by staff."

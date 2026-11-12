@@ -10,7 +10,7 @@ const logger = require("firebase-functions/logger");
 const config = require("./config");
 const { describeChange, onlyChanged, affectsQueueFront } = require("./lib/events");
 const { createPusher } = require("./lib/push");
-const { sweepExpired, cleanStale } = require("./lib/jobs");
+const { sweepExpired, voidAtClose, cleanStale } = require("./lib/jobs");
 const { joinQueue, JoinError } = require("./lib/join");
 const { redeemWalkinPass } = require("./lib/walkin");
 const { resetStaffPassword, emailForUsername } = require("./lib/staff");
@@ -147,8 +147,17 @@ exports.onTicketWritten = onDocumentWritten({ document: "tickets/{ticketId}", se
   }
 });
 
-// Every minute: void tickets whose last call has run out, and report that the scheduler is alive.
+// Every minute: once the window hours have closed, void the tickets still in line; void tickets whose last call
+// has run out; and report that the scheduler is alive.
 exports.sweepExpiredTickets = onSchedule({ schedule: "every 1 minutes", timeZone: "Asia/Manila" }, async function () {
+  // First, so a ticket On Hold at closing is voided as "closed" (no strike) rather than as a missed last call.
+  try {
+    const closed = await voidAtClose({ db, FieldValue, config });
+    if (closed) logger.info("window hours closed: voided " + closed + " ticket(s) still in line");
+  } catch (error) {
+    logger.error("voiding at closing failed: " + (error && error.stack ? error.stack : error));
+  }
+
   const voided = await sweepExpired({ db, FieldValue, config });
   if (voided) logger.info("auto-voided " + voided + " ticket(s)");
 

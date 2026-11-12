@@ -398,12 +398,28 @@ function tvColumnHtml(station) {
   '</section>';
 }
 
-// A disabled station keeps its column, so the board doesn't shift around.
-function tvClosedColumnHtml(station) {
+// A disabled station keeps its column, so the board doesn't shift around. Outside the window hours every station
+// without a ticket still being served shows this too, with when the windows open (`note`).
+function tvClosedColumnHtml(station, note) {
   return '<section class="tv-col is-closed">' +
     '<div class="tv-col-tab">' + escapeHtml(station.name) + '</div>' +
-    '<div class="tv-col-body"><p class="tv-closed">Closed right now</p></div>' +
+    '<div class="tv-col-body"><p class="tv-closed">Closed right now</p>' +
+      (note ? '<p class="tv-closed-note">' + escapeHtml(note) + '</p>' : '') + '</div>' +
   '</section>';
+}
+
+// The window hours beside the clock: "Open until 5:00 PM", "No new tickets · Closes 5:00 PM" or
+// "Closed · Opens Mon 8:00 AM". Hidden when the hours are off.
+function renderTvHours(state) {
+  var el = document.getElementById("tvHours");
+  if (!el) return;
+  var text = !state.enabled ? "" :
+    state.joinOpen ? "Open until " + hoursMinutesText(state.today.end) :
+    state.open ? "No new tickets · Closes " + hoursMinutesText(state.today.end) :
+    "Closed" + (nextOpenShortText(state) ? " · " + nextOpenShortText(state) : "");
+  el.textContent = text;
+  el.hidden = !text;
+  el.classList.toggle("is-closed", !!state.enabled && !state.open);
 }
 
 // Shown when the board has no preset (or its preset was deleted): one big button per preset.
@@ -440,6 +456,8 @@ function renderTvBoard() {
   if (!board || !page || !page.classList.contains("show")) return;
 
   tickTvClock();
+  var hours = windowHoursNow();
+  renderTvHours(hours);
 
   var preset = tvPresetOf(tvPresetId);
   renderTvHeader(preset);
@@ -477,8 +495,12 @@ function renderTvBoard() {
 
   board.setAttribute("data-columns", String(shown.length));
   board.style.gridTemplateColumns = "repeat(" + shown.length + ", minmax(0, 1fr))";
+  var closedNote = hours.open ? "" : nextOpenShortText(hours);
   board.innerHTML = shown.map(function (station) {
-    return station.active === false ? tvClosedColumnHtml(station) : tvColumnHtml(station);
+    if (station.active === false) return tvClosedColumnHtml(station);
+    // After closing, a station still finishing a ticket keeps its column until it is done.
+    if (!hours.open && !servingTicketsOf(station).length) return tvClosedColumnHtml(station, closedNote);
+    return tvColumnHtml(station);
   }).join("");
 
   // Flash a station's "Now Serving" when it calls a new number.
