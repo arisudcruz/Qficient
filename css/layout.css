@@ -2044,10 +2044,6 @@ body.dark .notif-empty-icon { color: #6B7C99; }
   background: linear-gradient(180deg, #F29A0D 0%, #A66A06 100%);
 }
 
-.serving-type-guest {
-  background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%);
-}
-
 .serving-type-freshman {
   background: linear-gradient(180deg, #1F9D55 0%, #136B39 100%);
 }
@@ -2058,10 +2054,6 @@ body.dark .notif-empty-icon { color: #6B7C99; }
   background: rgba(255, 255, 255, 0.55);
 }
 
-.serving-type-guest .serving-live {
-  color: var(--amber);
-}
-
 /* Queue list rows are colour-coded by student type (same colours as the serving card) */
 .queue-row {
   --type-color: transparent;
@@ -2070,7 +2062,6 @@ body.dark .notif-empty-icon { color: #6B7C99; }
 }
 
 .queue-row-transferee { --type-color: #F29A0D; --type-tint: #FEF1DC; --type-text: #9A5F00; }
-.queue-row-guest { --type-color: #6A2FD6; --type-tint: #EFE8FB; --type-text: #5B21B6; }
 .queue-row-freshman { --type-color: #1F9D55; --type-tint: #E3F6EA; --type-text: #17703D; }
 
 .queue-table td.queue-row-no {
@@ -3874,3 +3865,43 @@ body.dark .qm-main-btn.queue-action-complete:disabled { background: rgba(34, 197
 }
 
 body.dark .enforcer-hours-closed { background: rgba(245, 215, 122, 0.12); color: #F7C35F; border-color: rgba(245, 215, 122, 0.4); }
+
+/* System Settings tabs (js/admin-settings.js): the System Rules tab look, with a count badge and an unsaved dot. */
+.settings-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar { display: none; }
+
+.settings-tabs .rules-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.settings-tab-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #172033;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.settings-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #D93636;
+}
+
+.settings-tab-dot[hidden] { display: none; }
+
+.settings-tab-body .rules-save-bar[hidden] { display: none; }

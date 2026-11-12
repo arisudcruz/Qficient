@@ -341,9 +341,6 @@ body.dark .app-page input.invalid {
 .ticket-type-transferee .ticket-head {
   background: linear-gradient(180deg, #F29A0D 0%, #A66A06 100%);
 }
-.ticket-type-guest .ticket-head {
-  background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%);
-}
 .ticket-type-freshman .ticket-head {
   background: linear-gradient(180deg, #1F9D55 0%, #136B39 100%);
 }

@@ -61,7 +61,7 @@ async function wipe() {
 const SECRET = "Abc123_-xyzXYZ789secret";
 async function makePass(id) {
   await db.collection("walkinPasses").doc(id).set({
-    ownerName: "Maria Clara", studentType: "guest", stationId: "cashier", purpose: "Pay tuition",
+    ownerName: "Maria Clara", stationId: "cashier", purpose: "Pay tuition",
     secretHash: hashSecret(SECRET), createdBy: "enf@x.com", createdAt: Timestamp.fromMillis(clock)
   });
 }

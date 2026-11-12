@@ -18,7 +18,7 @@ const ROLE_RULE_NAMES = {
   walkin: "Walk-in Tickets"
 };
 
-const STUDENT_TYPE_NAMES = { regular: "Regular", transferee: "Transferee / Irregular", freshman: "Incoming Freshman", guest: "Guest" };
+const STUDENT_TYPE_NAMES = { regular: "Regular", transferee: "Transferee / Irregular", freshman: "Incoming Freshman" };
 
 function entry(category, action, summary, extra) {
   return Object.assign({ category: category, action: action, summary: summary }, extra || {});

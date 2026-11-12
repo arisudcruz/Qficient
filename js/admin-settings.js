@@ -18,6 +18,117 @@ var settingsCooldownDraft = null;
 var settingsHoursDraft = null; // the Window Hours form while being edited (null = showing what is saved)
 var settingsSignature = "";
 
+// System Settings is split into tabs (like System Rules). Edits kept in the drafts above survive switching tabs.
+var SETTINGS_TABS = [
+  { id: "queue", label: "Queue Rules" },
+  { id: "stations", label: "Stations" },
+  { id: "staff", label: "Staff & Roles" },
+  { id: "students", label: "Students" }
+];
+var settingsActiveTab = "queue";
+
+function setSettingsTab(tab) {
+  if (!SETTINGS_TABS.some(function (t) { return t.id === tab; })) tab = "queue";
+  settingsActiveTab = tab;
+  renderSettings();
+}
+
+// What a tab's badge counts: limit requests waiting, accounts locked right now, students blocked right now.
+function settingsTabCount(tab) {
+  var now = serverNow();
+  if (tab === "stations") return typeof pendingLimitRequests === "function" ? pendingLimitRequests().length : 0;
+  if (tab === "staff") return Object.keys(lockedAccounts).filter(function (email) { return lockedAccounts[email] > now; }).length;
+  if (tab === "students") return blockedStudents.filter(function (b) { return b.untilMs > now; }).length;
+  return 0;
+}
+
+function settingsTabsHtml() {
+  var dirty = isConfigDirty();
+  return '<div class="rules-tabs settings-tabs" role="tablist">' + SETTINGS_TABS.map(function (tab) {
+    var count = settingsTabCount(tab.id);
+    var active = tab.id === settingsActiveTab;
+    return '<button type="button" class="rules-tab' + (active ? ' active' : '') + '" role="tab" aria-selected="' + active + '"' +
+      ' id="settingsTab_' + tab.id + '" onclick="setSettingsTab(\'' + tab.id + '\')">' + escapeAdminText(tab.label) +
+      (count ? ' <span class="settings-tab-count">' + count + '</span>' : '') +
+      (tab.id === "queue" ? '<span class="settings-tab-dot" title="Unsaved changes"' + (dirty ? '' : ' hidden') + '></span>' : '') +
+    '</button>';
+  }).join("") + '</div>';
+}
+
+// System Settings is split into tabs (like System Rules). Edits kept in the drafts above survive switching tabs.
+var SETTINGS_TABS = [
+  { id: "queue", label: "Queue Rules" },
+  { id: "stations", label: "Stations" },
+  { id: "staff", label: "Staff & Roles" },
+  { id: "students", label: "Students" }
+];
+var settingsActiveTab = "queue";
+
+function setSettingsTab(tab) {
+  if (!SETTINGS_TABS.some(function (t) { return t.id === tab; })) tab = "queue";
+  settingsActiveTab = tab;
+  renderSettings();
+}
+
+// What a tab's badge counts: limit requests waiting, accounts locked right now, students blocked right now.
+function settingsTabCount(tab) {
+  var now = serverNow();
+  if (tab === "stations") return typeof pendingLimitRequests === "function" ? pendingLimitRequests().length : 0;
+  if (tab === "staff") return Object.keys(lockedAccounts).filter(function (email) { return lockedAccounts[email] > now; }).length;
+  if (tab === "students") return blockedStudents.filter(function (b) { return b.untilMs > now; }).length;
+  return 0;
+}
+
+function settingsTabsHtml() {
+  var dirty = isConfigDirty();
+  return '<div class="rules-tabs settings-tabs" role="tablist">' + SETTINGS_TABS.map(function (tab) {
+    var count = settingsTabCount(tab.id);
+    var active = tab.id === settingsActiveTab;
+    return '<button type="button" class="rules-tab' + (active ? ' active' : '') + '" role="tab" aria-selected="' + active + '"' +
+      ' id="settingsTab_' + tab.id + '" onclick="setSettingsTab(\'' + tab.id + '\')">' + escapeAdminText(tab.label) +
+      (count ? ' <span class="settings-tab-count">' + count + '</span>' : '') +
+      (tab.id === "queue" ? '<span class="settings-tab-dot" title="Unsaved changes"' + (dirty ? '' : ' hidden') + '></span>' : '') +
+    '</button>';
+  }).join("") + '</div>';
+}
+
+// System Settings is split into tabs (like System Rules). Edits kept in the drafts above survive switching tabs.
+var SETTINGS_TABS = [
+  { id: "queue", label: "Queue Rules" },
+  { id: "stations", label: "Stations" },
+  { id: "staff", label: "Staff & Roles" },
+  { id: "students", label: "Students" }
+];
+var settingsActiveTab = "queue";
+
+function setSettingsTab(tab) {
+  if (!SETTINGS_TABS.some(function (t) { return t.id === tab; })) tab = "queue";
+  settingsActiveTab = tab;
+  renderSettings();
+}
+
+// What a tab's badge counts: limit requests waiting, accounts locked right now, students blocked right now.
+function settingsTabCount(tab) {
+  var now = serverNow();
+  if (tab === "stations") return typeof pendingLimitRequests === "function" ? pendingLimitRequests().length : 0;
+  if (tab === "staff") return Object.keys(lockedAccounts).filter(function (email) { return lockedAccounts[email] > now; }).length;
+  if (tab === "students") return blockedStudents.filter(function (b) { return b.untilMs > now; }).length;
+  return 0;
+}
+
+function settingsTabsHtml() {
+  var dirty = isConfigDirty();
+  return '<div class="rules-tabs settings-tabs" role="tablist">' + SETTINGS_TABS.map(function (tab) {
+    var count = settingsTabCount(tab.id);
+    var active = tab.id === settingsActiveTab;
+    return '<button type="button" class="rules-tab' + (active ? ' active' : '') + '" role="tab" aria-selected="' + active + '"' +
+      ' id="settingsTab_' + tab.id + '" onclick="setSettingsTab(\'' + tab.id + '\')">' + escapeAdminText(tab.label) +
+      (count ? ' <span class="settings-tab-count">' + count + '</span>' : '') +
+      (tab.id === "queue" ? '<span class="settings-tab-dot" title="Unsaved changes"' + (dirty ? '' : ' hidden') + '></span>' : '') +
+    '</button>';
+  }).join("") + '</div>';
+}
+
 function getSortedStations() {
   return stations.slice().sort(function (a, b) {
     return String(a.name).localeCompare(String(b.name));
@@ -374,16 +485,13 @@ function hoursPanelHtml() {
   '</section>';
 }
 
+// The save bar under the Queue Rules fields shows only while something there is changed, and the tab gets a dot.
 function updateConfigButtons() {
-  var save = document.getElementById("settingsSaveBtn");
-  var cancel = document.getElementById("settingsCancelBtn");
-  if (!save || !cancel) return;
-
   var dirty = isConfigDirty();
-  save.disabled = !dirty;
-  cancel.disabled = !dirty;
-  save.className = "settings-btn " + (dirty ? "settings-btn-primary" : "settings-btn-muted");
-  cancel.className = "settings-btn " + (dirty ? "settings-btn-slate" : "settings-btn-muted");
+  var bar = document.getElementById("settingsSaveBar");
+  if (bar) bar.hidden = !dirty;
+  var dot = document.querySelector("#settingsTab_queue .settings-tab-dot");
+  if (dot) dot.hidden = !dirty;
 }
 
 function onTimeoutInput(value) {
@@ -1331,6 +1439,9 @@ function renderSettings() {
   var timeoutValue = settingsTimeoutDraft !== null ? settingsTimeoutDraft : String(systemSettings.autoVoidMinutes);
   var cooldownValue = settingsCooldownDraft !== null ? settingsCooldownDraft : String(systemSettings.cancelCooldownSeconds);
   var dirty = isConfigDirty();
+  if (!SETTINGS_TABS.some(function (t) { return t.id === settingsActiveTab; })) settingsActiveTab = "queue";
+  if (!SETTINGS_TABS.some(function (t) { return t.id === settingsActiveTab; })) settingsActiveTab = "queue";
+  if (!SETTINGS_TABS.some(function (t) { return t.id === settingsActiveTab; })) settingsActiveTab = "queue";
 
   var stationRowsHtml = getSortedStations().map(function (station) {
     var active = station.active !== false;
@@ -1412,23 +1523,7 @@ function renderSettings() {
 
   var membersDirty = pendingRoleChanges().length > 0;
 
-  area.innerHTML =
-    '<div class="dashboard-header">' +
-      '<div class="header-greeting">System Settings</div>' +
-      adminHeaderRightHtml() +
-    '</div>' +
-
-    '<div class="settings-config-head">' +
-      '<div><h2 class="settings-title">System Configuration</h2>' +
-        '<p class="settings-sub">Manage global queue rules, user roles and setup service stations</p></div>' +
-      '<div class="settings-actions">' +
-        '<button type="button" id="settingsSaveBtn" class="settings-btn ' + (dirty ? 'settings-btn-primary' : 'settings-btn-muted') + '"' + (dirty ? '' : ' disabled') + ' onclick="confirmSaveConfiguration()">Save Changes</button>' +
-        '<button type="button" id="settingsCancelBtn" class="settings-btn ' + (dirty ? 'settings-btn-slate' : 'settings-btn-muted') + '"' + (dirty ? '' : ' disabled') + ' onclick="cancelTimeoutEdit()">Cancel</button>' +
-      '</div>' +
-    '</div>' +
-
-    limitRequestsPanelHtml() + // staff asking for a daily limit on one date (js/admin-limit-requests.js)
-
+  var queueTabHtml =
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Queue Rules &amp; Timeouts</h2></div>' +
       '<label class="settings-field-label" for="settingsTimeout">Auto-Void Timeout Minute</label>' +
@@ -1441,15 +1536,26 @@ function renderSettings() {
 
     hoursPanelHtml() +
 
-    blockedStudentsPanelHtml() +
+    // Shown only while the fields above are changed (updateConfigButtons); covers both panels.
+    '<div class="rules-save-bar" id="settingsSaveBar"' + (dirty ? '' : ' hidden') + '>' +
+      '<span>You have unsaved changes to the queue rules.</span>' +
+      '<div class="settings-actions">' +
+        '<button type="button" class="settings-btn settings-btn-blue" onclick="cancelTimeoutEdit()">Discard</button>' +
+        '<button type="button" class="settings-btn settings-btn-primary" id="settingsSaveBtn" onclick="confirmSaveConfiguration()">Save Changes</button>' +
+      '</div>' +
+    '</div>';
+
+  var stationsTabHtml =
+    limitRequestsPanelHtml() + // staff asking for a daily limit on one date (js/admin-limit-requests.js)
 
     '<section class="panel settings-panel">' +
       '<div class="panel-header"><h2>Service Station</h2>' +
         '<button type="button" class="settings-btn settings-btn-primary" onclick="openAddStationModal()">+ Add New Station</button></div>' +
       '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Station</th><th>Ticket Code</th><th class="settings-center">Windows</th><th>Status</th><th>Action</th></tr></thead>' +
         '<tbody>' + stationRowsHtml + '</tbody></table></div>' +
-    '</section>' +
+    '</section>';
 
+  var staffTabHtml =
     '<div class="settings-grid">' +
       '<section class="panel settings-panel">' +
         '<div class="panel-header"><h2>Roles</h2></div>' +
@@ -1470,4 +1576,21 @@ function renderSettings() {
       '<div class="table-wrap"><table class="queue-table settings-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Action</th></tr></thead>' +
         '<tbody>' + staffRowsHtml + '</tbody></table></div>' +
     '</section>';
+
+  var tabBodies = { queue: queueTabHtml, stations: stationsTabHtml, staff: staffTabHtml, students: blockedStudentsPanelHtml() };
+
+  area.innerHTML =
+    '<div class="dashboard-header">' +
+      '<div class="header-greeting">System Settings</div>' +
+      adminHeaderRightHtml() +
+    '</div>' +
+
+    '<div class="settings-config-head">' +
+      '<div><h2 class="settings-title">System Configuration</h2>' +
+        '<p class="settings-sub">Manage global queue rules, user roles and setup service stations</p></div>' +
+    '</div>' +
+
+    settingsTabsHtml() +
+
+    '<div class="settings-tab-body" role="tabpanel" aria-labelledby="settingsTab_' + settingsActiveTab + '">' + tabBodies[settingsActiveTab] + '</div>';
 }

@@ -1,6 +1,6 @@
 // Queue Enforcer: staff fill in a walk-in's details and show a one-time QR code. The walk-in scans it with their
 // phone, which gets the ticket and follows it in the app until it's done (js/walkin.js, functions/lib/walkin.js).
-var ENFORCER_TYPES = ["regular", "transferee", "freshman", "guest"];
+var ENFORCER_TYPES = ["regular", "transferee", "freshman"];
 
 // Kept here so the form survives switching sections and the list refreshing underneath it.
 var ENFORCER_OTHER_PURPOSE = "__other__";
@@ -483,7 +483,7 @@ function enforcerTagsHtml(ticket) {
   if (ticket.enrollment === true) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
-  if (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") {
+  if (ticket.studentType === "transferee" || ticket.studentType === "freshman") {
     // Colour-coded only for enrollees, whose process depends on the type; a plain label for everyone else.
     tags += ' <span class="type-tag' + (ticket.enrollment === true ? ' queue-row-' + ticket.studentType : '') + '">' +
       escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';

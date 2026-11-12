@@ -561,7 +561,7 @@ service cloud.firestore {
         d.keys().hasAll(['ownerName', 'stationId', 'purpose', 'secretHash', 'createdBy', 'createdAt']) &&
         d.ownerName is string && d.ownerName.size() >= 1 && d.ownerName.size() <= 120 &&
         // The student type is asked only for Enrollment (isWalkinPassEnrollment requires it there).
-        (!('studentType' in d) || d.studentType in ['regular', 'transferee', 'freshman', 'guest']) &&
+        (!('studentType' in d) || d.studentType in ['regular', 'transferee', 'freshman']) &&
         // Regular and Transferee / Irregular walk-ins carry their student number (02000-XXXXXX); the others don't.
         (d.get('studentType', '') in ['regular', 'transferee'] ?
           (d.get('studentNumber', '') is string && d.get('studentNumber', '').matches('^02000-[0-9]{6}$')) :

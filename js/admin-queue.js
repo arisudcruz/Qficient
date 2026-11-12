@@ -429,7 +429,7 @@ function ticketGeneratedTime(ticket) {
 // Regular tickets stay plain; the other student types, priority and enrollment get a small tag.
 function queueRowTagsHtml(ticket) {
   var tags = "";
-  if (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") {
+  if (ticket.studentType === "transferee" || ticket.studentType === "freshman") {
     tags += ' <span class="type-tag">' + escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
   }
   if (ticket.enrollment === true) {

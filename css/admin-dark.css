@@ -127,7 +127,6 @@ body.dark .settings-row-selected td {
   background: var(--ad-selected);
 }
 
-body.dark .queue-row-guest td,
 body.dark .queue-row-transferee td,
 body.dark .queue-row-freshman td {
   background: rgba(255, 255, 255, 0.03);

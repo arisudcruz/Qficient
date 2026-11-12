@@ -9,7 +9,7 @@ const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, require
 
 const ADMIN_EMAIL = "admin@qficient.com";
 const ENROLLMENT_PURPOSE = "Enrollment";
-const STUDENT_TYPES = ["regular", "transferee", "freshman", "guest"];
+const STUDENT_TYPES = ["regular", "transferee", "freshman"];
 const ENROLLMENT_TYPES = ["regular", "transferee", "freshman"];
 const NUMBERED_TYPES = ["regular", "transferee"];
 

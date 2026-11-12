@@ -43,7 +43,7 @@ async function wipe() {
 // What the Queue Enforcer's browser saves: the details and the hash of the QR code's secret.
 async function makePass(id, secret, extra) {
   await db.collection("walkinPasses").doc(id).set(Object.assign({
-    ownerName: "Juan Dela Cruz", studentType: "guest", stationId: "cashier", purpose: "Pay tuition",
+    ownerName: "Juan Dela Cruz", stationId: "cashier", purpose: "Pay tuition",
     secretHash: hashSecret(secret), createdBy: "enf@x.com", createdAt: Timestamp.fromMillis(clock)
   }, extra || {}));
 }
@@ -59,7 +59,7 @@ const SECRET = "Abc123_-xyzXYZ789secret";
   let r = await attempt(phone("w1"), { passId: "passOne0001", secret: SECRET });
   check("a walk-in phone redeems a pass and gets a ticket", r.ok && r.result.ticketNo === "CA1-001" && r.result.stationName === "Cashier", JSON.stringify(r));
   const t = r.ok ? (await db.collection("tickets").doc(r.result.ticketId).get()).data() : {};
-  check("the ticket is owned by the phone and carries the enforcer's details", t.ownerId === "w1" && t.ownerName === "Juan Dela Cruz" && t.studentType === "guest" && t.purpose === "Pay tuition" && t.manual === true && t.createdBy === "enf@x.com" && t.status === "waiting" && t.studentNumber === "", JSON.stringify(t));
+  check("the ticket is owned by the phone and carries the enforcer's details", t.ownerId === "w1" && t.ownerName === "Juan Dela Cruz" && t.studentType === "" && t.purpose === "Pay tuition" && t.manual === true && t.createdBy === "enf@x.com" && t.status === "waiting" && t.studentNumber === "", JSON.stringify(t));
   const used = (await db.collection("walkinPasses").doc("passOne0001").get()).data();
   check("the pass is marked used with the ticket", !!used.usedAt && used.usedBy === "w1" && used.ticketNo === "CA1-001", JSON.stringify(used));
 

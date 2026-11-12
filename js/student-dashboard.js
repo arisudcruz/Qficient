@@ -3,15 +3,13 @@
 var STUDENT_TYPE_LABELS = {
   regular: "Regular",
   transferee: "Transferee / Irregular",
-  freshman: "Incoming Freshman",
-  guest: "Guest"
+  freshman: "Incoming Freshman"
 };
 
 var STUDENT_TYPE_SHORT_LABELS = {
   regular: "Regular",
   transferee: "Transferee",
-  freshman: "Freshman",
-  guest: "Guest"
+  freshman: "Freshman"
 };
 
 function closeStudentTypeModal() {
