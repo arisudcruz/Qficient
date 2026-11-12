@@ -1,5 +1,5 @@
 /* ============================================================
-   End-user dashboard (students and guests)
+   End-user dashboard (students and walk-ins)
    Mobile first; wider layouts are added with min-width queries.
    ============================================================ */
 
@@ -333,6 +333,17 @@ body.dark .ud-link { color: #7DB4F5; }
   font-weight: 600;
 }
 
+/* Outside the window hours (js/window-hours.js) */
+.ud-banner.ud-banner-closed { font-weight: 600; }
+
+/* "Windows open today 8:00 AM – 5:00 PM" above the stations */
+.ud-hours-line {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--app-text-muted, #64748B);
+  text-align: center;
+}
+
 .ud-stations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -566,7 +577,6 @@ body.dark .ud-generate:disabled { background: #2C4468; color: #8DA1C2; }
 
 .ud-ticket.ticket-type-regular .ud-ticket-head { background: linear-gradient(180deg, #00509C 0%, #001F44 100%); }
 .ud-ticket.ticket-type-transferee .ud-ticket-head { background: linear-gradient(180deg, #F29A0D 0%, #A66A06 100%); }
-.ud-ticket.ticket-type-guest .ud-ticket-head { background: linear-gradient(180deg, #6A2FD6 0%, #A04FC4 100%); }
 .ud-ticket.ticket-type-freshman .ud-ticket-head { background: linear-gradient(180deg, #1F9D55 0%, #136B39 100%); }
 
 .ud-ticket-station {

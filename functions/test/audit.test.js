@@ -130,6 +130,29 @@ test("timeout and cooldown changed together make one entry", () => {
 });
 test("saving the same system settings isn't logged", () => assert.strictEqual(
   audit.describeSettingsChange("system", { autoVoidMinutes: 2, cancelCooldownSeconds: 20 }, { autoVoidMinutes: 2 }, roleName), null));
+test("void at closing is its own audit entry", () => {
+  const e = ticket(t({ status: "waiting" }), t({ status: "void", autoVoided: true, closedVoid: true }));
+  assert.strictEqual(e.action, "closedVoid");
+  assert.ok(/when the window hours closed/.test(e.summary), e.summary);
+});
+const weekday = { open: true, start: 480, end: 1020 };
+const hours = { enabled: true, days: { mon: weekday, tue: weekday, wed: weekday, thu: weekday, fri: weekday, sat: { open: true, start: 480, end: 720 }, sun: { open: false, start: 480, end: 1020 } }, lastJoinMinutes: 30 };
+test("window hours first saved: turned on, with every day", () => {
+  const e = audit.describeSettingsChange("windowHours", null, hours, roleName);
+  assert.strictEqual(e.action, "windowHours");
+  assert.ok(/^Turned window hours on; Set the hours: Mon 8:00 AM–5:00 PM, .*Sat 8:00 AM–12:00 PM, Sun closed; New tickets now stop 30 minute\(s\) before closing \(was 0\)$/.test(e.summary), e.summary);
+});
+test("window hours: only the changed days are named", () => {
+  const after = JSON.parse(JSON.stringify(hours));
+  after.days.sat.open = false;
+  after.days.fri.end = 960;
+  const e = audit.describeSettingsChange("windowHours", hours, after, roleName);
+  assert.strictEqual(e.summary, "Changed the hours: Fri 8:00 AM–5:00 PM → 8:00 AM–4:00 PM, Sat 8:00 AM–12:00 PM → closed");
+});
+test("window hours turned off", () => assert.strictEqual(
+  audit.describeSettingsChange("windowHours", hours, Object.assign({}, hours, { enabled: false }), roleName).summary, "Turned window hours off"));
+test("saving the same window hours isn't logged", () => assert.strictEqual(
+  audit.describeSettingsChange("windowHours", hours, JSON.parse(JSON.stringify(hours)), roleName), null));
 test("enrollment process change names the student types", () => {
   const e = audit.describeSettingsChange("enrollment", { flows: { regular: ["cashier"] } }, { flows: { regular: ["cashier", "registrar"], freshman: ["registrar"] } }, roleName);
   assert.ok(/Regular/.test(e.summary) && /Incoming Freshman/.test(e.summary), e.summary);

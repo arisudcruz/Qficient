@@ -102,7 +102,7 @@ function checkStaffAlerts() {
       else heard.firstInLine = true;
     }
 
-    if (before && before.status !== "void" && ticket.status === "void" && ticket.autoVoided && !ticket.staleCleanup) {
+    if (before && before.status !== "void" && ticket.status === "void" && ticket.autoVoided && !ticket.staleCleanup && !ticket.closedVoid) {
       heard.voided = true;
     }
   });

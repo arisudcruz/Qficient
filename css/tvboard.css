@@ -439,6 +439,25 @@ body[data-page="pageTvBoard"] .themeToggle { display: none; }
   text-align: center;
 }
 
+/* Outside the window hours: when the windows open */
+.tv-closed-note {
+  margin: 1vh 0 0;
+  font-size: 2.2vh;
+  font-weight: 600;
+  color: #64748B;
+  text-align: center;
+}
+
+/* The window hours beside the clock */
+.tv-hours {
+  font-size: max(13px, 1.9vh);
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.tv-hours.is-closed { color: #FCA5A5; opacity: 1; }
+
 /* ---------- Choosing a preset ---------- */
 
 .tv-pick {

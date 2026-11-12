@@ -146,7 +146,7 @@ function endWalkinVisitIfOver() {
 
   var text = !last ? "This ticket is no longer active." :
     last.status === "completed" ? (last.enrollment === true ? "Your enrollment is complete." : "Your transaction for ticket " + last.ticketNo + " is complete.") :
-    last.status === "void" ? (last.autoVoided ? "Ticket " + last.ticketNo + " expired because the last call ran out." : "Ticket " + last.ticketNo + " was removed by the staff.") :
+    last.status === "void" ? (last.closedVoid ? "The windows closed for today, so ticket " + last.ticketNo + " was voided." : last.autoVoided ? "Ticket " + last.ticketNo + " expired because the last call ran out." : "Ticket " + last.ticketNo + " was removed by the staff.") :
     last.status === "cancelled" ? "Ticket " + last.ticketNo + " was cancelled." : "This ticket is no longer active.";
   if (last) markEndNoticeSeen(last.id);
 

@@ -72,6 +72,16 @@ db.collection("settings").doc("enrollment").onSnapshot(function (doc) {
   console.error("Could not load the enrollment process: " + err.message);
 });
 
+// The window hours (System Settings > Window Hours; js/window-hours.js).
+db.collection("settings").doc("windowHours").onSnapshot(function (doc) {
+  windowHours = doc.exists ? doc.data() : null;
+  windowHoursLastKey = windowHoursKey();
+  onWindowHoursChanged();
+  refreshSettings();
+}, function (err) {
+  console.error("Could not load the window hours: " + err.message);
+});
+
 var ticketsUnsubscribe = null;
 var ticketsLoaded = false; // true once the first list of tickets has arrived
 

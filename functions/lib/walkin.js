@@ -4,7 +4,7 @@
 // so the walk-in follows it in the app (temporary access) and gets alerts like any student.
 const crypto = require("crypto");
 const { startOfTodayMs, dayKey, toMs } = require("./time");
-const { JoinError, stationCapReached, nextTicketNo, withContentionRetry } = require("./join");
+const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, requireWindowHoursOpen } = require("./join");
 
 const ACTIVE_STATUSES = ["waiting", "serving", "skipped"];
 const PASS_ID_PATTERN = /^[A-Za-z0-9]{10,40}$/;
@@ -57,6 +57,7 @@ async function redeemWalkinPass(deps, auth, data) {
   if (now - toMs(pass.createdAt) >= passMs(config)) {
     throw new JoinError("deadline-exceeded", "This QR code has expired. Ask the Queue Enforcer for a new one.");
   }
+  await requireWindowHoursOpen(deps);
 
   const stationId = pass.stationId;
   const today = dayKey(config.tzOffsetMs, now);

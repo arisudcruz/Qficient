@@ -16,10 +16,10 @@ var AUDIT_CATEGORIES = [
 
 var AUDIT_ACTION_LABELS = {
   call: "Called", complete: "Completed", hold: "On Hold", lastCall: "Last Call", recall: "Recalled", prioritize: "Prioritized",
-  remove: "Removed", autoVoid: "Auto-voided", cancel: "Cancelled", verify: "Verified", create: "Created", enrollmentNext: "Enrollment Hand-off",
+  remove: "Removed", autoVoid: "Auto-voided", closedVoid: "Voided at Closing", cancel: "Cancelled", verify: "Verified", create: "Created", enrollmentNext: "Enrollment Hand-off",
   transfer: "Transferred", walkinPass: "Walk-in QR", manualTicket: "Manual Ticket", stationCreate: "Station Added", stationEdit: "Station Edited",
   stationDelete: "Station Deleted", staffAdd: "Staff Added", staffRole: "Role Changed", staffEdit: "Staff Edited",
-  staffRemove: "Staff Removed", passwordReset: "Password Reset", passwordChange: "Password Changed", unblock: "Block Lifted", settingsTimeout: "Timeout Changed",
+  staffRemove: "Staff Removed", passwordReset: "Password Reset", passwordChange: "Password Changed", unblock: "Block Lifted", settingsTimeout: "Timeout Changed", windowHours: "Window Hours",
   enrollmentFlow: "Enrollment Process", enrollmentOpen: "Enrollment On/Off", roleRules: "Role Rules",
   limitRequest: "Limit Request", limitRequestCancel: "Limit Request Cancelled", limitApprove: "Limit Approved", limitReject: "Limit Rejected", liveBoard: "Live Board Preset", signIn: "Signed In", signOut: "Signed Out",
   accountLocked: "Account Locked", accountUnlocked: "Account Unlocked"

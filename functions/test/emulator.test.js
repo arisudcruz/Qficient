@@ -163,7 +163,7 @@ const ts = (msAgo) => Timestamp.fromMillis(Date.now() - msAgo);
 
   // A walk-in who scanned the Queue Enforcer's QR code: their phone owns the ticket, so they get pushes and history.
   await db.collection("deviceTokens").doc("walk1").set({ token: "tok-walk1" });
-  await ticket("w1", "RE-002", "walk1", "registrar", { manual: true, createdBy: "enf@x.com", studentType: "guest" });
+  await ticket("w1", "RE-002", "walk1", "registrar", { manual: true, createdBy: "enf@x.com" });
   check("walk-in: the joined entry is in their history", await until(hasHistory("walk1", "joined")));
   await db.collection("tickets").doc("w1").update({ status: "serving", servingAt: FieldValue.serverTimestamp() });
   check("walk-in: 'your turn' is pushed to their phone", await until(hasPush("w1:serving")));

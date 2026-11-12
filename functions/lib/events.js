@@ -39,6 +39,7 @@ function describeChange(before, after, ctx, notify) {
   }
   if (after.status === "void" && before.status !== "void") {
     if (!notify.voided) return null;
+    if (after.closedVoid) return { type: "void", message: messages.voidedClosed(after) };
     return { type: "void", message: after.autoVoided ? messages.voidedAuto(after) : messages.voidedManual(after) };
   }
   if (after.lastCalled && after.status === "skipped" && (!before.lastCalled || lastCallAfter !== lastCallBefore)) {

@@ -216,8 +216,8 @@ function watchTicketEvents(ticket) {
       studentAlert("It's your turn! Please go to " + stationName + (windowText ? ", " + windowText : "") + " now.", "good", true, true, "bellRing",
         spokenTicketPrefix(ticket) + "It's your turn. Please go to " + stationName + (windowText ? ", " + windowText : "") + ", now.");
     } else if (ticket.status === "skipped") {
-      studentAlert("Your ticket is on hold. Return to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause",
-        spokenTicketPrefix(ticket) + "Your ticket is on hold. Please return to " + stationName + " within " + formatVoidWindow() + " to keep it.");
+      studentAlert("Your ticket is on hold. Proceed immediately to " + stationName + " within " + formatVoidWindow() + " to keep it.", "alert", true, false, "pause",
+        spokenTicketPrefix(ticket) + "Your ticket is on hold. Please proceed immediately to " + stationName + " within " + formatVoidWindow() + " to keep it.");
     }
   }
 
@@ -256,11 +256,16 @@ function showEndNotice(ticket) {
     buzz(true);
 
     var expired = !!ticket.autoVoided;
-    var title = expired ? "Your ticket expired" : "Your ticket was removed";
-    var text = expired ?
+    var closedAtHours = ticket.closedVoid === true; // still in line when the window hours closed
+    var title = closedAtHours ? "The windows have closed" : expired ? "Your ticket expired" : "Your ticket was removed";
+    var text = closedAtHours ?
+      "The windows closed for today, so ticket " + ticket.ticketNo + " was voided. This doesn't count against you." :
+      expired ?
       "Ticket " + ticket.ticketNo + " was voided because the last call ran out. You can get a new ticket anytime." :
       "Ticket " + ticket.ticketNo + " was removed by " + stationNameOf(ticket.stationId) + ". If you think this is a mistake, please ask the staff at the counter.";
-    speakStudent(expired ?
+    speakStudent(closedAtHours ?
+      spokenTicketPrefix(ticket) + "The windows have closed for today, so your ticket was voided." :
+      expired ?
       spokenTicketPrefix(ticket) + "Your ticket expired because the last call ran out. You can get a new ticket anytime." :
       spokenTicketPrefix(ticket) + "Your ticket was removed by " + stationNameOf(ticket.stationId) + ".");
 

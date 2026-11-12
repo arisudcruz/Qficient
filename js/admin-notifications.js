@@ -326,9 +326,11 @@ function openNotification(id) {
 
   if (!isNotifRead(item)) markNotificationRead(id);
 
-  // A locked account: Settings > Staffs, where its Locked tag and Unlock button are.
+  // A locked account: Settings > Staff & Roles > Staffs, where its Locked tag and Unlock button are.
   if (item.kind === "lock") {
+    settingsActiveTab = "staff";
     setAdminSection("settings");
+    if (typeof renderSettings === "function") renderSettings(); // the page may already be open on another tab
     var staffHeading = Array.prototype.find.call(document.querySelectorAll("#adminSettingsArea .panel-header h2"), function (h) {
       return h.textContent === "Staffs";
     });

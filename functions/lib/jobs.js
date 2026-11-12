@@ -1,4 +1,44 @@
 const { toMs, startOfTodayMs, dayKey, DAY_MS } = require("./time");
+const { windowHoursState } = require("./hours");
+
+// Window hours (lib/hours.js): once the windows have closed, today's tickets still in line (waiting, or On Hold)
+// are voided with closedVoid: true, which is not a strike (strikes.js) and gets its own push (events.js). Tickets
+// being served are left for the staff to finish. Runs every minute while closed, so it also catches a ticket
+// transferred after closing; with nobody in line it changes nothing. Returns how many tickets it voided.
+async function voidAtClose({ db, FieldValue, config, now }) {
+  const nowMs = now ? now() : Date.now();
+  const state = await windowHoursState({ db, config, now: function () { return nowMs; } });
+  if (!state.enabled || state.open) return 0;
+
+  const todayStart = startOfTodayMs(config.tzOffsetMs, nowMs);
+  const inLine = await db.collection("tickets").where("status", "in", ["waiting", "skipped"]).get();
+  const due = inLine.docs.filter(function (doc) { return toMs(doc.data().createdAt) >= todayStart; });
+
+  let voided = 0;
+  for (let i = 0; i < due.length; i += 400) {
+    const refs = due.slice(i, i + 400).map(function (doc) { return doc.ref; });
+    // Re-checked in one transaction, so a ticket the staff call at that moment is not voided, and the whole line
+    // goes at once (no "you're next" push to someone voided a moment later).
+    voided += await db.runTransaction(async function (transaction) {
+      const snaps = await transaction.getAll(...refs);
+      let count = 0;
+      snaps.forEach(function (snap) {
+        if (!snap.exists) return;
+        const status = snap.data().status;
+        if (status !== "waiting" && status !== "skipped") return;
+        transaction.update(snap.ref, {
+          status: "void",
+          voidedAt: FieldValue.serverTimestamp(),
+          autoVoided: true,
+          closedVoid: true
+        });
+        count++;
+      });
+      return count;
+    });
+  }
+  return voided;
+}
 
 // Voids skipped tickets whose last call has run out. Safe to run any time: each ticket is re-checked inside a
 // transaction, so a staff action that lands first always wins.
@@ -146,4 +186,4 @@ async function cleanStale({ db, FieldValue, Timestamp, config, now }) {
   return stale.length;
 }
 
-module.exports = { sweepExpired, cleanStale, dayKey };
+module.exports = { sweepExpired, voidAtClose, cleanStale, dayKey };

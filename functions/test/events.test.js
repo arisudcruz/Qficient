@@ -99,6 +99,13 @@ const autoVoid = Object.assign({}, base, { status: "void", autoVoided: true });
 test("no-show: a ticket voided when the last call ran out counts", () => assert.ok(isNoShow(held, autoVoid)));
 test("no-show: a ticket removed by staff doesn't count", () => assert.ok(!isNoShow(held, Object.assign({}, base, { status: "void" }))));
 test("no-show: the nightly cleanup of earlier days doesn't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { staleCleanup: true }))));
+test("no-show: voided because the window hours closed doesn't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { closedVoid: true }))));
+test("void at closing: the push says the windows closed, not a strike", () => {
+  const change = describeChange(base, Object.assign({}, base, { status: "void", autoVoided: true, closedVoid: true }), ctx, notify);
+  assert.strictEqual(change.type, "void");
+  assert.strictEqual(change.message.title, "Windows closed");
+  assert.ok(/doesn't count against you/.test(change.message.body) && /CA-001/.test(change.message.body), change.message.body);
+});
 test("no-show: walk-in tickets don't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { manual: true }))));
 test("no-show: old walk-in owners (manual:) don't count", () => assert.ok(!isNoShow(held, Object.assign({}, autoVoid, { ownerId: "manual:x" }))));
 test("no-show: a ticket that was already void doesn't count again", () => assert.ok(!isNoShow(autoVoid, Object.assign({}, autoVoid, { recallCount: 1 }))));

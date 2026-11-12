@@ -132,7 +132,7 @@ async function run() {
   const secret = "LoadTestSecret_0123456789";
   for (let i = 0; i < WALKINS; i++) {
     await db.collection("walkinPasses").doc("loadPass" + String(i).padStart(5, "0")).set({
-      ownerName: "Walk-in " + i, studentType: "guest", stationId: stationIds[i % stationIds.length], purpose: "Load test",
+      ownerName: "Walk-in " + i, stationId: stationIds[i % stationIds.length], purpose: "Load test",
       secretHash: hashSecret(secret), createdBy: "enf@load.test", createdAt: Timestamp.now()
     });
   }
@@ -142,7 +142,7 @@ async function run() {
   t.check("walk-ins: every pass became a ticket (" + redeems.filter((r) => r.ok).length + "/" + WALKINS + ")", redeems.every((r) => r.ok), JSON.stringify(failureCodes(redeems)));
 
   await db.collection("walkinPasses").doc("loadRace00001").set({
-    ownerName: "Race", studentType: "guest", stationId: stationIds[0], purpose: "Load test",
+    ownerName: "Race", stationId: stationIds[0], purpose: "Load test",
     secretHash: hashSecret(secret), createdBy: "enf@load.test", createdAt: Timestamp.now()
   });
   const race = await Promise.all(Array.from({ length: 10 }, (_, i) =>

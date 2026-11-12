@@ -3,15 +3,13 @@
 var STUDENT_TYPE_LABELS = {
   regular: "Regular",
   transferee: "Transferee / Irregular",
-  freshman: "Incoming Freshman",
-  guest: "Guest"
+  freshman: "Incoming Freshman"
 };
 
 var STUDENT_TYPE_SHORT_LABELS = {
   regular: "Regular",
   transferee: "Transferee",
-  freshman: "Freshman",
-  guest: "Guest"
+  freshman: "Freshman"
 };
 
 function closeStudentTypeModal() {
@@ -114,8 +112,8 @@ function notifyRecall(ticket) {
 }
 
 function notifyLastCall(ticket) {
-  studentAlert("Last call! Return to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm",
-    spokenTicketPrefix(ticket) + "Last call! Please return to " + (ticket ? stationNameOf(ticket.stationId) : "the counter") + " within " + formatVoidWindow() + ", or your ticket will be voided.");
+  studentAlert("Last call! Proceed immediately to the counter within " + formatVoidWindow() + " or your ticket will be voided.", "alert", true, true, "alarm",
+    spokenTicketPrefix(ticket) + "Last call! Please proceed immediately to " + (ticket ? stationNameOf(ticket.stationId) : "the counter") + " within " + formatVoidWindow() + ", or your ticket will be voided.");
 }
 
 // A small icon in front of a line of text (banners, the ticket's countdown); icons from js/notif-dropdown.js.
@@ -126,10 +124,10 @@ function inlineIconHtml(name, id) {
 function ticketCountdownText(phase, remainingMs) {
   if (phase === "final") {
     return remainingMs > 0 ?
-      "Last call! Return to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
+      "Last call! Proceed immediately to the counter within " + formatCountdown(remainingMs) + " or your ticket will be voided." :
       "Your ticket has expired. It will be removed from the queue shortly.";
   }
-  return "Please return to the counter. " + formatCountdown(remainingMs) + " left.";
+  return "Please proceed immediately to the counter. " + formatCountdown(remainingMs) + " left.";
 }
 
 function ticketCountdownIcon(phase, remainingMs) {
@@ -439,6 +437,12 @@ function viewMyTicket() {
 function openStation(stationId) {
   if (!user || myTicket()) return;
 
+  var closed = windowHoursClosedText();
+  if (closed) {
+    sayProblem("You can't join the queue right now", closed, "warning");
+    return;
+  }
+
   var cooldownMs = getCancelCooldownRemaining();
   if (cooldownMs > 0) {
     say("Please wait " + formatCountdown(cooldownMs) + " before joining again.");
@@ -469,6 +473,11 @@ function openEnrollment() {
   }
   if (!enrollmentOpen()) {
     say(ENROLLMENT_CLOSED_TEXT);
+    return;
+  }
+  var closed = windowHoursClosedText();
+  if (closed) {
+    sayProblem("You can't join the queue right now", closed, "warning");
     return;
   }
   if (!user.studentType) {
@@ -738,6 +747,7 @@ function enrollmentCardHtml(cooldownMs, ticket) {
     .sort(function (a, b) { return timestampToMs(b.servingAt, 0) - timestampToMs(a.servingAt, 0); })[0];
 
   var open = enrollmentOpen();
+  var hoursClosed = !!windowHoursClosedText();
   var typeReady = open && !!user.studentType && enrollmentFlowFor(user.studentType).length > 0;
   var note = !open ? ENROLLMENT_CLOSED_TEXT :
     !user.studentType ? "Set your student type to start." :
@@ -751,7 +761,7 @@ function enrollmentCardHtml(cooldownMs, ticket) {
         '<p class="ud-serving">Now serving ' + escapeHtml(latest ? latest.ticketNo : "—") + '</p>' +
         (note ? '<p class="ud-enroll-note">' + escapeHtml(note) + '</p>' : '') +
       '</div>' +
-      '<button type="button" class="ud-join" onclick="openEnrollment()"' + (cooldownMs > 0 || ticket || studentBlockedUntilMs() || !open || (user.studentType && !typeReady) ? ' disabled' : '') + '>Queue</button>' +
+      '<button type="button" class="ud-join" onclick="openEnrollment()"' + (cooldownMs > 0 || ticket || studentBlockedUntilMs() || !open || hoursClosed || (user.studentType && !typeReady) ? ' disabled' : '') + '>Queue</button>' +
     '</div>';
 }
 
@@ -761,6 +771,8 @@ function renderStationCards(cooldownMs, ticket) {
 
   // Blocked for missing their turn too often: say so, and keep the Queue buttons off.
   var blocked = !ticket && blockedJoinText();
+  // Outside the window hours (js/window-hours.js): the same, until the windows open.
+  var closed = !ticket && !blocked && windowHoursClosedText();
 
   var cards = "";
   stations.forEach(function (station) {
@@ -777,14 +789,19 @@ function renderStationCards(cooldownMs, ticket) {
             '<p class="ud-joined">' + waitingTicketsOf(station.id).length + ' waiting</p>' +
             '<p class="ud-serving">Now serving ' + escapeHtml(servingNumberText(station, servingTicket)) + '</p>' +
           '</div>' +
-          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket || blocked ? ' disabled' : '') + '>Queue</button>' +
+          '<button type="button" class="ud-join" onclick="openStation(\'' + escapeHtml(station.id) + '\')"' + (cooldownMs > 0 || ticket || blocked || closed ? ' disabled' : '') + '>Queue</button>' +
         '</div>' +
       '</div>';
   });
 
   var html = "";
+  var hoursLine = todayHoursText();
+  if (hoursLine && !closed) html += '<p class="ud-hours-line">' + escapeHtml(hoursLine) + '</p>';
   if (blocked) {
     html += '<p class="ud-banner ud-banner-blocked ud-has-icon">' + inlineIconHtml("blocked") + '<span>' + escapeHtml(blocked) + '</span></p>';
+  }
+  if (closed) {
+    html += '<p class="ud-banner ud-banner-closed ud-has-icon">' + inlineIconHtml("hourglass") + '<span>' + escapeHtml(closed) + '</span></p>';
   }
   if (ticket) {
     html += '<p class="ud-banner">You are already in line (' + escapeHtml(ticket.ticketNo) + '). <button type="button" class="ud-link" onclick="viewMyTicket()">View ticket</button></p>';
@@ -810,7 +827,8 @@ function renderJoinCard(station, ticket) {
   if (!card) return;
 
   var purposes = joinPurposesFor(station.id);
-  var key = [station.id, station.name, ticket ? "ticket" : "free", purposes.join("|")].join("::");
+  var closed = ticket ? "" : windowHoursClosedText();
+  var key = [station.id, station.name, ticket ? "ticket" : "free", purposes.join("|"), closed].join("::");
   if (key === lastJoinCardKey && card.innerHTML) return;
   lastJoinCardKey = key;
 
@@ -831,8 +849,9 @@ function renderJoinCard(station, ticket) {
     '<p class="ud-join-text">Select your purpose and generate a ticket to join the queue.</p>' +
     '<div class="ud-join-row">' +
       '<select class="ud-select" id="udPurpose" aria-label="Purpose" onchange="onPurposeChange(this.value)"' + (locked ? ' disabled' : '') + '>' + options + '</select>' +
-      '<button type="button" class="ud-generate" onclick="generateTicket()"' + (locked ? ' disabled' : '') + '>Generate Ticket</button>' +
+      '<button type="button" class="ud-generate" onclick="generateTicket()"' + (locked || closed ? ' disabled' : '') + '>Generate Ticket</button>' +
     '</div>' +
+    (closed ? '<p class="ud-notice">' + escapeHtml(closed) + '</p>' : '') +
     '<input type="text" class="ud-other" id="udPurposeOther" maxlength="100" placeholder="Please specify your purpose" aria-label="Specify your purpose" value="' + escapeHtml(otherValue) + '" oninput="onPurposeOtherInput(this.value)"' +
       (locked ? ' disabled' : '') + (current === JOIN_OTHER_PURPOSE ? '' : ' hidden') + '>';
 }
@@ -846,7 +865,8 @@ function renderEnrollmentCard(ticket) {
   var current = ticket ? (Number(ticket.enrollmentStep) || 0) : -1;
   var names = flow.map(function (id) { return stationNameById(id) || "Removed station"; });
   var open = enrollmentOpen();
-  var key = ["enroll", ticket ? ticket.id : "new", current, ticket ? ticket.status : "", names.join("|"), open].join("::");
+  var closed = ticket ? "" : windowHoursClosedText();
+  var key = ["enroll", ticket ? ticket.id : "new", current, ticket ? ticket.status : "", names.join("|"), open, closed].join("::");
   if (key === lastJoinCardKey && card.innerHTML) return;
   lastJoinCardKey = key;
 
@@ -862,6 +882,7 @@ function renderEnrollmentCard(ticket) {
     '<ol class="ud-steps" aria-label="Enrollment steps">' + steps + '</ol>' +
     '<div class="ud-join-row">' +
       (!open ? '<p class="ud-notice">' + ENROLLMENT_CLOSED_TEXT + '</p>' :
+        closed ? '<p class="ud-notice">' + escapeHtml(closed) + '</p>' :
         flow.length ?
         '<button type="button" class="ud-generate ud-generate-wide" onclick="startEnrollment()">Start Enrollment</button>' :
         '<p class="ud-notice">Enrollment isn\'t open for your student type yet.</p>') +

@@ -9,7 +9,7 @@ const { DAY_MS, startOfTodayMs, dayKey, toMs } = require("./time");
 function isNoShow(before, after) {
   return !!before && !!after &&
     before.status !== "void" && after.status === "void" &&
-    after.autoVoided === true && after.staleCleanup !== true &&
+    after.autoVoided === true && after.staleCleanup !== true && after.closedVoid !== true &&
     after.manual !== true &&
     typeof after.ownerId === "string" && after.ownerId !== "" && after.ownerId.indexOf("manual:") !== 0;
 }

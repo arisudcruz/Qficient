@@ -79,11 +79,11 @@ var QUEUE_TYPE_FILTERS = [
   { value: "regular", label: "Regular" },
   { value: "transferee", label: "Transferee / Irregular" },
   { value: "freshman", label: "Incoming Freshman" },
-  { value: "guest", label: "Guest" },
   { value: "enrollment", label: "Enrollment" }
 ];
 
-// A ticket's student type, or "unspecified" for one without (walk-ins get a type only when enrolling).
+// A ticket's student type, or "unspecified" for one without (walk-ins get a type only when enrolling; old "guest"
+// tickets from before that type was removed count here too).
 function ticketTypeOf(ticket) {
   return STUDENT_TYPE_LABELS[ticket.studentType] ? ticket.studentType : "unspecified";
 }
@@ -211,6 +211,8 @@ function resetAdminPageState() {
   settingsSelectedRole = "admin";
   settingsRoleDrafts = {};
   settingsTimeoutDraft = null;
+  settingsHoursDraft = null;
+  settingsActiveTab = "queue";
   settingsCooldownDraft = null;
   resetReportState();
   resetAuditState();

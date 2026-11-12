@@ -5,7 +5,7 @@ These run on Firebase (Google's servers), so no school PC has to stay on. They d
 | Function | When it runs | What it does |
 |---|---|---|
 | `onTicketWritten` | Every time a ticket is created or changed | Sends the student a push: **your turn**, **recall**, **skipped**, **last call**, **transferred**, **voided/removed**, and **you're next in line**. |
-| `sweepExpiredTickets` | Every minute | Voids skipped tickets whose last call has run out (using your Auto-Void minutes setting) and records a heartbeat so the admin console can warn if it stops. |
+| `sweepExpiredTickets` | Every minute | Once the Window Hours have closed, voids today's tickets still in line (no strike; tickets being served are left alone). Voids skipped tickets whose last call has run out (using your Auto-Void minutes setting) and records a heartbeat so the admin console can warn if it stops. |
 | `dailyCleanup` | 12:05 AM Philippine time | Voids leftover tickets from earlier days, frees stations still pointing at them, and deletes old walk-in passes. |
 | `joinQueue` | When a student taps Generate Ticket | Creates their ticket on the server: one live ticket per person, a 3-second gap between joins, a 20-second pause after cancelling, 10 tickets per account per day, and the station's daily cap. Limits live in `config.js`. |
 | `redeemWalkinPass` | When a walk-in scans the Queue Enforcer's QR code | Checks the one-time pass (`walkinPasses`, valid for `walkinPassMinutes`) and creates the walk-in's ticket, owned by their phone's temporary (anonymous) sign-in, so they get the same alerts as students. Needs **Anonymous** sign-in turned on (Firebase console → Authentication → Sign-in method). |

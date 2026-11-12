@@ -64,12 +64,12 @@ module.exports = {
 
   skipped: (t, station, voidMinutes) => ({
     title: "Your ticket is on hold",
-    body: "Return to " + station + " within " + minutes(voidMinutes) + " to keep ticket " + t.ticketNo + "."
+    body: "Proceed immediately to " + station + " within " + minutes(voidMinutes) + " to keep ticket " + t.ticketNo + "."
   }),
 
   lastCall: (t, station, voidMinutes) => ({
     title: "Last call",
-    body: "Return to " + station + " within " + minutes(voidMinutes) + " or ticket " + t.ticketNo + " will be voided."
+    body: "Proceed immediately to " + station + " within " + minutes(voidMinutes) + " or ticket " + t.ticketNo + " will be voided."
   }),
 
   soon: (t, station, place) => ({
@@ -117,6 +117,12 @@ module.exports = {
   voidedAuto: (t) => ({
     title: "Ticket voided",
     body: "Ticket " + t.ticketNo + " was voided because the time ran out."
+  }),
+
+  // Window hours (lib/hours.js): still in line when the windows closed. Not a strike.
+  voidedClosed: (t) => ({
+    title: "Windows closed",
+    body: "The windows closed for today, so ticket " + t.ticketNo + " was voided. This doesn't count against you."
   }),
 
   voidedManual: (t) => ({

@@ -2,6 +2,7 @@
 // be skipped or faked from a browser. Each entry in auditLogs says who, when, and in plain words what they did.
 // The describe* functions are pure (no Firebase) so they can be unit-tested; index.js wires them to the triggers.
 const { toMs } = require("./time");
+const { DAY_KEYS, minutesText } = require("./hours");
 
 const ROLE_RULE_NAMES = {
   "page.dashboard": "Dashboard",
@@ -17,7 +18,7 @@ const ROLE_RULE_NAMES = {
   walkin: "Walk-in Tickets"
 };
 
-const STUDENT_TYPE_NAMES = { regular: "Regular", transferee: "Transferee / Irregular", freshman: "Incoming Freshman", guest: "Guest" };
+const STUDENT_TYPE_NAMES = { regular: "Regular", transferee: "Transferee / Irregular", freshman: "Incoming Freshman" };
 
 function entry(category, action, summary, extra) {
   return Object.assign({ category: category, action: action, summary: summary }, extra || {});
@@ -53,6 +54,7 @@ function describeTicketAction(before, after, station) {
     }
     if (after.status === "skipped") return entry("queue", "hold", "Put " + no + " on hold at " + at.name, extra);
     if (after.status === "void") {
+      if (after.closedVoid) return entry("queue", "closedVoid", "Voided " + no + " at " + at.name + " when the window hours closed", extra);
       return after.autoVoided ?
         entry("queue", "autoVoid", "Voided " + no + " at " + at.name + " after its last call ran out", extra) :
         entry("queue", "remove", "Removed " + no + " at " + at.name, extra);
@@ -153,7 +155,35 @@ function describeLiveBoardChange(before, after, stationName) {
   return parts.length ? entry("settings", "liveBoard", parts.join("; ")) : null;
 }
 
-// Changes to System Settings, the enrollment process, the role rules and the Live Board presets. `roleName(id)`
+// One day of the window hours, e.g. "8:00 AM–5:00 PM" or "closed".
+function hoursDayText(day) {
+  return day && day.open === true ? minutesText(day.start) + "–" + minutesText(day.end) : "closed";
+}
+
+const HOURS_DAY_NAMES = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+
+function describeWindowHoursChange(b, a) {
+  const parts = [];
+  if ((b.enabled === true) !== (a.enabled === true)) parts.push(a.enabled === true ? "Turned window hours on" : "Turned window hours off");
+
+  const bd = b.days || {};
+  const ad = a.days || {};
+  const days = DAY_KEYS.slice(1).concat(DAY_KEYS[0]); // Monday first
+  const changed = days.filter(function (k) { return hoursDayText(bd[k]) !== hoursDayText(ad[k]); });
+  if (changed.length) {
+    parts.push(b.days ?
+      "Changed the hours: " + changed.map(function (k) { return HOURS_DAY_NAMES[k] + " " + hoursDayText(bd[k]) + " → " + hoursDayText(ad[k]); }).join(", ") :
+      "Set the hours: " + days.map(function (k) { return HOURS_DAY_NAMES[k] + " " + hoursDayText(ad[k]); }).join(", "));
+  }
+
+  const lastJoin = function (d) { return Number.isInteger(d.lastJoinMinutes) ? d.lastJoinMinutes : 0; };
+  if (lastJoin(b) !== lastJoin(a)) {
+    parts.push("New tickets now stop " + lastJoin(a) + " minute(s) before closing (was " + lastJoin(b) + ")");
+  }
+  return parts.length ? entry("settings", "windowHours", parts.join("; ")) : null;
+}
+
+// Changes to System Settings, the window hours, the enrollment process, the role rules and the Live Board presets. `roleName(id)`
 // names a role and `stationName(id)` a station.
 function describeSettingsChange(docId, before, after, roleName, stationName) {
   const b = before || {};
@@ -171,6 +201,8 @@ function describeSettingsChange(docId, before, after, roleName, stationName) {
     }
     return parts.length ? entry("settings", "settingsTimeout", parts.join("; ")) : null;
   }
+
+  if (docId === "windowHours") return describeWindowHoursChange(b, a);
 
   if (docId === "enrollment") {
     // The on/off switch (missing = open).

@@ -1,6 +1,6 @@
 // Queue Enforcer: staff fill in a walk-in's details and show a one-time QR code. The walk-in scans it with their
 // phone, which gets the ticket and follows it in the app until it's done (js/walkin.js, functions/lib/walkin.js).
-var ENFORCER_TYPES = ["regular", "transferee", "freshman", "guest"];
+var ENFORCER_TYPES = ["regular", "transferee", "freshman"];
 
 // Kept here so the form survives switching sections and the list refreshing underneath it.
 var ENFORCER_OTHER_PURPOSE = "__other__";
@@ -154,6 +154,10 @@ function clearEnforcerForm() {
 
 function enforcerFormProblem() {
   var d = enforcerDraft;
+
+  // Window hours (js/window-hours.js): no walk-in QR codes or manual tickets outside them; the server checks again.
+  var closed = windowHoursClosedText();
+  if (closed) return closed;
 
   if (!/\p{L}/u.test(d.firstName.trim())) return "Please enter the first name.";
   if (!/\p{L}/u.test(d.lastName.trim())) return "Please enter the last name.";
@@ -479,7 +483,7 @@ function enforcerTagsHtml(ticket) {
   if (ticket.enrollment === true) {
     tags += ' <span class="type-tag enrollment-tag">Enrollment ' + ((Number(ticket.enrollmentStep) || 0) + 1) + '/' + (ticketEnrollmentFlow(ticket).length || 1) + '</span>';
   }
-  if (ticket.studentType === "transferee" || ticket.studentType === "freshman" || ticket.studentType === "guest") {
+  if (ticket.studentType === "transferee" || ticket.studentType === "freshman") {
     // Colour-coded only for enrollees, whose process depends on the type; a plain label for everyone else.
     tags += ' <span class="type-tag' + (ticket.enrollment === true ? ' queue-row-' + ticket.studentType : '') + '">' +
       escapeAdminText(STUDENT_TYPE_SHORT_LABELS[ticket.studentType]) + '</span>';
@@ -620,6 +624,7 @@ function renderEnforcer() {
       '<div class="enforcer-main">' +
         '<section class="panel settings-panel enforcer-panel">' +
           '<div class="panel-header"><h2>Walk-in Form</h2></div>' +
+          (windowHoursClosedText() ? '<p class="enforcer-hours-closed">' + escapeAdminText(windowHoursClosedText()) + '</p>' : '') +
           '<p class="settings-help">For walk-ins who can\'t get a ticket on their own. Fill in their details and press Generate QR: they scan it with their phone camera, and the ticket (with its queue number) opens on their phone until their visit is done.</p>' +
           '<div class="enforcer-form-grid">' +
             '<div class="enforcer-field"><label for="enforcerFirstName">First Name*</label><input type="text" id="enforcerFirstName" placeholder="First Name" maxlength="50" value="' + escapeAdminText(d.firstName) + '" oninput="onEnforcerInput(\'firstName\', this.value)"></div>' +
