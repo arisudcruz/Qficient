@@ -9,10 +9,13 @@ var activeQueueStation = "cashier";
 var autoVoidIntervalId = null;
 
 // The transfer form lives inside a panel that re-renders on every live update, so its state is kept here.
-var queueTransfer = { stationId: "", purpose: "", open: false, priority: false };
+// purpose: "" keeps the ticket's current purpose, TRANSFER_OTHER_PURPOSE uses the typed `other`.
+var TRANSFER_OTHER_PURPOSE = "__other__";
+var queueTransfer = { stationId: "", purpose: "", other: "", open: false, priority: false };
 
 function resetQueueTransfer() {
-  queueTransfer = { stationId: "", purpose: "", open: false, priority: false };
+  queueTransfer = { stationId: "", purpose: "", other: "", open: false, priority: false };
+  if (typeof resetEnrollmentDetour === "function") resetEnrollmentDetour();
 }
 
 // The Transfer Ticket form stays folded away behind its button until staff need it.
@@ -181,28 +184,56 @@ function getTransferPurposes(stationId) {
   return station && Array.isArray(station.purposes) ? station.purposes : [];
 }
 
-function transferPurposeOptionsHtml(stationId) {
+// "Keep current purpose: Pay tuition" (first, the default), the receiving station's purposes, then "Others".
+function transferPurposeOptionsHtml(stationId, currentPurpose) {
+  var current = String(currentPurpose || "").trim();
+  if (current.length > 40) current = current.slice(0, 39) + "…";
   var purposes = getTransferPurposes(stationId);
-  var placeholder = (!stationId || purposes.length) ? "Select Purpose" : "Keep current purpose";
 
-  return '<option value="">' + placeholder + '</option>' + purposes.map(function (purpose) {
-    return '<option value="' + escapeAdminText(purpose) + '"' + (purpose === queueTransfer.purpose ? ' selected' : '') + '>' + escapeAdminText(purpose) + '</option>';
-  }).join("");
+  return '<option value="">' + escapeAdminText(current ? "Keep current purpose: " + current : "Keep current purpose") + '</option>' +
+    purposes.map(function (purpose) {
+      return '<option value="' + escapeAdminText(purpose) + '"' + (purpose === queueTransfer.purpose ? ' selected' : '') + '>' + escapeAdminText(purpose) + '</option>';
+    }).join("") +
+    '<option value="' + TRANSFER_OTHER_PURPOSE + '"' + (queueTransfer.purpose === TRANSFER_OTHER_PURPOSE ? ' selected' : '') + '>Others, please specify</option>';
 }
 
-// A station with its own list of purposes asks which one; any other keeps the ticket's purpose.
+// The purpose shows once a station is picked; the list follows that station's own purposes.
 function onTransferStationChange(select) {
   queueTransfer.stationId = select.value;
   queueTransfer.purpose = "";
+  queueTransfer.other = "";
 
+  var serving = getServingTicket(activeQueueStation);
   var field = document.getElementById("queueTransferPurposeField");
   var purposeSelect = document.getElementById("queueTransferPurpose");
-  if (field) field.hidden = !getTransferPurposes(queueTransfer.stationId).length;
-  if (purposeSelect) purposeSelect.innerHTML = transferPurposeOptionsHtml(queueTransfer.stationId);
+  var other = document.getElementById("queueTransferOther");
+  if (field) field.hidden = !queueTransfer.stationId;
+  if (purposeSelect) purposeSelect.innerHTML = transferPurposeOptionsHtml(queueTransfer.stationId, serving && serving.purpose);
+  if (other) {
+    other.hidden = true;
+    other.value = "";
+  }
 }
 
 function onTransferPurposeChange(select) {
   queueTransfer.purpose = select.value;
+  var other = document.getElementById("queueTransferOther");
+  if (other) {
+    other.hidden = select.value !== TRANSFER_OTHER_PURPOSE;
+    if (!other.hidden) other.focus();
+  }
+}
+
+function onTransferOtherInput(value) {
+  queueTransfer.other = value;
+}
+
+// The purpose the ticket gets: "" keeps its current one, otherwise the picked or typed one ({ error } if empty).
+function transferFinalPurpose() {
+  if (queueTransfer.purpose !== TRANSFER_OTHER_PURPOSE) return { purpose: queueTransfer.purpose };
+  var typed = String(queueTransfer.other || "").trim().replace(/\s+/g, " ");
+  if (!/[\p{L}\p{N}]/u.test(typed)) return { error: "Please specify the purpose." };
+  return { purpose: typed.slice(0, 100) };
 }
 
 function onTransferPriorityChange(input) {
@@ -222,20 +253,23 @@ function confirmTransfer(stationId) {
     say("Please choose the station to transfer to.");
     return;
   }
-  if (getTransferPurposes(dest.id).length && !queueTransfer.purpose) {
-    say("Please select the purpose for " + dest.name + ".");
+  var chosen = transferFinalPurpose();
+  if (chosen.error) {
+    say(chosen.error);
     return;
   }
+  var purposeText = chosen.purpose || serving.purpose || "";
 
   var priority = queueTransfer.priority && roleCan("prioritize");
   showConfirmModal({
     title: "Transfer ticket " + serving.ticketNo + "?",
     message: "This sends " + serving.ownerName + "'s ticket to " + dest.name + (priority ? " at the front of its line (prioritized)" : " at the back of its line") +
+      (purposeText ? ", for " + purposeText : "") +
       ". They get a new queue number there, and the next person is called to your window.",
     confirmLabel: "Transfer",
     tone: "primary",
     onConfirm: function () {
-      return transferServingTicket(stationId, dest.id, queueTransfer.purpose, priority).then(function (result) {
+      return transferServingTicket(stationId, dest.id, chosen.purpose, priority).then(function (result) {
         if (!result) return;
         resetQueueTransfer();
         renderQueueManagement();
@@ -266,9 +300,13 @@ function queueTransferHtml(station, serving) {
     '<div class="qm-transfer-body" id="queueTransferBody">' +
     '<label class="qm-label" for="queueTransferStation">To Station</label>' +
     '<select id="queueTransferStation" class="qm-select" onchange="onTransferStationChange(this)"' + (off ? ' disabled' : '') + '>' + stationOptionsHtml + '</select>' +
-    '<div id="queueTransferPurposeField"' + (getTransferPurposes(queueTransfer.stationId).length ? '' : ' hidden') + '>' +
+    '<div id="queueTransferPurposeField"' + (queueTransfer.stationId ? '' : ' hidden') + '>' +
       '<label class="qm-label" for="queueTransferPurpose">Purpose</label>' +
-      '<select id="queueTransferPurpose" class="qm-select" onchange="onTransferPurposeChange(this)">' + transferPurposeOptionsHtml(queueTransfer.stationId) + '</select>' +
+      '<select id="queueTransferPurpose" class="qm-select" onchange="onTransferPurposeChange(this)"' + (off ? ' disabled' : '') + '>' +
+        transferPurposeOptionsHtml(queueTransfer.stationId, serving && serving.purpose) + '</select>' +
+      '<input type="text" id="queueTransferOther" class="qm-select qm-transfer-other" maxlength="100" placeholder="Please specify the purpose" aria-label="Specify the purpose"' +
+        ' value="' + escapeAdminText(queueTransfer.other) + '" oninput="onTransferOtherInput(this.value)"' +
+        (queueTransfer.purpose === TRANSFER_OTHER_PURPOSE ? '' : ' hidden') + (off ? ' disabled' : '') + '>' +
     '</div>' +
     // Prioritize: front of the new station's line (PWD, senior citizens, ...). Follows the Prioritize permission.
     '<label class="enforcer-priority qm-transfer-priority"' + (roleCan("prioritize") ? '' : ' title="' + ROLE_RULE_OFF_TITLE + '"') + '>' +
@@ -489,7 +527,7 @@ function renderQueueManagement() {
   var cardHtml =
     '<div class="serving-card qm-serving-card' + (enrolleeTypeOf(serving) ? ' serving-type-' + enrolleeTypeOf(serving) : '') + '">' +
       '<div class="serving-card-top">' +
-        '<span class="serving-live"><span class="live-dot"></span>Currently Serving' +
+        '<span class="serving-live"><span class="live-dot"></span>' + (serving ? 'Currently Serving' : 'No Serving') +
           (windowLabel(stations.find(function (s) { return s.id === station; }), myWindow(station)) ?
             ' · ' + windowLabel(stations.find(function (s) { return s.id === station; }), myWindow(station)) : '') + '</span>' +
         (serving && serving.createdAt ?

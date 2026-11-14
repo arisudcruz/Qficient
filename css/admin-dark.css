@@ -381,6 +381,9 @@ body.dark .stat-dot { opacity: 0.6; }
 body.dark .enrollment-proceed-title,
 body.dark .enrollment-step-no { color: var(--ad-text); }
 body.dark .enrollment-proceed-label { color: var(--ad-muted); }
+body.dark .enrollment-route { color: var(--ad-text); background: var(--ad-field); border-color: var(--ad-line-strong); }
+body.dark .enrollment-route:has(input:checked) { border-color: var(--ad-accent); background: rgba(125, 180, 245, 0.08); }
+body.dark .enrollment-detour-note { color: var(--ad-muted); }
 body.dark .enrollment-proceed-dest { background: var(--ad-field); border-color: var(--ad-line-strong); color: var(--ad-text); }
 body.dark .type-tag.enrollment-tag { background: rgba(125, 180, 245, 0.16); color: #9CC8FA; }
 body.dark .enrollment-step-name { border-color: #3D74BC; color: #9CC8FA; }

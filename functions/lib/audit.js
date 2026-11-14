@@ -37,10 +37,19 @@ function describeTicketAction(before, after, station) {
 
   if (!before) return entry("queue", "create", "Created ticket " + no + " at " + at.name, extra);
 
-  // An enrollment student sent on to the next station of their process.
+  // An enrollment student sent on to the next station of their process, or first to another station (a detour,
+  // which adds that station to their own process).
   if (after.enrollment === true && before.stationId !== after.stationId) {
     const from = station(before.stationId);
-    return entry("queue", "enrollmentNext", "Sent " + (before.ticketNo || no) + " on from " + from.name + " to " + at.name + " as " + no,
+    const grew = Array.isArray(after.enrollmentFlow) && Array.isArray(before.enrollmentFlow) &&
+      after.enrollmentFlow.length > before.enrollmentFlow.length;
+    if (grew) {
+      return entry("queue", "enrollmentDetour", "Detoured " + (before.ticketNo || no) + " from " + from.name + " to " + at.name + " as " + no +
+        (after.prioritizedAt ? " (prioritized)" : ""),
+        { stationId: before.stationId, targetId: before.ticketNo || no });
+    }
+    return entry("queue", "enrollmentNext", "Sent " + (before.ticketNo || no) + " on from " + from.name + " to " + at.name + " as " + no +
+      (after.prioritizedAt ? " (prioritized, back from a detour)" : ""),
       { stationId: before.stationId, targetId: before.ticketNo || no });
   }
   if (before.stationId !== after.stationId) {

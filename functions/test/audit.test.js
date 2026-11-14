@@ -130,6 +130,22 @@ test("timeout and cooldown changed together make one entry", () => {
 });
 test("saving the same system settings isn't logged", () => assert.strictEqual(
   audit.describeSettingsChange("system", { autoVoidMinutes: 2, cancelCooldownSeconds: 20 }, { autoVoidMinutes: 2 }, roleName), null));
+test("an enrollment detour is its own audit entry", () => {
+  const before = t({ ticketNo: "RE1-004", stationId: "registrar", status: "serving", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar", "evaluation"] });
+  const after = t({ ticketNo: "CA1-009", stationId: "cashier", status: "waiting", enrollment: true, enrollmentStep: 2, enrollmentFlow: ["cashier", "registrar", "cashier", "evaluation"], prioritizedAt: ts(9), detourReturn: true });
+  const e = ticket(before, after);
+  assert.strictEqual(e.action, "enrollmentDetour");
+  assert.strictEqual(e.summary, "Detoured RE1-004 from Registrar to Cashier as CA1-009 (prioritized)");
+});
+test("the step after a detour is logged as prioritized", () => {
+  const before = t({ ticketNo: "CA1-009", stationId: "cashier", status: "serving", enrollment: true, enrollmentStep: 2, detourReturn: true });
+  const e = ticket(before, t({ ticketNo: "RE1-010", stationId: "registrar", status: "waiting", enrollment: true, enrollmentStep: 3, prioritizedAt: ts(10) }));
+  assert.strictEqual(e.summary, "Sent CA1-009 on from Cashier to Registrar as RE1-010 (prioritized, back from a detour)");
+});
+test("a normal enrollment step is still a hand-off", () => {
+  const before = t({ ticketNo: "RE1-004", stationId: "registrar", status: "serving", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar"] });
+  assert.strictEqual(ticket(before, t({ stationId: "cashier", status: "waiting", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar"] })).action, "enrollmentNext");
+});
 test("void at closing is its own audit entry", () => {
   const e = ticket(t({ status: "waiting" }), t({ status: "void", autoVoided: true, closedVoid: true }));
   assert.strictEqual(e.action, "closedVoid");
