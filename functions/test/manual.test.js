@@ -119,6 +119,41 @@ const form = (over) => Object.assign({ ownerName: "Lola Cruz", stationId: "cashi
   r = await attempt(enforcer, form({ enrollment: true, studentType: "freshman" }));
   check("a limit approved for today replaces the normal one", r.ok, JSON.stringify(r));
 
+  // One ticket in line per student number, however the first ticket was made.
+  {
+    const TS = admin.firestore.Timestamp;
+    const DAY = 24 * 60 * 60 * 1000;
+    await db.collection("settings").doc("enrollment").set({ flows: { regular: ["cashier"] } }, { merge: true });
+    const seed = (id, no, status, createdMs) => db.collection("tickets").doc(id).set({
+      ticketNo: id.toUpperCase(), stationId: "registrar", ownerId: "app-" + id, status: status, studentNumber: no,
+      createdAt: TS.fromMillis(createdMs || Date.now())
+    });
+    const regular = (no) => form({ enrollment: true, studentType: "regular", studentNumber: no });
+
+    await seed("dup1", "02000-555001", "waiting");
+    r = await attempt(enforcer, regular("02000-555001"));
+    check("a student number already in line can't get a manual ticket", !r.ok && r.code === "failed-precondition" &&
+      r.message === "Student number 02000-555001 already has ticket DUP1 in line at Registrar.", JSON.stringify(r));
+
+    await seed("dup2", "02000555002", "serving");
+    r = await attempt(enforcer, regular("02000-555002"));
+    check("an app ticket (digits only) counts for the same number", !r.ok && /already has ticket DUP2/.test(r.message), JSON.stringify(r));
+
+    await seed("dup3", "02000-555003", "skipped");
+    r = await attempt(enforcer, regular("02000-555003"));
+    check("a ticket on hold counts too", !r.ok && /already has ticket DUP3/.test(r.message), JSON.stringify(r));
+    await db.collection("tickets").doc("dup3").update({ status: "completed" });
+    r = await attempt(enforcer, regular("02000-555003"));
+    check("once that ticket is done, the number can get a new one", r.ok, JSON.stringify(r));
+
+    await seed("dup4", "02000-555004", "waiting", Date.now() - 2 * DAY);
+    r = await attempt(enforcer, regular("02000-555004"));
+    check("a ticket left over from an earlier day doesn't count", r.ok, JSON.stringify(r));
+
+    r = await attempt(enforcer, regular("02000-555004"));
+    check("a second manual ticket for the same number is refused", !r.ok && /already has ticket/.test(r.message), JSON.stringify(r));
+  }
+
   console.log(failures ? "\n" + failures + " FAILED" : "\nALL PASSED");
   process.exit(failures ? 1 : 0);
 })().catch((error) => {

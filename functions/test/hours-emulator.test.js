@@ -39,7 +39,13 @@ const HOURS = {
   lastJoinMinutes: 30
 };
 
-const student = (uid) => ({ uid, token: { firebase: { sign_in_provider: "microsoft.com" }, name: "Dela Cruz, Juan", email: "jd2000111111@stimalolos.edu.ph" } });
+// Each test student gets their own school email, so their own student number (one ticket in line per number).
+function testEmail(uid) {
+  let n = 7;
+  for (const c of String(uid)) n = (n * 31 + c.charCodeAt(0)) % 900000;
+  return "jd" + (100000 + n) + "@stimalolos.edu.ph";
+}
+const student = (uid) => ({ uid, token: { firebase: { sign_in_provider: "microsoft.com" }, name: "Dela Cruz, Juan", email: testEmail(uid) } });
 const phone = (uid) => ({ uid, token: { firebase: { sign_in_provider: "anonymous" } } });
 const builtInAdmin = { uid: "admin", token: { email: "admin@qficient.com", firebase: { sign_in_provider: "password" } } };
 

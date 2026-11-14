@@ -65,6 +65,21 @@ function normalizeStudentNumber(value) {
   return /^02000\d{6}$/.test(digits) ? "02000-" + digits.slice(5) : "";
 }
 
+// One ticket in line per student number (the server checks too, in functions/lib/join.js). App tickets keep the
+// number as digits ("02000123456"), walk-in tickets with a dash ("02000-123456"), so only the digits are compared.
+// Returns why a new ticket can't be made for this number, or "".
+function studentNumberInLineText(studentNumber) {
+  var digits = String(studentNumber || "").replace(/\D/g, "");
+  if (!digits) return "";
+  var existing = tickets.find(function (t) {
+    return ACTIVE_TICKET_STATUSES.indexOf(t.status) !== -1 && isTodayTicket(t) &&
+      String(t.studentNumber || "").replace(/\D/g, "") === digits;
+  });
+  if (!existing) return "";
+  var where = stationNameById(existing.stationId);
+  return "Student number " + studentNumber + " already has ticket " + existing.ticketNo + " in line" + (where ? " at " + where : "") + ".";
+}
+
 function syncEnforcerStudentNumberField() {
   var field = document.getElementById("enforcerStudentNoField");
   if (field) field.style.display = enforcerNeedsStudentNumber() ? "" : "none";
@@ -169,6 +184,8 @@ function enforcerFormProblem() {
     if (enforcerNeedsStudentNumber()) {
       if (!d.studentNumber.trim()) return "Please enter the student number (02000-XXXXXX).";
       if (!normalizeStudentNumber(d.studentNumber)) return "Please enter a valid student number, like 02000-123456.";
+      var inLine = studentNumberInLineText(normalizeStudentNumber(d.studentNumber));
+      if (inLine) return inLine;
     }
     var flow = enrollmentFlowFor(d.studentType);
     if (!flow.length) return "Enrollment isn't set up for " + STUDENT_TYPE_LABELS[d.studentType] + " students yet.";

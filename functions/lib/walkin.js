@@ -4,7 +4,7 @@
 // so the walk-in follows it in the app (temporary access) and gets alerts like any student.
 const crypto = require("crypto");
 const { startOfTodayMs, dayKey, toMs } = require("./time");
-const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, requireWindowHoursOpen } = require("./join");
+const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, requireWindowHoursOpen, requireStudentNumberFree } = require("./join");
 
 const ACTIVE_STATUSES = ["waiting", "serving", "skipped"];
 const PASS_ID_PATTERN = /^[A-Za-z0-9]{10,40}$/;
@@ -64,6 +64,11 @@ async function redeemWalkinPass(deps, auth, data) {
   const dayStart = startOfTodayMs(config.tzOffsetMs, now);
   const stationRef = db.collection("stations").doc(stationId);
   const stateRef = db.collection("joinState").doc(auth.uid);
+
+  // One ticket in line per student number; checked before the pass is claimed, so a refused pass isn't used up.
+  if (typeof pass.studentNumber === "string" && pass.studentNumber) {
+    await requireStudentNumberFree(db, pass.studentNumber, dayStart, false);
+  }
 
   if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please see the Queue Enforcer.");

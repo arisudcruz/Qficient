@@ -24,7 +24,13 @@ const tz = config.tzOffsetMs;
 // 10:00 AM Manila today, so a few hours either way stay on the same queue day.
 let clock = startOfTodayMs(tz, Date.now()) + 10 * HOUR;
 const deps = { db, FieldValue, Timestamp, config, now: () => clock };
-const student = (uid) => ({ uid, token: { firebase: { sign_in_provider: "microsoft.com" }, name: "Dela Cruz, Juan", email: "jd2000123456@stimalolos.edu.ph" } });
+// Each test student gets their own school email, so their own student number (one ticket in line per number).
+function testEmail(uid) {
+  let n = 7;
+  for (const c of String(uid)) n = (n * 31 + c.charCodeAt(0)) % 900000;
+  return "jd" + (100000 + n) + "@stimalolos.edu.ph";
+}
+const student = (uid) => ({ uid, token: { firebase: { sign_in_provider: "microsoft.com" }, name: "Dela Cruz, Juan", email: testEmail(uid) } });
 const ticketOf = (id, uid) => ({ id, ownerId: uid, ownerName: "Dela Cruz, Juan", studentNumber: "020002000123456", ticketNo: "CA1-0" + id.slice(-2) });
 const state = async (uid) => ((await db.collection("joinState").doc(uid).get()).data() || {});
 const limit = config.cancelBlock.limit;
