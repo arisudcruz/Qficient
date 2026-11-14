@@ -489,7 +489,7 @@ function renderQueueManagement() {
   var cardHtml =
     '<div class="serving-card qm-serving-card' + (enrolleeTypeOf(serving) ? ' serving-type-' + enrolleeTypeOf(serving) : '') + '">' +
       '<div class="serving-card-top">' +
-        '<span class="serving-live"><span class="live-dot"></span>Currently Serving' +
+        '<span class="serving-live"><span class="live-dot"></span>' + (serving ? 'Currently Serving' : 'No Serving') +
           (windowLabel(stations.find(function (s) { return s.id === station; }), myWindow(station)) ?
             ' · ' + windowLabel(stations.find(function (s) { return s.id === station; }), myWindow(station)) : '') + '</span>' +
         (serving && serving.createdAt ?
