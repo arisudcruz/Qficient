@@ -327,7 +327,11 @@ service cloud.firestore {
     function isStationStaffEnrollmentStep() {
       let r = resource.data;
       let d = request.resource.data;
-      return isStationStaffOf(r.stationId) &&
+      // Cheap checks first, so a write this rule can't allow stops here (a rule check may evaluate at most 1000
+      // expressions, and the ticket rules are long).
+      return r.get('enrollment', false) == true && r.status == 'serving' &&
+        d.get('enrollmentFlow', []).size() == r.get('enrollmentFlow', []).size() &&
+        isStationStaffOf(r.stationId) &&
         r.get('enrollment', false) == true &&
         r.status == 'serving' &&
         changedKeys().hasOnly(['stationId', 'ticketNo', 'status', 'verified', 'createdAt', 'enrollmentStep',
@@ -347,10 +351,63 @@ service cloud.firestore {
         d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
         !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
         !('recallCount' in d) && !('nextNotified' in d) && !('window' in d) &&
-        // Back of the line, or the front again (a fresh mark) when coming back from a detour; either way the
-        // detour mark is cleared.
-        (!('prioritizedAt' in d) || (r.get('detourReturn', false) == true && d.prioritizedAt == request.time)) &&
+        // Back of the line, or the front (a fresh mark) when staff tick Prioritize or the student is coming back from
+        // a detour; either way the detour mark is cleared.
+        (!('prioritizedAt' in d) ||
+          (d.prioritizedAt == request.time &&
+           (r.get('detourReturn', false) == true || roleAllows(r.stationId, 'prioritize')))) &&
         !('detourReturn' in d);
+    }
+
+    // Transfer Ticket for an enrollee, to a station staff picked other than the next step:
+    //   - a later step of their process: the steps in between are dropped (Registrar* -> Assessment*, skipping
+    //     Evaluation), and the steps from there on stay exactly as they were;
+    //   - any other station: added as an extra step, then the rest of their process (Registrar* -> Accounting*,
+    //     Evaluation, ...).
+    // Steps already done never change. Back of the line, or the front when staff tick Prioritize. Uses the Transfer
+    // permission (System Rules).
+    function isStationStaffEnrollmentReroute() {
+      let r = resource.data;
+      let d = request.resource.data;
+      let step = r.get('enrollmentStep', 0);
+      let size = r.get('enrollmentFlow', []).size();
+      // Cheap checks first (see isStationStaffEnrollmentStep): one step longer, or shorter, and no detour mark.
+      return r.get('enrollment', false) == true && r.status == 'serving' &&
+        (d.get('enrollmentFlow', []).size() == size + 1 || d.get('enrollmentFlow', []).size() < size) &&
+        !('detourReturn' in d) &&
+        isStationStaffOf(r.stationId) &&
+        r.get('enrollment', false) == true &&
+        r.status == 'serving' &&
+        changedKeys().hasOnly(['stationId', 'ticketNo', 'status', 'verified', 'createdAt', 'enrollmentStep', 'enrollmentFlow',
+                               'transferredFrom', 'previousTicketNo', 'transferredAt', 'servingAt',
+                               'verifiedAt', 'recalledAt', 'recallCount', 'prioritizedAt', 'nextNotified', 'window',
+                               'detourReturn']) &&
+        d.enrollmentFlow is list && d.enrollmentFlow.size() <= 21 &&
+        d.enrollmentStep == step + 1 && d.enrollmentStep < d.enrollmentFlow.size() &&
+        d.enrollmentFlow[0:step + 1] == r.enrollmentFlow[0:step + 1] &&
+        (
+          // An extra step (at the last step there is nothing after it to compare; an empty range isn't allowed).
+          (d.enrollmentFlow.size() == size + 1 &&
+            (step + 1 == size || d.enrollmentFlow[step + 2:size + 1] == r.enrollmentFlow[step + 1:size])) ||
+          // A later step: what remains is exactly the end of the old process, at least one step shorter.
+          (d.enrollmentFlow.size() < size &&
+            d.enrollmentFlow[step + 1:d.enrollmentFlow.size()] ==
+              r.enrollmentFlow[size - (d.enrollmentFlow.size() - step - 1):size])
+        ) &&
+        d.stationId is string && d.stationId == d.enrollmentFlow[step + 1] &&
+        d.stationId != r.stationId && stationIsOpen(d.stationId) &&
+        d.status == 'waiting' &&
+        d.verified == false &&
+        d.createdAt == request.time &&
+        d.transferredAt == request.time &&
+        d.transferredFrom == r.stationId &&
+        d.previousTicketNo == r.ticketNo &&
+        d.ticketNo is string && d.ticketNo.size() >= 3 && d.ticketNo.size() <= 20 &&
+        !('servingAt' in d) && !('verifiedAt' in d) && !('recalledAt' in d) &&
+        !('recallCount' in d) && !('nextNotified' in d) && !('window' in d) &&
+        (!('prioritizedAt' in d) || (d.prioritizedAt == request.time && roleAllows(r.stationId, 'prioritize'))) &&
+        !('detourReturn' in d) &&
+        roleAllows(r.stationId, 'transfer');
     }
 
     // An enrollment detour: the student being served is sent to another open station and then back to this one. Both
@@ -360,9 +417,12 @@ service cloud.firestore {
     function isStationStaffEnrollmentDetour() {
       let r = resource.data;
       let d = request.resource.data;
-      let step = r.enrollmentStep;
-      let size = r.enrollmentFlow.size();
-      return isStationStaffOf(r.stationId) &&
+      let step = r.get('enrollmentStep', 0);
+      let size = r.get('enrollmentFlow', []).size();
+      // Cheap checks first (see isStationStaffEnrollmentStep): two steps longer, with the detour mark.
+      return r.get('enrollment', false) == true && r.status == 'serving' &&
+        d.get('enrollmentFlow', []).size() == size + 2 && d.get('detourReturn', false) == true &&
+        isStationStaffOf(r.stationId) &&
         r.get('enrollment', false) == true &&
         r.status == 'serving' &&
         changedKeys().hasOnly(['stationId', 'ticketNo', 'status', 'verified', 'createdAt', 'enrollmentStep', 'enrollmentFlow',
@@ -398,7 +458,9 @@ service cloud.firestore {
     function isStationStaffTransfer() {
       let r = resource.data;
       let d = request.resource.data;
-      return isStationStaffOf(r.stationId) &&
+      // Cheap checks first (see isStationStaffEnrollmentStep).
+      return r.get('enrollment', false) != true && r.status == 'serving' &&
+        isStationStaffOf(r.stationId) &&
         r.status == 'serving' &&
         r.get('enrollment', false) != true &&
         changedKeys().hasOnly(['stationId', 'ticketNo', 'purpose', 'status', 'verified', 'createdAt',
@@ -435,7 +497,7 @@ service cloud.firestore {
       // the ticket on the server.
       allow create: if isAdmin();
       allow update: if isAdmin() || isEnforcerEdit() || isStationStaffEdit() || isStationStaffTransfer() ||
-        isStationStaffEnrollmentStep() || isStationStaffEnrollmentDetour() || (signedIn() && isOwnerCancelling());
+        isStationStaffEnrollmentStep() || isStationStaffEnrollmentReroute() || isStationStaffEnrollmentDetour() || (signedIn() && isOwnerCancelling());
       allow delete: if false;
     }
 

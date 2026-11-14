@@ -37,20 +37,27 @@ function describeTicketAction(before, after, station) {
 
   if (!before) return entry("queue", "create", "Created ticket " + no + " at " + at.name, extra);
 
-  // An enrollment student sent on to the next station of their process, or first to another station (a detour,
-  // which adds that station to their own process).
+  // An enrollment student sent on: to the next station of their process, to one staff picked (an extra step, or a
+  // later step skipping the ones in between), or on a detour (there and back, two steps added).
   if (after.enrollment === true && before.stationId !== after.stationId) {
     const from = station(before.stationId);
-    const grew = Array.isArray(after.enrollmentFlow) && Array.isArray(before.enrollmentFlow) &&
-      after.enrollmentFlow.length > before.enrollmentFlow.length;
-    if (grew) {
-      return entry("queue", "enrollmentDetour", "Detoured " + (before.ticketNo || no) + " from " + from.name + " to " + at.name + " as " + no +
-        (after.prioritizedAt ? " (prioritized)" : ""),
-        { stationId: before.stationId, targetId: before.ticketNo || no });
+    const target = { stationId: before.stationId, targetId: before.ticketNo || no };
+    const sizeOf = function (t) { return Array.isArray(t.enrollmentFlow) ? t.enrollmentFlow.length : 0; };
+    const change = Array.isArray(after.enrollmentFlow) && Array.isArray(before.enrollmentFlow) ? sizeOf(after) - sizeOf(before) : 0;
+    const prioritized = after.prioritizedAt ? " (prioritized)" : "";
+    if (change >= 2) {
+      return entry("queue", "enrollmentDetour", "Detoured " + (before.ticketNo || no) + " from " + from.name + " to " + at.name + " as " + no + prioritized, target);
+    }
+    if (change === 1) {
+      return entry("queue", "enrollmentReroute", "Sent " + (before.ticketNo || no) + " from " + from.name + " to " + at.name + " as " + no +
+        " (extra step" + (after.prioritizedAt ? ", prioritized" : "") + ")", target);
+    }
+    if (change < 0) {
+      return entry("queue", "enrollmentReroute", "Sent " + (before.ticketNo || no) + " from " + from.name + " to " + at.name + " as " + no +
+        " (skipped " + (-change) + (change === -1 ? " step" : " steps") + (after.prioritizedAt ? ", prioritized" : "") + ")", target);
     }
     return entry("queue", "enrollmentNext", "Sent " + (before.ticketNo || no) + " on from " + from.name + " to " + at.name + " as " + no +
-      (after.prioritizedAt ? " (prioritized, back from a detour)" : ""),
-      { stationId: before.stationId, targetId: before.ticketNo || no });
+      (after.prioritizedAt ? (before.detourReturn === true ? " (prioritized, back from a detour)" : " (prioritized)") : ""), target);
   }
   if (before.stationId !== after.stationId) {
     return entry("queue", "transfer", "Moved " + (before.ticketNo || no) + " to " + at.name + " as " + no + (after.prioritizedAt ? " (prioritized)" : ""), extra);

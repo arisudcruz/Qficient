@@ -554,8 +554,9 @@ function completeCurrentTicket(stationId) {
 }
 
 // Sends the enrollment student being served at this station on to the next station of their process, with a new
-// number there at the back of its line, or finishes their enrollment at the last station. The serving
-// window is left empty (Call Next fills it). Resolves true when it went through.
+// number there at the back of its line (or the front: opts.priority, or coming back from a detour), or finishes
+// their enrollment at the last station. The serving window is left empty (Call Next fills it). Resolves true when it
+// went through.
 function proceedEnrollmentTicket(sourceStationId, opts) {
   opts = opts || {};
   if (!canServeStation(sourceStationId)) {
@@ -632,8 +633,8 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
         verifiedAt: remove,
         recalledAt: remove,
         recallCount: remove,
-        // Back from a detour (detourEnrollmentTicket): front of the line again; otherwise the back, as usual.
-        prioritizedAt: ticket.detourReturn === true ? now : remove,
+        // Staff ticked Prioritize, or back from a detour (detourEnrollmentTicket): front of the line; otherwise the back.
+        prioritizedAt: (opts.priority === true && roleCan("prioritize")) || ticket.detourReturn === true ? now : remove,
         detourReturn: remove,
         nextNotified: remove,
         window: remove
@@ -644,7 +645,115 @@ function proceedEnrollmentTicket(sourceStationId, opts) {
   }).then(function (result) {
     // A walk-in without a phone (manual ticket) hears it from the staff, so they always see it, even on Call Next.
     if (serving.noPhone === true) tellNoPhoneWalkin(serving.ownerName, "Please go to " + result.stationName + ". Your new number is " + result.ticketNo + ".", result.ticketNo);
-    else if (!opts.quiet) sayDone(serving.ticketNo + " moves on to " + result.stationName + " as " + result.ticketNo + ".");
+    else if (!opts.quiet) sayDone(serving.ticketNo + " moves on to " + result.stationName + " as " + result.ticketNo + (opts.priority ? " (prioritized)." : "."));
+    return true;
+  }).catch(function (err) {
+    say("Could not send the ticket on: " + err.message);
+    return false;
+  });
+}
+
+// Where an enrollment goes when staff pick `destId` in Transfer Ticket (rerouteEnrollmentTicket), with what the
+// change is: "next" (the process is unchanged), "skip" (a later step: the steps in between are dropped, `skipped`
+// counts them) or "insert" (any other station: added as an extra step, then the rest of the process).
+//   Cashier, Registrar*, Evaluation, Assessment  + Accounting  ->  Cashier, Registrar, Accounting*, Evaluation, Assessment
+//   Cashier, Registrar*, Evaluation, Assessment  + Assessment  ->  Cashier, Registrar, Assessment*
+function enrollmentFlowTo(ticket, destId) {
+  var flow = ticketEnrollmentFlow(ticket);
+  var step = Number(ticket.enrollmentStep) || 0;
+  var done = flow.slice(0, step + 1);
+  var ahead = flow.slice(step + 1);
+  var at = ahead.indexOf(destId);
+  if (at === 0) return { kind: "next", flow: flow.slice(), skipped: 0 };
+  if (at > 0) return { kind: "skip", flow: done.concat(ahead.slice(at)), skipped: at, skippedIds: ahead.slice(0, at) };
+  return { kind: "insert", flow: done.concat([destId], ahead), skipped: 0 };
+}
+
+// Sends the enrollment student being served here to a station staff picked other than the next step: a later step of
+// their process (skipping the ones in between) or another station (an extra step, then the rest of their process).
+// Only this ticket's process changes; Enrollment Settings are unchanged. Resolves true when it went through.
+function rerouteEnrollmentTicket(sourceStationId, destStationId, priority) {
+  if (!canServeStation(sourceStationId)) {
+    refuseStation();
+    return Promise.resolve(false);
+  }
+  if (roleRuleBlocks("transfer", "transfer tickets")) return Promise.resolve(false);
+
+  var serving = myServingTicket(sourceStationId);
+  if (!serving || serving.enrollment !== true) {
+    say("No enrollment ticket is currently being served.");
+    return Promise.resolve(false);
+  }
+  var dest = stations.find(function (s) { return s.id === destStationId; });
+  if (!dest || destStationId === sourceStationId) {
+    say("Please choose the station to transfer to.");
+    return Promise.resolve(false);
+  }
+  if (dest.active === false) {
+    say(dest.name + " is currently unavailable.");
+    return Promise.resolve(false);
+  }
+  if (stationLimitToday(dest) > 0 && countStationTicketsToday(destStationId) >= stationLimitToday(dest)) {
+    say(dest.name + " has reached its daily queue limit.");
+    return Promise.resolve(false);
+  }
+  var plan = enrollmentFlowTo(serving, destStationId);
+  if (plan.kind === "next") return proceedEnrollmentTicket(sourceStationId, { priority: priority });
+  if (plan.flow.length > ENROLLMENT_FLOW_MAX) {
+    say("This enrollment already has too many steps for another one.");
+    return Promise.resolve(false);
+  }
+
+  var destRef = db.collection("stations").doc(destStationId);
+  var ticketRef = db.collection("tickets").doc(serving.id);
+  var now = firebase.firestore.FieldValue.serverTimestamp();
+  var remove = firebase.firestore.FieldValue.delete();
+  var step = Number(serving.enrollmentStep) || 0;
+  var prioritize = priority === true && roleCan("prioritize");
+
+  return db.runTransaction(function (transaction) {
+    return Promise.all([transaction.get(destRef), transaction.get(ticketRef)]).then(function (docs) {
+      var destData = docs[0].data();
+      var ticket = docs[1].data();
+
+      if (!destData || destData.active === false) throw new Error(dest.name + " is currently unavailable.");
+      if (!ticket || ticket.status !== "serving" || ticket.stationId !== sourceStationId || ticket.enrollment !== true) {
+        throw new Error("This ticket is no longer being served here.");
+      }
+      if ((Number(ticket.enrollmentStep) || 0) !== step) throw new Error("This ticket has already moved on.");
+
+      var today = queueDayKey(Date.now());
+      var isNewDay = destData.countDay !== today;
+      var newCount = isNewDay ? 1 : (destData.count || 0) + 1;
+      var ticketNo = formatTicketNo(destData.code || stationCodeOf(destStationId), newCount);
+
+      transaction.update(destRef, isNewDay ? { count: newCount, countDay: today } : { count: newCount });
+      transaction.update(ticketRef, {
+        stationId: destStationId,
+        ticketNo: ticketNo,
+        status: "waiting",
+        verified: false,
+        createdAt: now,
+        enrollmentStep: step + 1,
+        enrollmentFlow: enrollmentFlowTo(ticket, destStationId).flow,
+        transferredFrom: sourceStationId,
+        previousTicketNo: ticket.ticketNo,
+        transferredAt: now,
+        servingAt: remove,
+        verifiedAt: remove,
+        recalledAt: remove,
+        recallCount: remove,
+        prioritizedAt: prioritize ? now : remove,
+        detourReturn: remove,
+        nextNotified: remove,
+        window: remove
+      });
+
+      return { ticketNo: ticketNo, stationName: destData.name };
+    });
+  }).then(function (result) {
+    if (serving.noPhone === true) tellNoPhoneWalkin(serving.ownerName, "Please go to " + result.stationName + ". Your new number is " + result.ticketNo + ".", result.ticketNo);
+    else sayDone(serving.ticketNo + " goes to " + result.stationName + " as " + result.ticketNo + (prioritize ? " (prioritized)." : "."));
     return true;
   }).catch(function (err) {
     say("Could not send the ticket on: " + err.message);
@@ -661,7 +770,7 @@ function enrollmentFlowWithDetour(ticket, destId) {
   return flow.slice(0, step + 1).concat([destId, ticket.stationId], flow.slice(step + 1));
 }
 
-var ENROLLMENT_FLOW_MAX = 21; // keep in step with isStationStaffEnrollmentDetour in firestore.rules
+var ENROLLMENT_FLOW_MAX = 21; // keep in step with the enrollment rules in firestore.rules
 
 // Sends the enrollment student being served here to another station first (a detour), at the front of its line, and
 // then back here, at the front again. Both stops are added to this ticket's own process only; Enrollment Settings are
