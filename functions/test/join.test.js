@@ -21,7 +21,13 @@ let clock = Date.now();
 const deps = { db, FieldValue, Timestamp, config, now: () => clock };
 const advance = (ms) => { clock += ms; };
 
-const student = (uid, extra) => ({ uid, token: Object.assign({ firebase: { sign_in_provider: "microsoft.com" }, name: "Dela Cruz, John Aris", email: "jd2000123456@stimalolos.edu.ph" }, extra || {}) });
+// Each test student gets their own school email, so their own student number (one ticket in line per number).
+function testEmail(uid) {
+  let n = 7;
+  for (const c of String(uid)) n = (n * 31 + c.charCodeAt(0)) % 900000;
+  return "jd" + (100000 + n) + "@stimalolos.edu.ph";
+}
+const student = (uid, extra) => ({ uid, token: Object.assign({ firebase: { sign_in_provider: "microsoft.com" }, name: "Dela Cruz, John Aris", email: uid === "s1" ? "jd2000123456@stimalolos.edu.ph" : testEmail(uid) }, extra || {}) });
 const guest = (uid) => ({ uid, token: { firebase: { sign_in_provider: "anonymous" } } });
 const staff = (uid) => ({ uid, token: { firebase: { sign_in_provider: "password" }, email: "admin@qficient.com" } });
 
@@ -269,6 +275,25 @@ async function station(id, extra) {
   const { assignStationCodes } = require("../lib/join");
   const codes = assignStationCodes([{ id: "b", name: "Admission B" }, { id: "a", name: "Admission A" }, { id: "c", name: "Cashier", code: "AD1" }]);
   check("codes: missing codes follow station id order and skip saved ones", codes.a === "AD2" && codes.b === "AD3" && codes.c === "AD1", JSON.stringify(codes));
+
+  // One ticket in line per student number: a walk-in ticket made with a student's number counts as theirs.
+  {
+    advance(10000);
+    await db.collection("tickets").doc("dupJ1").set({
+      ticketNo: "RE1-060", stationId: "registrar", ownerId: "nophone:abc", status: "waiting", studentNumber: "02000-555060",
+      createdAt: Timestamp.fromMillis(clock)
+    });
+    const sn = student("sn1", { email: "delacruz.555060@stimalolos.edu.ph" });
+    r = await attempt(sn, { stationId: "registrar", purpose: "Tuition" });
+    check("a student whose number already has a walk-in ticket can't join", !r.ok && r.code === "failed-precondition" &&
+      r.message === "Your student number already has ticket RE1-060 in line at Registrar (made at the front desk).", JSON.stringify(r));
+    await db.collection("tickets").doc("dupJ1").update({ status: "completed" });
+    r = await attempt(sn, { stationId: "registrar", purpose: "Tuition" });
+    check("once that ticket is done, they can join", r.ok, JSON.stringify(r));
+    advance(10000);
+    r = await attempt(sn, { stationId: "registrar", purpose: "Tuition" });
+    check("their own app ticket still gets the usual message", !r.ok && /already have an active ticket/.test(r.message), JSON.stringify(r));
+  }
 
   console.log(failures ? "\n" + failures + " FAILED" : "\nALL PASSED");
   process.exit(failures ? 1 : 0);

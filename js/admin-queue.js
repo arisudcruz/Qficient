@@ -16,6 +16,7 @@ var queueTransfer = { stationId: "", purpose: "", other: "", open: false, priori
 function resetQueueTransfer() {
   queueTransfer = { stationId: "", purpose: "", other: "", open: false, priority: false };
   if (typeof resetEnrollmentDetour === "function") resetEnrollmentDetour();
+  if (typeof resetEnrollmentHandoff === "function") resetEnrollmentHandoff();
 }
 
 // The Transfer Ticket form stays folded away behind its button until staff need it.

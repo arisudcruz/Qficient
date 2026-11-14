@@ -132,7 +132,7 @@ test("saving the same system settings isn't logged", () => assert.strictEqual(
   audit.describeSettingsChange("system", { autoVoidMinutes: 2, cancelCooldownSeconds: 20 }, { autoVoidMinutes: 2 }, roleName), null));
 test("an enrollment detour is its own audit entry", () => {
   const before = t({ ticketNo: "RE1-004", stationId: "registrar", status: "serving", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar", "evaluation"] });
-  const after = t({ ticketNo: "CA1-009", stationId: "cashier", status: "waiting", enrollment: true, enrollmentStep: 2, enrollmentFlow: ["cashier", "registrar", "cashier", "evaluation"], prioritizedAt: ts(9), detourReturn: true });
+  const after = t({ ticketNo: "CA1-009", stationId: "cashier", status: "waiting", enrollment: true, enrollmentStep: 2, enrollmentFlow: ["cashier", "registrar", "cashier", "registrar", "evaluation"], prioritizedAt: ts(9), detourReturn: true });
   const e = ticket(before, after);
   assert.strictEqual(e.action, "enrollmentDetour");
   assert.strictEqual(e.summary, "Detoured RE1-004 from Registrar to Cashier as CA1-009 (prioritized)");
@@ -145,6 +145,22 @@ test("the step after a detour is logged as prioritized", () => {
 test("a normal enrollment step is still a hand-off", () => {
   const before = t({ ticketNo: "RE1-004", stationId: "registrar", status: "serving", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar"] });
   assert.strictEqual(ticket(before, t({ stationId: "cashier", status: "waiting", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar"] })).action, "enrollmentNext");
+});
+test("an enrollee sent to another station gets an extra-step entry", () => {
+  const before = t({ ticketNo: "RE1-004", stationId: "registrar", status: "serving", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar", "evaluation"] });
+  const e = ticket(before, t({ ticketNo: "CA1-010", stationId: "cashier", status: "waiting", enrollment: true, enrollmentStep: 2, enrollmentFlow: ["cashier", "registrar", "cashier", "evaluation"] }));
+  assert.strictEqual(e.action, "enrollmentReroute");
+  assert.strictEqual(e.summary, "Sent RE1-004 from Registrar to Cashier as CA1-010 (extra step)");
+});
+test("an enrollee sent to a later step gets a skipped entry, prioritized", () => {
+  const before = t({ ticketNo: "CA1-004", stationId: "cashier", status: "serving", enrollment: true, enrollmentStep: 0, enrollmentFlow: ["cashier", "evaluation", "assessment", "registrar"] });
+  const e = ticket(before, t({ ticketNo: "RE1-011", stationId: "registrar", status: "waiting", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar"], prioritizedAt: ts(4) }));
+  assert.strictEqual(e.summary, "Sent CA1-004 from Cashier to Registrar as RE1-011 (skipped 2 steps, prioritized)");
+});
+test("a prioritized normal step says prioritized", () => {
+  const before = t({ ticketNo: "CA1-005", stationId: "cashier", status: "serving", enrollment: true, enrollmentStep: 0, enrollmentFlow: ["cashier", "registrar"] });
+  assert.strictEqual(ticket(before, t({ ticketNo: "RE1-012", stationId: "registrar", status: "waiting", enrollment: true, enrollmentStep: 1, enrollmentFlow: ["cashier", "registrar"], prioritizedAt: ts(5) })).summary,
+    "Sent CA1-005 on from Cashier to Registrar as RE1-012 (prioritized)");
 });
 test("void at closing is its own audit entry", () => {
   const e = ticket(t({ status: "waiting" }), t({ status: "void", autoVoided: true, closedVoid: true }));

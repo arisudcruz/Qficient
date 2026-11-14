@@ -5,7 +5,7 @@
 // Same safe path as joinQueue and redeemWalkinPass: daily cap, the station's next number in a transaction.
 const crypto = require("crypto");
 const { startOfTodayMs, dayKey } = require("./time");
-const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, requireWindowHoursOpen } = require("./join");
+const { JoinError, stationCapReached, nextTicketNo, withContentionRetry, requireWindowHoursOpen, requireStudentNumberFree } = require("./join");
 
 const ADMIN_EMAIL = "admin@qficient.com";
 const ENROLLMENT_PURPOSE = "Enrollment";
@@ -98,6 +98,9 @@ async function createManualTicket(deps, auth, data) {
   const today = dayKey(config.tzOffsetMs, now);
   const dayStart = startOfTodayMs(config.tzOffsetMs, now);
   const stationRef = db.collection("stations").doc(stationId);
+
+  // One ticket in line per student number (an app ticket, a QR or another manual ticket).
+  if (studentNumber) await requireStudentNumberFree(db, studentNumber, dayStart, false);
 
   if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit.");

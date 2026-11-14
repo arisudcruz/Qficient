@@ -133,6 +133,23 @@ const SECRET = "Abc123_-xyzXYZ789secret";
   r = await attempt(phone("w6"), { passId: "passFull001", secret: SECRET });
   check("a limit approved for today lets the walk-in in", r.ok, JSON.stringify(r));
 
+  // One ticket in line per student number: a pass for a number already in line is refused and not used up.
+  {
+    await db.collection("tickets").doc("dupW1").set({
+      ticketNo: "RE1-050", stationId: "registrar", ownerId: "app-x", status: "waiting", studentNumber: "02000555050",
+      createdAt: Timestamp.fromMillis(clock)
+    });
+    await makePass("passDupNo01", SECRET, { studentType: "regular", studentNumber: "02000-555050" });
+    r = await attempt(phone("wDup1"), { passId: "passDupNo01", secret: SECRET });
+    check("a walk-in QR for a student number already in line is refused", !r.ok && r.code === "failed-precondition" &&
+      /Student number 02000-555050 already has ticket RE1-050 in line at Registrar/.test(r.message), JSON.stringify(r));
+    const p = (await db.collection("walkinPasses").doc("passDupNo01").get()).data();
+    check("the refused pass is not used up", !p.usedAt && !p.claimedBy, JSON.stringify(p));
+    await db.collection("tickets").doc("dupW1").update({ status: "completed" });
+    r = await attempt(phone("wDup1"), { passId: "passDupNo01", secret: SECRET });
+    check("once that ticket is done, the same pass works", r.ok, JSON.stringify(r));
+  }
+
   console.log(failures ? "\n" + failures + " FAILED" : "\nALL PASSED");
   process.exit(failures ? 1 : 0);
 })().catch((error) => {

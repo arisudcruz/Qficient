@@ -2941,6 +2941,11 @@ body[data-page="pageAdmin"] .themeToggle { display: none; }
 
 .enrollment-proceed .enrollment-proceed-btn { margin-top: 6px; }
 
+/* Transfer Ticket for an enrollee: the station list, its note and Prioritize */
+.enrollment-proceed .enrollment-to-station { width: 100%; }
+.enrollment-proceed .enrollment-detour-note { margin: 6px 0 10px; }
+.enrollment-proceed .enrollment-priority { margin: 0 0 10px; }
+
 /* Transfer: the typed purpose under "Others, please specify" */
 .qm-transfer-other { margin-top: 6px; }
 

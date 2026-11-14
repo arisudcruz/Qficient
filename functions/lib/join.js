@@ -56,6 +56,42 @@ function studentNumberFromEmail(email) {
   return digits ? "02000" + digits : "";
 }
 
+// A student number as it may be stored: walk-in tickets keep "02000-123456" (the Walk-in Form), app tickets keep
+// the digits from the school email, "02000123456". Both mean the same student.
+function studentNumberForms(studentNumber) {
+  const digits = String(studentNumber || "").replace(/\D/g, "");
+  if (!digits) return [];
+  const forms = [digits];
+  if (digits.length > 5) forms.push(digits.slice(0, 5) + "-" + digits.slice(5));
+  return forms;
+}
+
+// The ticket a student number already has in line today (waiting, being served or on hold), or null.
+// One student number holds one ticket in line, however it was made (app, Walk-in QR or Manual Ticket).
+// `exceptOwnerId`: leave out that account's own tickets (joinQueue reports those with its own message).
+async function activeTicketForStudentNumber(db, studentNumber, dayStart, exceptOwnerId) {
+  const forms = studentNumberForms(studentNumber);
+  if (!forms.length) return null;
+  const snap = await db.collection("tickets").where("studentNumber", "in", forms).get();
+  const found = snap.docs.map(function (doc) { return doc.data(); }).find(function (t) {
+    return ACTIVE_STATUSES.indexOf(t.status) !== -1 && toMs(t.createdAt) >= dayStart &&
+      !(exceptOwnerId && t.ownerId === exceptOwnerId);
+  });
+  return found || null;
+}
+
+// Refuses a new ticket when the student number already has one in line. `ownStudentUid`: the student joining from
+// their own app (their own tickets are left to the one-ticket rule, and the wording says "your").
+async function requireStudentNumberFree(db, studentNumber, dayStart, ownStudentUid) {
+  const existing = await activeTicketForStudentNumber(db, studentNumber, dayStart, ownStudentUid || "");
+  if (!existing) return;
+  const station = await db.collection("stations").doc(existing.stationId || "-").get();
+  const where = station.exists && station.data().name ? " at " + station.data().name : "";
+  throw new JoinError("failed-precondition", ownStudentUid ?
+    "Your student number already has ticket " + existing.ticketNo + " in line" + where + " (made at the front desk)." :
+    "Student number " + studentNumber + " already has ticket " + existing.ticketNo + " in line" + where + ".");
+}
+
 function cleanText(value, max) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
@@ -205,6 +241,9 @@ async function joinQueue(deps, auth, data) {
   const today = dayKey(config.tzOffsetMs, now);
   const dayStart = startOfTodayMs(config.tzOffsetMs, now);
 
+  // A walk-in ticket made with this student's number counts as their ticket.
+  await requireStudentNumberFree(db, studentNumber, dayStart, auth.uid);
+
   if (await stationCapReached(db, stationId, dayStart, today)) {
     throw new JoinError("resource-exhausted", "This station has reached its daily queue limit. Please try again tomorrow.");
   }
@@ -304,4 +343,5 @@ async function joinQueue(deps, auth, data) {
   }
 }
 
-module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, cancelCooldownMsOf, nextTicketNo, withContentionRetry, requireWindowHoursOpen };
+module.exports = { joinQueue, JoinError, ticketPrefix, assignStationCodes, formatTicketNo, studentNumberFromEmail, stationCapReached, stationLimitFor, cancelCooldownMsOf, nextTicketNo, withContentionRetry, requireWindowHoursOpen,
+  studentNumberForms, activeTicketForStudentNumber, requireStudentNumberFree };
