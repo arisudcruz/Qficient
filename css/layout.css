@@ -2877,6 +2877,73 @@ body[data-page="pageAdmin"] .themeToggle { display: none; }
   background: #1F9D55;
 }
 
+/* Proceed, or a detour to another station first (js/admin-enrollment.js) */
+/* The two choices side by side. */
+.enrollment-routes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.enrollment-routes .enrollment-route { margin: 0; }
+
+/* Each choice: the radio on the left, its text left-aligned beside it. The global form styles
+   (css/forms.css) make every input full width with padding, so the radio is reset here. */
+.enrollment-route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid #D6E0EC;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.enrollment-route:has(input:checked) {
+  border-color: #0054A6;
+  background: #F2F7FF;
+}
+
+.enrollment-route input[type="radio"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  accent-color: #0054A6;
+  cursor: pointer;
+}
+
+.enrollment-route span { flex: 1 1 auto; min-width: 0; text-align: left; line-height: 1.35; }
+.enrollment-route input:disabled { cursor: not-allowed; }
+.enrollment-route:has(input:disabled) { cursor: not-allowed; }
+.enrollment-route input:disabled + span { opacity: 0.55; }
+
+.enrollment-detour { margin: 0 0 12px; padding: 0 2px; }
+.enrollment-detour .qm-select { width: 100%; }
+
+.enrollment-detour-note {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: #64748B;
+  line-height: 1.4;
+}
+
+.enrollment-proceed .enrollment-proceed-btn { margin-top: 6px; }
+
+/* Transfer: the typed purpose under "Others, please specify" */
+.qm-transfer-other { margin-top: 6px; }
+
 .type-tag.enrollment-tag {
   background: #E4EEFF;
   color: #0054A6;
